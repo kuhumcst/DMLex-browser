@@ -1,0 +1,9 @@
+.shadow-cljs/
+.cpcache/
+node_modules/
+public/js/
+public/data/
+package-lock.json
+*.log
+datasets/
+.fuse_hidden*

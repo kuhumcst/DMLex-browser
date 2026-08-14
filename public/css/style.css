@@ -1,0 +1,251 @@
+/* A typography-first dictionary view: Old Style serifs in black, white and
+   grey, with a single crimson accent. */
+
+:root {
+  --ink:     #1d1d1f;
+  --dark:    #3a3a3c;   /* secondary text: examples, inflections, pos */
+  --grey:    #58585c;   /* small metadata: keys, citations, counts */
+  --light:   #d2d2d7;   /* rules and idle link underlines */
+  --faint:   #f5f5f7;   /* the search field */
+  --panel:   #fafafb;   /* the relations panel */
+  --accent:  #901a1e;
+  --visited: #8f5f63;
+  --key-col: 10.5rem;
+  --serif:   'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052,
+             serif;
+  --sans:    -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica,
+             Arial, sans-serif;
+}
+
+/* Base */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 40rem; margin: 0 auto; padding: 3rem 1.5rem 7rem; }
+
+dl, dd, blockquote, p, h1 { margin: 0; padding: 0; }
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--light);
+  text-underline-offset: 2.5px;
+}
+
+a:hover { text-decoration-color: var(--accent); }
+a:visited { color: var(--visited); }
+
+abbr[title] { text-decoration: none; cursor: help; }
+dfn { font-style: normal; }
+mark { background: none; font-weight: 700; color: inherit; }
+
+summary {
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--grey);
+}
+
+/* The small-caps metadata voice: keys, citations and stat names. */
+.labels dt, .relations dt, .stats dt, .example cite {
+  font-family: var(--sans);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+}
+
+.form-label { font-size: 0.8em; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Search */
+
+search { display: block; }
+
+search input {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--light);
+  border-radius: 0.7rem;
+  background: var(--faint);
+  color: var(--ink);
+}
+
+search input:focus { outline: none; border-color: var(--grey); background: #fff; }
+
+.results { list-style: none; margin: 1.75rem 0 0; padding: 0; }
+.results li { padding: 0.5rem 0; }
+.results a { text-decoration: none; font-size: 1.2rem; }
+.results a:hover { text-decoration: underline; }
+.results .pos { margin-left: 0.65rem; color: var(--grey); }
+
+.result-count {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--grey);
+  margin: 1.75rem 0 0;
+}
+
+/* Entry header */
+
+.headword {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--accent);
+  margin: 2.75rem 0 0.4rem;
+}
+
+sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
+
+.pos { font-style: italic; color: var(--dark); }
+p.pos { margin: 0 0 0.4rem; }
+
+.inflections { color: var(--dark); line-height: 1.7; margin: 0.6rem 0 0; }
+.inflections div, .inflections dd { display: inline; }
+.inflections div + div::before { content: ", "; }
+
+.paradigm { margin: 0.5rem 0 0; }
+.paradigm table { border-collapse: collapse; margin-top: 0.5rem; }
+.paradigm th {
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--grey);
+  padding: 0.15rem 1.25rem 0.15rem 0;
+}
+.paradigm td { padding: 0.15rem 0; font-size: 1rem; }
+.paradigm .form-label { color: var(--grey); }
+
+/* Labels and relations share one aligned key/value layout: keys sit
+   right-aligned in a fixed column next to the values. Only the relations
+   carry the dividing rule; the classification stands unframed. */
+
+.labels {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--grey);
+  line-height: 1.7;
+}
+
+.labels div,
+.relations div {
+  position: relative;
+  margin-left: calc(var(--key-col) + 0.85rem);
+  padding: 0.2rem 0 0.2rem 0.85rem;
+}
+
+.relations div { border-left: 1px solid var(--light); }
+
+.labels dt,
+.relations dt {
+  position: absolute;
+  right: calc(100% + 0.85rem);
+  top: 0.2rem;
+  width: var(--key-col);
+  text-align: right;
+  font-size: 0.85rem;
+}
+
+.labels dd { display: inline; }
+.labels dd + dd::before { content: ", "; }
+
+.entry-labels, .sense-labels { margin-top: 0.95rem; }
+
+@media (max-width: 40rem) {
+  .labels div,
+  .relations div { margin-left: 0; border-left: none; padding-left: 0; }
+  .labels dt,
+  .relations dt {
+    position: static;
+    width: auto;
+    text-align: left;
+    display: block;
+  }
+  .relations { padding: 0.75rem 1rem; }
+}
+
+/* Senses */
+
+.senses { list-style: none; counter-reset: sense; margin: 2.5rem 0 0; padding: 0; }
+
+.sense { position: relative; padding-left: 2.2rem; margin: 0 0 2.25rem; }
+
+.sense::before {
+  counter-increment: sense;
+  content: counter(sense);
+  position: absolute;
+  left: 0;
+  font-family: var(--sans);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.senses.single .sense { padding-left: 0; }
+.senses.single .sense::before { content: none; }
+
+.indicator { color: var(--grey); font-style: normal; font-weight: 700; }
+.sep { color: var(--light); margin: 0 0.45em; }
+
+.example { color: var(--dark); font-style: italic; margin: 0.5rem 0 0; }
+.example p { display: inline; }
+.example footer { display: inline; margin-left: 0.45rem; }
+.example cite { font-style: normal; font-size: 0.85rem; }
+
+/* Relations */
+
+.relations {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  background: var(--panel);
+  border-radius: 0.6rem;
+  padding: 0.75rem 1rem 0.75rem 0;
+}
+
+.relations details { display: block; }
+.member-list { margin: 0.25rem 0 0; }
+
+/* Colophon */
+
+.colophon {
+  margin-top: 4.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--light);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--grey);
+}
+
+.colophon .resource { margin-bottom: 0.25rem; }
+
+.stats div { display: inline; }
+.stats div + div::before { content: " · "; }
+.stats dt { display: inline; margin-right: 0.4em; }
+.stats dd { display: inline; color: var(--dark); }
+
+.intro { color: var(--grey); margin-top: 3rem; }
+.error { color: var(--grey); margin-top: 3rem; }
