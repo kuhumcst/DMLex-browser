@@ -307,8 +307,10 @@
                                                 (.. e -target -value)))
                               :keydown (fn [e]
                                          (when (= "Enter" (.-key e))
-                                           (when-let [row (first (matches index query))]
-                                             (goto-entry! (:file row)))))}}]]
+                                           (if (str/blank? query)
+                                             (set! (.-hash js/location) "")
+                                             (when-let [row (first (matches index query))]
+                                               (goto-entry! (:file row))))))}}]]
    [:main
     (when (or (seq query) (not entry))
       [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
