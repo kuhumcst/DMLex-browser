@@ -1,6 +1,10 @@
 {:deps     {:aliases [:shadow]}
- :builds   {:app {:target     :browser
-                  :output-dir "public/js"
-                  :asset-path "js"
-                  :modules    {:main {:init-fn dk.cst.dmlex-viewer.app/init}}}}
+ :builds   {:app  {:target     :browser
+                   :output-dir "public/js"
+                   :asset-path "js"
+                   :modules    {:main {:init-fn dk.cst.dmlex-viewer.app/init}}}
+            ;; The frontend tests: npx shadow-cljs compile test
+            ;;                     node out/node-tests.js
+            :test {:target    :node-test
+                   :output-to "out/node-tests.js"}}
  :dev-http {8000 "public"}}

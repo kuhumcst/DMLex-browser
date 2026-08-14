@@ -6,13 +6,13 @@
           classification, and a panel of related words.">
 
 A generic viewer for [DMLex 1.0](https://docs.oasis-open.org/lexidma/dmlex/v1.0/os/dmlex-v1.0-os.html)
-lexicographic resources. The viewer shows a DMLex file as a dictionary. It
-has one search field, hyperlink navigation, and a typography-first entry
-display in black, white and grey.
+lexicographic resources. The viewer shows a DMLex file as a dictionary.
+It has one search field, hyperlink navigation, and a typography-first
+entry display in black, white and grey.
 
 The viewer is a static site with no server and no database. A build step
-shards the single-file DMLex JSON serialization into small data files. The
-browser fetches only the entry that it shows.
+shards the single-file DMLex JSON serialization into small data files.
+The browser fetches only the entry that it shows.
 
 The project began as a side project of DanNet. It works on any DMLex 1.0
 JSON file and holds no DanNet knowledge. The frontend uses ClojureScript
@@ -24,7 +24,7 @@ and [Replicant](https://github.com/cjohansen/replicant), without React.
 2. Run the build:
 
 ```sh
-clj -J-Xmx8g -M:build datasets/your-dmlex.json
+clojure -J-Xmx8g -M:build datasets/your-dmlex.json
 ```
 
 The build writes three kinds of file into `public/data/`:
@@ -34,20 +34,17 @@ The build writes three kinds of file into `public/data/`:
   resource language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
 
-The build resolves the display data before the frontend runs. Labels carry
-the description and the `sameAs` URI of their `labelTag`. Inflected forms
-carry the description of their `inflectedFormTag` and a computed affix, for
-example `-t` for the form *mennesket*. Each relation attaches to its member
-entries and senses as display rows. Rows with the same relation type, seen
-from the same side, merge into one row.
+The build resolves the display data before the frontend runs. Labels
+carry the description and the `sameAs` URI of their `labelTag`.
+Inflected forms carry the description of their `inflectedFormTag` and a
+computed affix, for example `-t` for the form *mennesket*. Each relation
+attaches to its member entries and senses as display rows. Rows with the
+same relation type and the same direction merge into one row.
 
 ## Build the frontend
 
 1. Install the npm dependencies: `npm install`
 2. Compile the release build: `npx shadow-cljs release app`
-
-For development, use `npx shadow-cljs watch app`. The watch compiles on
-each change and serves `public/` at <http://localhost:8000>.
 
 ## Serve
 
@@ -86,9 +83,34 @@ and an `llms.txt` for AI agents. The audit record against
 [The Website Specification](https://specification.website/) is in
 [doc/website-spec.md](doc/website-spec.md).
 
+## Develop and test
+
+Start the development watch:
+
+```sh
+npx shadow-cljs watch app
+```
+
+The watch compiles on each change and serves `public/` at
+<http://localhost:8000>.
+
+The resolution logic of the data build has JVM tests:
+
+```sh
+clojure -M:test
+```
+
+The search and view logic of the frontend has Node tests:
+
+```sh
+npx shadow-cljs compile test && node out/node-tests.js
+```
+
 ## TODO
 
 - Add an optional presentation configuration for each dataset: a small
   JSON file next to the data. The configuration can hide, rename, and
   reorder label types. The mechanism stays generic, and the taste stays
   dataset-specific. The viewer never learns what a label type means.
+  The analysis and the plan are in
+  [doc/presentation-config.md](doc/presentation-config.md).

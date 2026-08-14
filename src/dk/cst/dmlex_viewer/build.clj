@@ -7,7 +7,7 @@
   field, and one file per entry under entries/ with every tag and relation
   resolved for display, so that the frontend needs no other lookup.
 
-  Usage: clj -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"
+  Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str])
@@ -239,9 +239,9 @@
   [& [in out]]
   (if in
     (build! in (or out "public/data"))
-    (println "Usage: clj -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"))
+    (println "Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"))
   (shutdown-agents))
 
 (comment
-  (build! "../DanNet/export/dmlex/dannet-dmlex.json" "public/data")
+  (build! "datasets/example-dmlex.json" "public/data")
   #_.)

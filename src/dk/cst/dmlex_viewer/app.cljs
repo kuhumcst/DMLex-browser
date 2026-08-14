@@ -9,11 +9,12 @@
             [replicant.dom :as r]))
 
 (defonce state
-  (atom {:manifest nil
-         :index    nil
-         :query    ""
-         :entry    nil
-         :error    nil}))
+  (atom {:manifest    nil
+         :index       nil
+         :index-error nil
+         :query       ""
+         :entry       nil
+         :error       nil}))
 
 (defn fetch-json!
   "Fetch the JSON file at `path` and call `callback` with its parsed
@@ -34,7 +35,9 @@
                  (on-error e))))))
 
 (defn load-index!
-  "Fetch the search index and cache a lowercase headword on every row."
+  "Fetch the search index and cache a lowercase headword on every row.
+  A failure lands in :index-error rather than :error, so the search view
+  can surface it even while an entry is on screen."
   []
   (fetch-json! "data/index.json"
                (fn [rows]
@@ -45,15 +48,20 @@
                                  :file     file
                                  :pos      pos
                                  :hom      hom})
-                              rows)))))
+                              rows)))
+               (fn [e]
+                 (swap! state assoc :index-error (.-message e)))))
 
 (defn matches
-  "The first 100 rows of `index` whose headword begins with `query`."
-  [index query]
-  (let [q (str/lower-case query)]
-    (into [] (comp (filter #(str/starts-with? (:lower %) q))
-                   (take 100))
-          index)))
+  "The first `n` (default 100) rows of `index` whose headword begins with
+  `query`."
+  ([index query]
+   (matches index query 100))
+  ([index query n]
+   (let [q (str/lower-case query)]
+     (into [] (comp (filter #(str/starts-with? (:lower %) q))
+                    (take n))
+           index))))
 
 (defn distinct-by
   "The elements of `coll`, keeping the first occurrence of each `(f x)`."
@@ -276,6 +284,16 @@
            (when hom [:sup.hom hom])]
           (when (seq pos) [:i.pos pos])])])))
 
+(defn search-view
+  "The search results of `query` over `index`, or the `index-error` when
+  the index failed to load. Nil while the index is still loading."
+  [index index-error query]
+  (cond
+    index       (results-view (matches index query) query)
+    index-error [:p.error {:lang "en"}
+                 "The search index failed to load. Reload the page to try
+                  again."]))
+
 (defn footer-view
   "The colophon at the foot of every view: the title, the counts and the
   URI of the resource."
@@ -291,7 +309,7 @@
 
 (defn app
   "The root view over one value of the app state."
-  [{:keys [manifest index query entry error]}]
+  [{:keys [manifest index index-error query entry error]}]
   [:div.container
    [:search
     [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
@@ -309,13 +327,13 @@
                                          (when (= "Enter" (.-key e))
                                            (if (str/blank? query)
                                              (set! (.-hash js/location) "")
-                                             (when-let [row (first (matches index query))]
+                                             (when-let [row (first (matches index query 1))]
                                                (goto-entry! (:file row))))))}}]]
    [:main
     (when (or (seq query) (not entry))
       [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
     (cond
-      (seq query) (results-view (matches index query) query)
+      (seq query) (search-view index index-error query)
       entry       (entry-view entry)
       error       [:p.error {:lang "en"}
                    "The page failed to load. "
