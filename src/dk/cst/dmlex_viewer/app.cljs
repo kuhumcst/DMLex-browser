@@ -16,15 +16,22 @@
          :error    nil}))
 
 (defn fetch-json!
-  "Fetch the JSON file at `path` and call `callback` with its parsed content."
-  [path callback]
-  (-> (js/fetch path)
-      (.then (fn [res]
-               (if (.-ok res)
-                 (.json res)
-                 (throw (js/Error. (str path ": " (.-status res)))))))
-      (.then (fn [data] (callback (js->clj data :keywordize-keys true))))
-      (.catch (fn [e] (swap! state assoc :error (.-message e))))))
+  "Fetch the JSON file at `path` and call `callback` with its parsed
+  content. When the fetch fails, call `on-error` with the error; by default
+  this puts the error message into the app state."
+  ([path callback]
+   (fetch-json! path callback
+                (fn [e] (swap! state assoc :error (.-message e)))))
+  ([path callback on-error]
+   (-> (js/fetch path)
+       (.then (fn [res]
+                (if (.-ok res)
+                  (.json res)
+                  (throw (js/Error. (str path ": " (.-status res)))))))
+       (.then (fn [data] (callback (js->clj data :keywordize-keys true))))
+       (.catch (fn [e]
+                 (js/console.error e)
+                 (on-error e))))))
 
 (defn load-index!
   "Fetch the search index and cache a lowercase headword on every row."
@@ -66,6 +73,15 @@
   (swap! state assoc :query "")
   (set! (.-hash js/location) (str "/entry/" file)))
 
+(defn update-title!
+  "Set the document title from the current entry and the manifest title."
+  []
+  (let [{:keys [entry manifest]} @state]
+    (set! (.-title js/document)
+          (str/join " – " (remove nil? [(:headword entry)
+                                        (or (:title manifest)
+                                            "DMLex viewer")])))))
+
 (defn route!
   "Load the entry of the current URL fragment, or return to the front page."
   []
@@ -73,8 +89,13 @@
     (fetch-json! (str "data/entries/" file ".json")
                  (fn [entry]
                    (swap! state assoc :entry entry :error nil)
-                   (.scrollTo js/window 0 0)))
-    (swap! state assoc :entry nil :error nil)))
+                   (update-title!)
+                   (.scrollTo js/window 0 0))
+                 (fn [e]
+                   (swap! state assoc :entry nil :error (.-message e))
+                   (update-title!)))
+    (do (swap! state assoc :entry nil :error nil)
+        (update-title!))))
 
 ;; -----------------------------------------------------------------------------
 ;; Views
@@ -106,7 +127,7 @@
                 (into [:div {:replicant/key i}
                        (if type
                          [:dt (tagged type typeDescription)]
-                         [:dt.visually-hidden "label"])]
+                         [:dt.visually-hidden {:lang "en"} "label"])]
                       (map label-dd group))))
             (partition-by :type labels)))))
 
@@ -123,7 +144,7 @@
     (if (> (count members) 10)
       [:dd
        [:details
-        [:summary (str (count members) " entries")]
+        [:summary {:lang "en"} (str (count members) " entries")]
         (into [:p.member-list] links)]]
       (into [:dd] links))))
 
@@ -192,7 +213,7 @@
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details.paradigm
-     [:summary "all forms"]
+     [:summary {:lang "en"} "all forms"]
      [:table
       (into [:tbody]
             (map-indexed
@@ -235,18 +256,25 @@
       headword)))
 
 (defn results-view
-  "The search result `rows` as a list, with the `query` prefix marked."
+  "The search result `rows` as a list, with the `query` prefix marked. A
+  status line announces the row count to assistive technology."
   [rows query]
-  (if (empty? rows)
-    [:p.result-count "No matches"]
-    [:ol.results
-     (for [{:keys [headword file pos hom]} rows]
-       [:li {:replicant/key file}
-        [:a {:href (str "#/entry/" file)
-             :on   {:click (fn [_] (swap! state assoc :query ""))}}
-         (result-headword headword query)
-         (when hom [:sup.hom hom])]
-        (when (seq pos) [:i.pos pos])])]))
+  (list
+    [:p.result-count {:role  "status"
+                      :lang  "en"
+                      :class (when (seq rows) "visually-hidden")}
+     (if (empty? rows)
+       "No matches"
+       (str (count rows) " matches shown"))]
+    (when (seq rows)
+      [:ol.results
+       (for [{:keys [headword file pos hom]} rows]
+         [:li {:replicant/key file}
+          [:a {:href (str "#/entry/" file)
+               :on   {:click (fn [_] (swap! state assoc :query ""))}}
+           (result-headword headword query)
+           (when hom [:sup.hom hom])]
+          (when (seq pos) [:i.pos pos])])])))
 
 (defn footer-view
   "The colophon at the foot of every view: the title, the counts and the
@@ -256,7 +284,7 @@
     [:footer.colophon
      [:p.resource (or title "DMLex resource")
       (when uri (list " · " [:a {:href uri} uri]))]
-     [:dl.stats
+     [:dl.stats {:lang "en"}
       [:div [:dt "entries"] [:dd entries]]
       [:div [:dt "senses"] [:dd senses]]
       [:div [:dt "relations"] [:dd relations]]]]))
@@ -266,24 +294,33 @@
   [{:keys [manifest index query entry error]}]
   [:div.container
    [:search
-    [:input {:type        "search"
-             :placeholder "Search…"
-             :value       query
-             :autofocus   true
-             :on          {:input   (fn [e]
-                                      (swap! state assoc :query
-                                             (.. e -target -value)))
-                           :keydown (fn [e]
-                                      (when (= "Enter" (.-key e))
-                                        (when-let [row (first (matches index query))]
-                                          (goto-entry! (:file row)))))}}]]
-   (cond
-     (seq query) (results-view (matches index query) query)
-     entry       (entry-view entry)
-     error       [:p.error error]
-     :else       [:p.intro
-                  "Type a word in the search field to look it up. Every
-                   underlined word links to another word in the dictionary."])
+    [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
+    [:input {:id             "search"
+             :type           "search"
+             :placeholder    "Search…"
+             :value          query
+             :autofocus      true
+             :enterkeyhint   "go"
+             :autocapitalize "none"
+             :on             {:input   (fn [e]
+                                         (swap! state assoc :query
+                                                (.. e -target -value)))
+                              :keydown (fn [e]
+                                         (when (= "Enter" (.-key e))
+                                           (when-let [row (first (matches index query))]
+                                             (goto-entry! (:file row)))))}}]]
+   [:main
+    (when (or (seq query) (not entry))
+      [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
+    (cond
+      (seq query) (results-view (matches index query) query)
+      entry       (entry-view entry)
+      error       [:p.error {:lang "en"}
+                   "The page failed to load. "
+                   [:a {:href "#/"} "Go to the front page."]]
+      :else       [:p.intro {:lang "en"}
+                   "Type a word in the search field to look it up. Every
+                    underlined word links to another word in the dictionary."])]
    (footer-view manifest)])
 
 (defn render!
@@ -296,10 +333,11 @@
   []
   (add-watch state ::render (fn [_ _ _ _] (render!)))
   (fetch-json! "data/manifest.json"
-               (fn [manifest]
+               (fn [{:keys [langCode] :as manifest}]
                  (swap! state assoc :manifest manifest)
-                 (when-let [title (:title manifest)]
-                   (set! (.-title js/document) title))))
+                 (when langCode
+                   (set! (.-lang js/document.documentElement) langCode))
+                 (update-title!)))
   (load-index!)
   (.addEventListener js/window "hashchange" route!)
   (route!)
