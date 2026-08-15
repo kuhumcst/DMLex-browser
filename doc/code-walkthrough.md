@@ -2,9 +2,9 @@
 
 Scope: the entire source tree, i.e. the three commits on `main` up to
 `6779692` plus the uncommitted work on top of them: the loose-end fixes
-(the search-index error path, the `matches` limit arity), the test
-suite, and the Apple Dictionary export. Written 2026-08-14, extended
-2026-08-15.
+(the search-index error path among them), the test suite, the Apple
+Dictionary export, and the page layout and combobox accessibility work.
+Written 2026-08-14, extended 2026-08-15.
 
 ## The short version
 
@@ -218,7 +218,7 @@ concatenation of the shared
 ## 4. The frontend
 
 Entry point: `init` at
-[app.cljs:341-354](../src/dk/cst/dmlex_viewer/app.cljs#L341), wired in
+[app.cljs:399-412](../src/dk/cst/dmlex_viewer/app.cljs#L399), wired in
 as the `:init-fn` in [shadow-cljs.edn:5](../shadow-cljs.edn#L5):
 
 ```clojure
@@ -236,81 +236,82 @@ as the `:init-fn` in [shadow-cljs.edn:5](../shadow-cljs.edn#L5):
 ```
 
 The architecture is the smallest possible: a single `defonce` atom
-([app.cljs:12-18](../src/dk/cst/dmlex_viewer/app.cljs#L12)) holding
-`{:manifest :index :index-error :query :entry :error}`, a watch that re-renders the
-whole app on any change, and Replicant diffing the resulting hiccup into
-the DOM. Note the manifest callback setting `documentElement.lang` at
+([app.cljs:12-19](../src/dk/cst/dmlex_viewer/app.cljs#L12)) holding
+`{:manifest :index :index-error :query :active :entry :error}`, a watch
+that re-renders the whole app on any change, and Replicant diffing the
+resulting hiccup into the DOM. Note the manifest callback setting `documentElement.lang` at
 run time: the static `index.html` says `lang="en"`, and the dataset's
 own language takes over once the manifest arrives, which is how the
 viewer stays language-agnostic (the audit record makes a point of this).
 
-`load-index!` ([app.cljs:38-54](../src/dk/cst/dmlex_viewer/app.cljs#L38))
+`load-index!` ([app.cljs:39-55](../src/dk/cst/dmlex_viewer/app.cljs#L39))
 turns the positional index rows into maps and caches a lowercased
 headword per row, so that `matches`
-([app.cljs:56-65](../src/dk/cst/dmlex_viewer/app.cljs#L56)) is a plain
-prefix filter capped at the first `n` hits (100 by default) with a
-transducer, no per-keystroke lowercasing of the whole index. A failed
+([app.cljs:57-63](../src/dk/cst/dmlex_viewer/app.cljs#L57)) is a plain
+prefix filter capped at the first 100 hits with a transducer, no
+per-keystroke lowercasing of the whole index. A failed
 index fetch lands in its own `:index-error` slot rather than the shared
 `:error`, so that `route!` clearing `:error` on a successful entry load
 cannot swallow it.
 
 Routing is a regex over the URL fragment. `route!`
-([app.cljs:82-95](../src/dk/cst/dmlex_viewer/app.cljs#L82)) matches
+([app.cljs:119-140](../src/dk/cst/dmlex_viewer/app.cljs#L119)) matches
 `#/entry/<file>`, fetches `data/entries/<file>.json` into `:entry`, sets
 the document title and scrolls to the top; no match (or an explicit
 `#/`) clears the entry, which is the front page. A failed fetch clears
-`:entry` and stores the message in `:error`.
+`:entry` and stores the message in `:error`. Focus follows the
+navigation: the headword (`tabindex -1`) takes it on an entry, the
+search field takes it on the front page, so a keyboard or screen-reader
+user is never left on an element the re-render removed.
 
 The root view `app`
-([app.cljs:300-334](../src/dk/cst/dmlex_viewer/app.cljs#L300)) puts the
+([app.cljs:351-392](../src/dk/cst/dmlex_viewer/app.cljs#L351)) puts the
 priority order of the UI in one `cond`: a non-blank query shows the
 search view regardless of what entry is loaded; otherwise the loaded
-entry; otherwise an error page; otherwise the intro text. The search
-field's handlers
-([app.cljs:313-321](../src/dk/cst/dmlex_viewer/app.cljs#L313)) are the
-only interesting event code:
+entry; otherwise an error page; otherwise the intro text. `app` computes
+the result rows once per render and threads them into both the input's
+ARIA attributes and the view below.
 
-```clojure
-:keydown (fn [e]
-           (when (= "Enter" (.-key e))
-             (if (str/blank? query)
-               (set! (.-hash js/location) "")
-               (when-let [row (first (matches index query 1))]
-                 (goto-entry! (:file row))))))
-```
-
-Enter jumps to the top match, computed with the limit arity so the
-keydown does not rebuild the 100-row list the render already builds;
-Enter on a blank field goes home. The blank branch is the whole of the
-latest commit ("fix empty search bar behaviour") — before it, Enter in
-an empty field tried to navigate to the first match of the empty prefix,
-i.e. an arbitrary entry. Both navigation paths clear `:query`
-(`goto-entry!` at
-[app.cljs:67-71](../src/dk/cst/dmlex_viewer/app.cljs#L67) for Enter, an
-inline click handler at
-[app.cljs:272](../src/dk/cst/dmlex_viewer/app.cljs#L272) for clicked
+The search field and the result list form an ARIA combobox: the input
+carries `role="combobox"`, `aria-expanded`, `aria-controls` and
+`aria-activedescendant`, and DOM focus never leaves it while arrow keys
+move an *active* row. `search-keydown!`
+([app.cljs:91-108](../src/dk/cst/dmlex_viewer/app.cljs#L91)) handles the
+keys: the arrows move the active row via the pure `next-active`
+([app.cljs:71-81](../src/dk/cst/dmlex_viewer/app.cljs#L71)) — Down
+enters the list at the top, Up leaves it there — with `set-active!`
+scrolling the row into view; Enter follows the active row (or the first,
+so Enter-without-arrows still jumps to the top match); Enter on a blank
+field goes home; Escape clears the search. Both navigation paths clear
+`:query` and `:active` (`goto-entry!` at
+[app.cljs:65-69](../src/dk/cst/dmlex_viewer/app.cljs#L65) for the
+keyboard, an inline click handler at
+[app.cljs:320](../src/dk/cst/dmlex_viewer/app.cljs#L320) for clicked
 results, where the `href` does the actual navigation), which is what
 flips the `cond` from results back to the entry.
 
 `search-view`
-([app.cljs:277-285](../src/dk/cst/dmlex_viewer/app.cljs#L277)) sits
-between the `cond` and the results: with the index loaded it delegates
-to `results-view`; when the index failed to load it shows an error
+([app.cljs:327-336](../src/dk/cst/dmlex_viewer/app.cljs#L327)) sits
+between the `cond` and the results: with rows in hand it delegates to
+`results-view`; when the index failed to load it shows an error
 paragraph asking for a reload; while the index is still loading it shows
 nothing. `results-view`
-([app.cljs:256-275](../src/dk/cst/dmlex_viewer/app.cljs#L256)) renders
-the hit list with the matched prefix in `<mark>` (via
+([app.cljs:298-325](../src/dk/cst/dmlex_viewer/app.cljs#L298)) renders
+the hit list as the combobox's listbox — `role="listbox"` on the list,
+each link a `role="option"` with a stable id for
+`aria-activedescendant`, the active one marked `aria-selected` and
+highlighted — with the matched prefix in `<mark>` (via
 `result-headword`), plus a `role="status"` line announcing the count;
 the line is visually hidden while there are hits and becomes the visible
 "No matches" message when there are none.
 
-`entry-view` ([app.cljs:226-245](../src/dk/cst/dmlex_viewer/app.cljs#L226))
+`entry-view` ([app.cljs:268-287](../src/dk/cst/dmlex_viewer/app.cljs#L268))
 is the top of the display tree and mirrors the shape of the entry file:
 
 - The header: headword with homograph superscript, parts of speech,
   `inflections-view`, `paradigm-view`, entry-level `labels-view`.
 - `inflections-view`
-  ([app.cljs:187-206](../src/dk/cst/dmlex_viewer/app.cljs#L187)): the
+  ([app.cljs:229-248](../src/dk/cst/dmlex_viewer/app.cljs#L229)): the
   run-in line of short forms, deduplicated with `distinct-by` on the
   short form so *-en* appears once even when two paradigm slots share
   it, and with forms spelled like the headword left out (the plural of
@@ -318,30 +319,30 @@ is the top of the display tree and mirrors the shape of the entry file:
   paradigm slot stays in a visually hidden `<dt>` for assistive tech
   and doubles as the mouse tooltip.
 - `paradigm-view`
-  ([app.cljs:208-224](../src/dk/cst/dmlex_viewer/app.cljs#L208)): the
+  ([app.cljs:250-266](../src/dk/cst/dmlex_viewer/app.cljs#L250)): the
   same forms again, un-deduplicated and in full, as a table behind an
   "all forms" disclosure. The two views are deliberately redundant: one
   optimised for scanning, one for completeness.
 - The senses as a numbered list, `sense-view`
-  ([app.cljs:175-185](../src/dk/cst/dmlex_viewer/app.cljs#L175)):
+  ([app.cljs:217-227](../src/dk/cst/dmlex_viewer/app.cljs#L217)):
   indicator, definitions joined with `";"`, examples as `<blockquote>`
   with `<cite>` sources, sense labels, sense relations. The CSS drops
   the numbering when there is only one sense (the `single` class at
-  [app.cljs:243](../src/dk/cst/dmlex_viewer/app.cljs#L243)).
+  [app.cljs:285](../src/dk/cst/dmlex_viewer/app.cljs#L285)).
 - `relations-view`
-  ([app.cljs:148-161](../src/dk/cst/dmlex_viewer/app.cljs#L148)): the
+  ([app.cljs:190-203](../src/dk/cst/dmlex_viewer/app.cljs#L190)): the
   pre-resolved rows as a `<nav aria-label="related">` definition list;
-  `members-dd` ([app.cljs:136-146](../src/dk/cst/dmlex_viewer/app.cljs#L136))
+  `members-dd` ([app.cljs:178-188](../src/dk/cst/dmlex_viewer/app.cljs#L178))
   folds a row with more than ten members behind a "N entries"
   disclosure.
 
 Two tiny helpers carry the semantics through the whole tree: `tagged`
-([app.cljs:100-106](../src/dk/cst/dmlex_viewer/app.cljs#L100)) renders
+([app.cljs:142-148](../src/dk/cst/dmlex_viewer/app.cljs#L142)) renders
 any tag from a controlled inventory as `<abbr title=…>` when the build
 supplied a description, and plain text when it did not; `labels-view`
-([app.cljs:115-129](../src/dk/cst/dmlex_viewer/app.cljs#L115)) groups
+([app.cljs:157-171](../src/dk/cst/dmlex_viewer/app.cljs#L157)) groups
 labels by type with `partition-by` into the aligned key/value layout.
-`footer-view` ([app.cljs:287-298](../src/dk/cst/dmlex_viewer/app.cljs#L287))
+`footer-view` ([app.cljs:338-349](../src/dk/cst/dmlex_viewer/app.cljs#L338))
 closes every page with the colophon: resource title, link and the counts
 from the manifest.
 
@@ -388,9 +389,11 @@ resolution over a two-entry resource.
 [app_test.cljs](../test/dk/cst/dmlex_viewer/app_test.cljs)
 (`npx shadow-cljs compile test && node out/node-tests.js`) covers the
 prefix filter and limit arity of `matches`, the shared `distinct-by`,
-`result-headword` marking, and the three states of `search-view`
-(loaded, failed, loading). The views being plain data means the failure
-state is asserted directly on the hiccup.
+`result-headword` marking, the three states of `search-view` (loaded,
+failed, loading), the headword filter of `inflections-view`, the
+arrow-key arithmetic of `next-active`, and the listbox/option markup of
+`results-view`. The views being plain data means these are asserted
+directly on the hiccup.
 [appledict_test.clj](../test/dk/cst/dmlex_viewer/appledict_test.clj)
 (run with the JVM tests) pins the XML emitter (escaping, self-closing,
 the `d:` prefix), the index-term derivation, the bundle-info merge and
@@ -416,7 +419,8 @@ any label type means. The analysis and implementation plan for it is in
 [presentation-config.md](presentation-config.md).
 
 Earlier loose ends, since resolved: the Enter key recomputed the full
-100-row match list (now the limit arity of `matches`), an index-load
+100-row match list (now the root view computes the rows once per
+render and hands them to the keydown handler), an index-load
 failure was invisible while an entry was on screen (now `:index-error`
 and `search-view`), the `comment` block in build.clj pointed at a
 DanNet path outside the repo (now the generic `datasets/` example), and

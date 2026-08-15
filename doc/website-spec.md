@@ -19,9 +19,15 @@ published, not applicable, or declined with a reason.
 - The document title names the current entry: `menneske – DanNet`.
 - Accessibility: labelled search field, `<main>` landmark, one `h1` on
   each view, visible focus indicator, status line for the result count,
-  semantic HTML, keyboard operation, colour contrast (all text pairs are
-  at or above 5.2:1; most are above 7:1), touch targets, mobile input
-  attributes (`enterkeyhint`, `autocapitalize`, 16px+ input text).
+  semantic HTML, colour contrast (all text pairs are at or above 5.2:1;
+  most are above 7:1), touch targets, mobile input attributes
+  (`enterkeyhint`, `autocapitalize`, 16px+ input text).
+- Keyboard: the search field and its suggestions form an ARIA combobox
+  (`role="combobox"` over a listbox of options with
+  `aria-activedescendant`); the arrow keys move the active suggestion,
+  Enter follows it, Escape clears. On navigation, focus moves to the
+  new entry's headword (or back to the search field on the front page),
+  so focus never rests on an element a re-render removed.
 - SEO: heading hierarchy, internal links, implicit index policy.
 - Resilience: a friendly in-app error view with a way back, `<noscript>`
   fallback text.

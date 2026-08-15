@@ -14,6 +14,7 @@
          :index       nil
          :index-error nil
          :query       ""
+         :active      nil
          :entry       nil
          :error       nil}))
 
@@ -54,21 +55,57 @@
                  (swap! state assoc :index-error (.-message e)))))
 
 (defn matches
-  "The first `n` (default 100) rows of `index` whose headword begins with
-  `query`."
-  ([index query]
-   (matches index query 100))
-  ([index query n]
-   (let [q (str/lower-case query)]
-     (into [] (comp (filter #(str/starts-with? (:lower %) q))
-                    (take n))
-           index))))
+  "The first 100 rows of `index` whose headword begins with `query`."
+  [index query]
+  (let [q (str/lower-case query)]
+    (into [] (comp (filter #(str/starts-with? (:lower %) q))
+                   (take 100))
+          index)))
 
 (defn goto-entry!
   "Clear the search and go to the entry of the file basename `file`."
   [file]
-  (swap! state assoc :query "")
+  (swap! state assoc :query "" :active nil)
   (set! (.-hash js/location) (str "/entry/" file)))
+
+(defn next-active
+  "The active result index after pressing `key` (\"ArrowDown\" or
+  \"ArrowUp\") at index `active` among `n` results. Nil is the search
+  field itself: Down enters the list at the top, Up leaves it there."
+  [key active n]
+  (case key
+    "ArrowDown" (if active (min (inc active) (dec n)) 0)
+    "ArrowUp"   (cond
+                  (nil? active)  (dec n)
+                  (zero? active) nil
+                  :else          (dec active))))
+
+(defn set-active!
+  "Set the active result index to `i` and scroll it into view."
+  [i]
+  (swap! state assoc :active i)
+  (when i
+    (some-> (js/document.getElementById (str "result-" i))
+            (.scrollIntoView #js {:block "nearest"}))))
+
+(defn search-keydown!
+  "Handle the keydown `e` in the search field over the current result
+  `rows`, `query` and `active` index: the arrow keys move the active
+  result, Enter follows it (or the first row), Escape clears."
+  [rows query active e]
+  (case (.-key e)
+    ("ArrowDown" "ArrowUp")
+    (when (seq rows)
+      (.preventDefault e)
+      (set-active! (next-active (.-key e) active (count rows))))
+    "Enter"
+    (if (str/blank? query)
+      (set! (.-hash js/location) "")
+      (when-let [row (nth rows (or active 0) nil)]
+        (goto-entry! (:file row))))
+    "Escape"
+    (swap! state assoc :query "" :active nil)
+    nil))
 
 (defn update-title!
   "Set the document title from the current entry and the manifest title."
@@ -80,19 +117,24 @@
                                             "DMLex viewer")])))))
 
 (defn route!
-  "Load the entry of the current URL fragment, or return to the front page."
+  "Load the entry of the current URL fragment, or return to the front page.
+  Focus follows the navigation — to the headword or the search field — so
+  that keyboard and screen-reader users land on the new content instead of
+  on an element the re-render removed."
   []
   (if-let [[_ file] (re-find #"^#/entry/(.+)$" (.-hash js/location))]
     (fetch-json! (str "data/entries/" file ".json")
                  (fn [entry]
                    (swap! state assoc :entry entry :error nil)
                    (update-title!)
-                   (.scrollTo js/window 0 0))
+                   (.scrollTo js/window 0 0)
+                   (some-> (js/document.querySelector "h1.headword") (.focus)))
                  (fn [e]
                    (swap! state assoc :entry nil :error (.-message e))
                    (update-title!)))
     (do (swap! state assoc :entry nil :error nil)
-        (update-title!))))
+        (update-title!)
+        (some-> (js/document.getElementById "search") (.focus)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Views
@@ -230,7 +272,7 @@
            senses relations]}]
   [:article.entry
    [:header
-    [:h1.headword [:dfn headword]
+    [:h1.headword {:tabindex -1} [:dfn headword]
      (when homographNumber [:sup.hom homographNumber])]
     (when (seq partsOfSpeech)
       (into [:p.pos]
@@ -254,9 +296,10 @@
       headword)))
 
 (defn results-view
-  "The search result `rows` as a list, with the `query` prefix marked. A
-  status line announces the row count to assistive technology."
-  [rows query]
+  "The search result `rows` as a listbox, with the `query` prefix marked
+  and the `active` row selected for the combobox's aria-activedescendant.
+  A status line announces the row count to assistive technology."
+  [rows query active]
   (list
     [:p.result-count {:role  "status"
                       :lang  "en"
@@ -265,21 +308,29 @@
        "No matches"
        (str (count rows) " matches shown"))]
     (when (seq rows)
-      [:ol.results
-       (for [{:keys [headword file pos hom]} rows]
-         [:li {:replicant/key file}
-          [:a {:href (str "#/entry/" file)
-               :on   {:click (fn [_] (swap! state assoc :query ""))}}
-           (result-headword headword query)
-           (when hom [:sup.hom hom])]
-          (when (seq pos) [:i.pos pos])])])))
+      [:ol.results {:id "search-results" :role "listbox"
+                    :aria-label "Search results"}
+       (map-indexed
+         (fn [i {:keys [headword file pos hom]}]
+           [:li {:replicant/key file :role "none"}
+            [:a {:id            (str "result-" i)
+                 :role          "option"
+                 :aria-selected (if (= i active) "true" "false")
+                 :href          (str "#/entry/" file)
+                 :on            {:click (fn [_] (swap! state assoc
+                                                       :query "" :active nil))}}
+             (result-headword headword query)
+             (when hom [:sup.hom hom])
+             (when (seq pos) [:i.pos pos])]])
+         rows)])))
 
 (defn search-view
-  "The search results of `query` over `index`, or the `index-error` when
-  the index failed to load. Nil while the index is still loading."
-  [index index-error query]
+  "The search result `rows` with the `active` row selected and the `query`
+  prefix marked, or the `index-error` when the index failed to load. Nil
+  `rows` mean the index is still loading."
+  [rows index-error query active]
   (cond
-    index       (results-view (matches index query) query)
+    rows        (results-view rows query active)
     index-error [:p.error {:lang "en"}
                  "The search index failed to load. Reload the page to try
                   again."]))
@@ -298,40 +349,47 @@
       [:div [:dt "relations"] [:dd relations]]]]))
 
 (defn app
-  "The root view over one value of the app state."
-  [{:keys [manifest index index-error query entry error]}]
-  [:div.container
-   [:search
-    [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
-    [:input {:id             "search"
-             :type           "search"
-             :placeholder    "Search…"
-             :value          query
-             :autofocus      true
-             :enterkeyhint   "go"
-             :autocapitalize "none"
-             :on             {:input   (fn [e]
-                                         (swap! state assoc :query
-                                                (.. e -target -value)))
-                              :keydown (fn [e]
-                                         (when (= "Enter" (.-key e))
-                                           (if (str/blank? query)
-                                             (set! (.-hash js/location) "")
-                                             (when-let [row (first (matches index query 1))]
-                                               (goto-entry! (:file row))))))}}]]
-   [:main
-    (when (or (seq query) (not entry))
-      [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
-    (cond
-      (seq query) (search-view index index-error query)
-      entry       (entry-view entry)
-      error       [:p.error {:lang "en"}
-                   "The page failed to load. "
-                   [:a {:href "#/"} "Go to the front page."]]
-      :else       [:p.intro {:lang "en"}
-                   "Type a word in the search field to look it up. Every
-                    underlined word links to another word in the dictionary."])]
-   (footer-view manifest)])
+  "The root view over one value of the app state. The search field and the
+  result list form an ARIA combobox: focus stays in the field while
+  aria-activedescendant points at the active option."
+  [{:keys [manifest index index-error query active entry error]}]
+  (let [rows (when (and index (seq query)) (matches index query))]
+    [:div.container
+     [:search
+      [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
+      [:input {:id                    "search"
+               :type                  "search"
+               :placeholder           "Search…"
+               :value                 query
+               :autofocus             true
+               :enterkeyhint          "go"
+               :autocapitalize        "none"
+               :role                  "combobox"
+               :aria-autocomplete     "list"
+               :aria-expanded         (str (boolean (seq rows)))
+               :aria-controls         (when (seq rows) "search-results")
+               :aria-activedescendant (when (and active (seq rows))
+                                        (str "result-" active))
+               :on                    {:input   (fn [e]
+                                                  (swap! state assoc
+                                                         :query (.. e -target -value)
+                                                         :active nil))
+                                       :keydown (fn [e]
+                                                  (search-keydown! rows query
+                                                                   active e))}}]]
+     [:main
+      (when (or (seq query) (not entry))
+        [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
+      (cond
+        (seq query) (search-view rows index-error query active)
+        entry       (entry-view entry)
+        error       [:p.error {:lang "en"}
+                     "The page failed to load. "
+                     [:a {:href "#/"} "Go to the front page."]]
+        :else       [:p.intro {:lang "en"}
+                     "Type a word in the search field to look it up. Every
+                      underlined word links to another word in the dictionary."])]
+     (footer-view manifest)]))
 
 (defn render!
   "Render the app into the page from the current state."

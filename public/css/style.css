@@ -111,9 +111,23 @@ search input:focus {
 }
 
 .results { list-style: none; margin: 1.75rem 0 0; padding: 0; }
-.results li { padding: 0.5rem 0; }
-.results a { text-decoration: none; font-size: 1.2rem; }
+
+/* Each option is a full-width row: the padding extends into a negative
+   margin, so the text stays aligned with the page while the active
+   row's crimson bar bleeds past it. */
+.results a {
+  display: block;
+  padding: 0.5rem 0.85rem;
+  margin: 0 -0.85rem;
+  text-decoration: none;
+  font-size: 1.2rem;
+}
+
 .results a:hover { text-decoration: underline; }
+
+.results a[aria-selected="true"] { background: var(--accent); color: #fff; }
+.results a[aria-selected="true"] .pos,
+.results a[aria-selected="true"] .hom { color: #fff; }
 .results .pos { margin-left: 0.65rem; color: var(--grey); }
 
 .result-count {
@@ -132,6 +146,10 @@ search input:focus {
   color: var(--accent);
   margin: 2.75rem 0 0.4rem;
 }
+
+/* The headword takes programmatic focus after navigation; it is not in
+   the tab order, so it never needs a visible ring. */
+.headword:focus { outline: none; }
 
 sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 
