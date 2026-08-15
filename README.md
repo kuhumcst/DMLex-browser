@@ -42,6 +42,13 @@ computed affix, for example `-t` for the form *mennesket*. Each relation
 attaches to its member entries and senses as display rows. Rows with the
 same relation type and the same direction merge into one row.
 
+The members of a row list in the order the dataset asks for: the
+`obverseListingOrder` of each member first, then the headword in the
+collation of the resource language. A dataset that states no order lists
+alphabetically, and one that states a partial order keeps its ranked
+members on top. DanNet, for example, derives the order from how many
+relations point at each synset, so the most central words come first.
+
 ## Present the data
 
 A dataset can ship its taste as a small `presentation.json` file next

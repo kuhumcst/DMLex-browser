@@ -121,7 +121,7 @@
         [:p {:class "member-list"} links]]]
       [:dd links])))
 
-(defn relations-view
+(defn relations-dl
   "The pre-resolved `relations` rows as a definition list: the role of the
   related senses against the links to their entries."
   [relations]
@@ -134,17 +134,21 @@
          (or display-role role display type)]
         (members-dd members)])]))
 
-(defn relation-groups-view
-  "The titled `relation-groups` of the presentation config as sections:
-  each headline followed by its relation rows, with the group's
+(defn relations-view
+  "The `relations` rows — or the titled `relation-groups` of the
+  presentation config — as the related-entries block.
+
+  Each group renders as a section under its headline, with the group's
   description as the headline's tooltip."
-  [relation-groups]
-  (for [{:keys [title description relations]} relation-groups]
-    [:div {:class      (str "relation-section" (when title " titled"))
-           :d/priority "2"}
-     (when title
-       [:h2 {:class "relation-group" :title description} title])
-     (relations-view relations)]))
+  [relations relation-groups]
+  (if (seq relation-groups)
+    (for [{:keys [title description relations]} relation-groups]
+      [:div {:class      (str "relation-section" (when title " titled"))
+             :d/priority "2"}
+       (when title
+         [:h2 {:class "relation-group" :title description} title])
+       (relations-dl relations)])
+    (relations-dl relations)))
 
 (defn example-view
   "One example as a quotation with its source citation."
@@ -171,9 +175,7 @@
      (interpose "; " (map :text definitions))]]
    (map example-view examples)
    (labels-view "sense-labels" labels)
-   (if (seq relation-groups)
-     (relation-groups-view relation-groups)
-     (relations-view relations))])
+   (relations-view relations relation-groups)])
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list of
@@ -249,18 +251,16 @@
    (labels-view "entry-labels" labels)
    [:ol {:class (str "senses" (when (= 1 (count senses)) " single"))}
     (map sense-view senses)]
-   (if (seq relation-groups)
-     (relation-groups-view relation-groups)
-     (relations-view relations))])
+   (relations-view relations relation-groups)])
 
 ;; -----------------------------------------------------------------------------
 ;; Bundle metadata
 
 (defn read-companion
-  "The JSON companion file `name` next to the DMLex file `in`, or nil:
-  the Dublin Core metadata.json or the presentation.json config."
-  [in name]
-  (let [f (io/file (or (.getParent (io/file in)) ".") name)]
+  "The JSON companion file `filename` in the directory `dir`, or nil: the
+  Dublin Core metadata.json or the presentation.json config."
+  [dir filename]
+  (let [f (io/file dir filename)]
     (when (.exists f)
       (json/read-str (slurp f)))))
 
@@ -426,12 +426,11 @@
 
   The shared \"css\" hook comes first, then the appledict-specific one."
   [dir config]
-  (->> (concat css-files
-               (for [name [(get config "css")
-                           (get-in config ["appledict" "css"])]
-                     :when name]
-                 (io/file dir name)))
-       (map io/file)
+  (->> (concat (map io/file css-files)
+               (for [filename [(get config "css")
+                               (get-in config ["appledict" "css"])]
+                     :when filename]
+                 (io/file dir filename)))
        (filter #(.exists %))
        (map slurp)
        (str/join "\n")))
@@ -452,12 +451,12 @@
   (println "Reading" in)
   (let [resource (json/read-str (slurp in) :key-fn keyword)
         dir      (or (.getParent (io/file in)) ".")
-        config   (read-companion in "presentation.json")
-        info     (cond-> (bundle-info resource (read-companion in "metadata.json"))
+        config   (read-companion dir "presentation.json")
+        info     (cond-> (bundle-info resource (read-companion dir "metadata.json"))
                    (get-in config ["appledict" "identifier"])
                    (assoc :identifier (get-in config ["appledict" "identifier"])))
-        front    (when-let [name (get-in config ["appledict" "frontMatter"])]
-                   (let [f (io/file dir name)]
+        front    (when-let [filename (get-in config ["appledict" "frontMatter"])]
+                   (let [f (io/file dir filename)]
                      (when (.exists f) (slurp f))))
         xml-file (io/file out "Dictionary.xml")]
     (io/make-parents xml-file)

@@ -72,7 +72,7 @@
           "<dt>emne</dt>"))
     (is (str/includes?
           (appledict/hiccup->xml
-            (appledict/relations-view
+            (appledict/relations-dl
               [{:type "hyp" :role "hypernym" :display-role "overbegreb"
                 :members [{:headword "H" :file "h"}]}]))
           "<dt title=\"hyp\">overbegreb</dt>"))

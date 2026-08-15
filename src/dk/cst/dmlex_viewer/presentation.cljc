@@ -83,7 +83,7 @@
   `unlisted` is \"hide\". Empty groups disappear."
   [groups unlisted rows]
   (let [claimed   (into #{} (mapcat #(get % "types")) groups)
-        fallback? (boolean (some #(nil? (get % "types")) groups))
+        fallback? (some #(nil? (get % "types")) groups)
         unclaimed (vec (remove (comp claimed :type) rows))
         section   (fn [{:strs [title description types]}]
                     (let [rs (if types

@@ -64,8 +64,8 @@
     (let [lcp    (count (take-while identity (map = headword form)))
           lcs    (count (take-while identity (map = (reverse headword)
                                                    (reverse form))))
-          tail   (subs form (min lcp (count form)))
-          head   (subs form 0 (- (count form) (min lcs (count form))))
+          tail   (subs form lcp)
+          head   (subs form 0 (- (count form) lcs))
           ok?    (fn [remainder]
                    (and (not (str/includes? remainder " "))
                         (not (str/ends-with? remainder "-"))
@@ -97,6 +97,27 @@
             :sourceDescription (:description (source-of sourceIdentity))
             :sourceElaboration sourceElaboration}))
 
+(defn ->collator
+  "The collator of `lang-code`, which orders headwords the way the language
+  does rather than the way their code points fall."
+  [lang-code]
+  (Collator/getInstance (Locale/forLanguageTag (or lang-code ""))))
+
+(defn member-order
+  "A comparator for the members of one relation row: the `obverseListingOrder`
+  of the dataset first, then the headword in the `collator` collation.
+
+  A member without an order sorts after every member with one, so a dataset
+  that states no order lists alphabetically and one that states a partial
+  order keeps its ranked members on top."
+  [collator]
+  (fn [a b]
+    (let [c (compare (or (:order a) Long/MAX_VALUE)
+                     (or (:order b) Long/MAX_VALUE))]
+      (if (zero? c)
+        (.compare collator (:headword (:target a)) (:headword (:target b)))
+        c))))
+
 (defn member-refs
   "All member refs of the `relations`, as a map of ref -> relation indices."
   [relations]
@@ -106,16 +127,15 @@
           (map-indexed vector relations)))
 
 (defn relation-rows
-  "The display rows for the object `ref`, given its relation `idxs` into
-  `relations` and the `reltype-of` and `resolve-ref` lookups.
+  "The display rows for the object `ref` under the lookups of `env`.
 
   Each row holds the members of one other role, merged across the
   relations that share the relation type, the roles of `ref` inside it,
-  and the member role. In a relation with more than one role, the
-  members that share the role of `ref` are its co-members rather than
-  its relata, so they are left out."
-  [relations reltype-of resolve-ref ref idxs]
-  (let [rows (for [i idxs
+  and the member role, ordered by `member-order` under the collator. In
+  a relation with more than one role, the members that share the role of
+  `ref` are its co-members rather than its relata, so they are left out."
+  [{:keys [collator relations reltype-of resolve-ref ref->idxs]} ref]
+  (let [rows (for [i (ref->idxs ref)
                    :let [{:keys [type members]} (nth relations i)
                          own    (into #{} (comp (filter #(= ref (:ref %)))
                                                 (map :role))
@@ -129,12 +149,14 @@
                {:key    [type own role]
                 :type   type
                 :role   role
+                :order  (:obverseListingOrder m)
                 :target target})]
     (for [[[type _ role] ms] (group-by :key rows)]
       (compact {:type        type
                 :role        role
                 :description (:description (reltype-of type))
-                :members     (vec (distinct (map :target ms)))}))))
+                :members     (into [] (comp (map :target) (distinct))
+                                   (sort (member-order collator) ms))}))))
 
 (defn ->entry-file
   "The fully resolved display map of `entry` under the lookups of `env`.
@@ -142,15 +164,13 @@
   Every tag is expanded through the inventory indices, and every
   relation the entry or one of its senses is a member of appears as
   pre-resolved rows."
-  [{:keys [label-of label-type-of form-tag-of pos-of source-of reltype-of
-           relations ref->idxs resolve-ref]}
+  [{:keys [label-of label-type-of form-tag-of pos-of source-of] :as env}
    {:keys [id headword homographNumber partsOfSpeech labels inflectedForms
            senses]}]
   (let [->label*   (partial ->label label-of label-type-of)
         rows-of    (fn [ref]
                      (when ref
-                       (->> (relation-rows relations reltype-of resolve-ref
-                                           ref (ref->idxs ref))
+                       (->> (relation-rows env ref)
                             (sort-by (juxt :type (comp str :role)))
                             (vec))))
         ->sense    (fn [{:keys [id indicator labels definitions examples]}]
@@ -180,8 +200,8 @@
 (defn ->env
   "The lookup environment of `resource`: the inventory indices, the relation
   attachment map and the member ref resolver."
-  [{:keys [entries labelTags labelTypeTags partOfSpeechTags inflectedFormTags
-           sourceIdentityTags relations relationTypes]}]
+  [{:keys [langCode entries labelTags labelTypeTags partOfSpeechTags
+           inflectedFormTags sourceIdentityTags relations relationTypes]}]
   (let [sense-home (into {} (for [{:keys [id headword senses]} entries
                                   {sense-id :id :keys [indicator]} senses
                                   :when sense-id]
@@ -197,6 +217,7 @@
      :form-tag-of   (index-by :tag inflectedFormTags)
      :source-of     (index-by :tag sourceIdentityTags)
      :reltype-of    (index-by :type relationTypes)
+     :collator      (->collator langCode)
      :relations     (vec relations)
      :ref->idxs     (member-refs relations)
      :resolve-ref   (some-fn sense-home entry-home)}))
@@ -207,7 +228,7 @@
 
   A row is [headword file pos homographNumber]."
   [{:keys [langCode entries]}]
-  (let [collator (Collator/getInstance (Locale/forLanguageTag (or langCode "")))]
+  (let [collator (->collator langCode)]
     (->> entries
          (map (fn [{:keys [id headword homographNumber partsOfSpeech]}]
                 [headword (->file id) (str/join ", " partsOfSpeech) homographNumber]))

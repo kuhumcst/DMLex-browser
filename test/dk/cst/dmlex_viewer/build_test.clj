@@ -43,11 +43,19 @@
    "b" {:headword "B" :file "b"}
    "h" {:headword "H" :file "h"}})
 
+(defn env
+  "The lookup environment of `relations`, resolving refs against `homes*`."
+  [relations homes*]
+  {:collator    (build/->collator "da")
+   :relations   relations
+   :reltype-of  {}
+   :resolve-ref homes*
+   :ref->idxs   (build/member-refs relations)})
+
 (defn rows
   "The relation rows of `ref` in `relations`, resolved against `homes`."
   [relations ref]
-  (build/relation-rows relations {} homes ref
-                       (get (build/member-refs relations) ref)))
+  (build/relation-rows (env relations homes) ref))
 
 (deftest relation-rows-test
   (testing "a single-role relation keeps every other member"
@@ -86,6 +94,53 @@
   (testing "an unresolvable ref is skipped"
     (is (= [] (rows [{:type "syn" :members [{:ref "a"} {:ref "gone"}]}]
                     "a")))))
+
+(def collated-homes
+  {"h" {:headword "H" :file "h"}
+   "æ" {:headword "æble" :file "æ"}
+   "å" {:headword "ål" :file "å"}
+   "b" {:headword "bær" :file "b"}})
+
+(defn collated-rows
+  "The members of the one relation row of `ref`, by headword."
+  [relations ref]
+  (->> (build/relation-rows (env relations collated-homes) ref)
+       (first)
+       (:members)
+       (mapv :headword)))
+
+(deftest member-ordering-test
+  (testing "members without an order sort by the collation of the language"
+    (is (= ["bær" "æble" "ål"]
+           (collated-rows [{:type    "syn"
+                            :members [{:ref "h"} {:ref "å"} {:ref "æ"}
+                                      {:ref "b"}]}]
+                          "h"))
+        "æ and å sort after the plain letters in Danish"))
+  (testing "obverseListingOrder wins over the collation"
+    (is (= ["ål" "æble" "bær"]
+           (collated-rows [{:type    "syn"
+                            :members [{:ref "h"}
+                                      {:ref "å" :obverseListingOrder 1}
+                                      {:ref "æ" :obverseListingOrder 2}
+                                      {:ref "b" :obverseListingOrder 3}]}]
+                          "h"))))
+  (testing "an unordered member sorts after every ordered one"
+    (is (= ["ål" "bær" "æble"]
+           (collated-rows [{:type    "syn"
+                            :members [{:ref "h"}
+                                      {:ref "æ"}
+                                      {:ref "b"}
+                                      {:ref "å" :obverseListingOrder 1}]}]
+                          "h")))
+    (is (= ["ål" "bær" "æble"]
+           (collated-rows [{:type    "syn"
+                            :members [{:ref "h"}
+                                      {:ref "æ" :obverseListingOrder 7}
+                                      {:ref "b" :obverseListingOrder 7}
+                                      {:ref "å" :obverseListingOrder 1}]}]
+                          "h"))
+        "an equal order falls back to the collation")))
 
 (deftest index-rows-test
   (let [resource {:langCode "da"
