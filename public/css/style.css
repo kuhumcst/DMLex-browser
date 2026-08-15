@@ -14,12 +14,34 @@ body {
   font-size: 1.125rem;
   line-height: 1.6;
   color: var(--ink);
-  background: #fff;
+  background: var(--desk);
   text-wrap: pretty;
   -webkit-font-smoothing: antialiased;
 }
 
-.container { max-width: 40rem; margin: 0 auto; padding: 3rem 1.5rem 7rem; }
+/* The content column is a page lying on the desk: a flat white sheet
+   with a hairline edge and the binding's crimson band on top. Under
+   48rem the desk disappears and the page fills the viewport. */
+.container {
+  max-width: 44rem;
+  min-height: calc(100vh - 6rem);
+  margin: 3rem auto;
+  padding: 3.25rem 3rem 5rem;
+  background: #fff;
+  border: 1px solid var(--light);
+  border-top: 3px solid var(--accent);
+}
+
+@media (max-width: 48rem) {
+  body { background: #fff; }
+  .container {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 7rem;
+    border: none;
+    border-top: 3px solid var(--accent);
+  }
+}
 
 dl, dd, blockquote, p, h1 { margin: 0; padding: 0; }
 

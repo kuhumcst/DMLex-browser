@@ -354,12 +354,17 @@ white and grey with one crimson accent — is named in the custom
 properties of [tokens.css](../public/css/tokens.css), which both the
 web stylesheet and the Apple Dictionary export consume; editing a
 token restyles both outputs. [style.css](../public/css/style.css)
-holds the web rules. Two ideas are worth knowing when editing it.
-First, a shared "small-caps metadata voice"
-([style.css:47-53](../public/css/style.css#L47)) styles every key-like
+holds the web rules. Three ideas are worth knowing when editing it.
+First, the page-on-a-desk layout
+([style.css:22-44](../public/css/style.css#L22)): the body is a flat
+grey desk and `.container` is a white, viewport-filling page with a
+hairline edge and a crimson top band; under 48rem the desk disappears
+and the page fills the viewport, keeping only the band. Second, a
+shared "small-caps metadata voice"
+([style.css:69-75](../public/css/style.css#L69)) styles every key-like
 thing (label keys, relation roles, stat names, citations) identically.
-Second, labels and relations share one aligned key/value layout
-([style.css:140-164](../public/css/style.css#L140)): the `<dt>` keys are
+Third, labels and relations share one aligned key/value layout
+([style.css:162-186](../public/css/style.css#L162)): the `<dt>` keys are
 absolutely positioned into a fixed right-aligned column left of the
 values, collapsing to stacked rows under 40rem.
 
