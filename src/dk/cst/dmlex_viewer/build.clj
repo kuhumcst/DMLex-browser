@@ -5,7 +5,9 @@
   writes three kinds of file into the output directory: manifest.json with
   the resource metadata, index.json with one row per entry for the search
   field, and one file per entry under entries/ with every tag and relation
-  resolved for display, so that the frontend needs no other lookup.
+  resolved for display, so that the frontend needs no other lookup. The
+  Apple Dictionary export (dk.cst.dmlex-viewer.appledict) renders the same
+  resolved entries.
 
   Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"
   (:require [clojure.data.json :as json]
@@ -51,7 +53,8 @@
   after their longest common prefix, e.g. -t for mennesket, or the prefix
   notation when the form instead shares its ending with the headword. Nil
   when the reduction would mislead: a multiword headword, a stem change, a
-  remainder with a space in it, or a remainder without letters."
+  remainder with a space or without letters (a form identical to the
+  headword), or a remainder ending in a hyphen (a compound stem)."
   [headword form]
   (when-not (str/includes? headword " ")
     (let [lcp    (count (take-while identity (map = headword form)))
@@ -61,8 +64,8 @@
           head   (subs form 0 (- (count form) (min lcs (count form))))
           ok?    (fn [remainder]
                    (and (not (str/includes? remainder " "))
-                        (or (empty? remainder)
-                            (re-find #"\p{L}" remainder))))
+                        (not (str/ends-with? remainder "-"))
+                        (re-find #"\p{L}" remainder)))
           suffix (when (and (>= lcp (max 2 (quot (inc (count headword)) 2)))
                             (ok? tail))
                    (str "-" tail))

@@ -1,0 +1,21 @@
+/* The shared design tokens: the palette and the font stacks of both the
+   web viewer (style.css) and the Apple Dictionary export, which prepends
+   this file to resources/appledict/style.css. Editing a token restyles
+   both outputs. --faint, --visited and --key-col only occur in the web
+   stylesheet. */
+
+:root {
+  --ink:     #1d1d1f;
+  --dark:    #3a3a3c;   /* secondary text: examples, inflections, pos */
+  --grey:    #58585c;   /* small metadata: keys, citations, counts */
+  --light:   #d2d2d7;   /* rules and idle link underlines */
+  --faint:   #f5f5f7;   /* the search field */
+  --panel:   #fafafb;   /* the relations panel */
+  --accent:  #901a1e;
+  --visited: #8f5f63;
+  --key-col: 10.5rem;
+  --serif:   'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052,
+             serif;
+  --sans:    -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica,
+             Arial, sans-serif;
+}

@@ -28,7 +28,9 @@
     (is (nil? (build/affix "slå op" "slog op")) "multiword headword")
     (is (nil? (build/affix "barn" "børn")) "stem change")
     (is (nil? (build/affix "gå" "gå i stå")) "remainder with a space")
-    (is (nil? (build/affix "hund" "hund2")) "remainder without letters")))
+    (is (nil? (build/affix "hund" "hund2")) "remainder without letters")
+    (is (nil? (build/affix "år" "år")) "form identical to the headword")
+    (is (nil? (build/affix "år" "års-")) "compound stem")))
 
 (deftest member-refs-test
   (is (= {"a" [0 1]

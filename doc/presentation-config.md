@@ -88,6 +88,29 @@ The same ops apply to every keyed vocabulary the viewer renders, so
 the config is a map of section name to ops, and one function
 implements all of it. New sections cost a key name, not a mechanism.
 
+## Decision 3: instances live with their dataset
+
+This project owns the config *format* — the ops model, its semantics,
+this document, and the guarantee that no config renders with sane
+defaults — but never a config *instance*. An instance is taste keyed
+by tags the dataset's own export code invents, so it can only stay
+correct if it is versioned with that code: the commit that renames a
+label type must be the commit that updates the config. For DanNet that
+means `presentation.json` (plus the front-matter fragment and any
+custom stylesheet) is authored in the DanNet repository, next to its
+export code, and shipped inside the DMLex export zip alongside
+`dannet-dmlex.json` and `metadata.json` — the zip is the
+self-describing bundle, carrying both the facts and the taste, and
+consumers read companions from next to the data.
+
+Shipping from the exporter also enables the one check this side cannot
+do: at export time the inventories are in hand, so DanNet's export can
+warn when the config names a tag that no longer exists. The viewer and
+the Apple Dictionary converter stay lenient about unknown tags by
+design, which makes staleness silent there; export-time validation is
+where it becomes a message instead. The only DanNet-flavoured JSON in
+this repository is the annotated example below.
+
 ## The format
 
 Everything below is optional, including the file itself.
@@ -119,7 +142,15 @@ Everything below is optional, including the file itself.
 
   // A dataset stylesheet, fetched from the data directory and
   // appended after the viewer's own. The big lever: see below.
-  "css": "custom.css"
+  "css": "custom.css",
+
+  // Consumed only by the Apple Dictionary export (appledict-export.md);
+  // the web viewer ignores it.
+  "appledict": {
+    "identifier":  "dk.cst.dannet.dictionary",
+    "css":         "appledict-extra.css",
+    "frontMatter": "front-matter.html"
+  }
 }
 ```
 
@@ -146,7 +177,10 @@ The trick that keeps the diff small: apply the config to the *entry
 data*, not inside the views. One pure function per shape, called at a
 single boundary, and the view tree stays almost untouched.
 
-A new namespace `dk.cst.dmlex-viewer.presentation` (~50 lines):
+A new namespace `dk.cst.dmlex-viewer.presentation` (~50 lines, as a
+`.cljc` file: the Apple Dictionary converter, see
+[appledict-export.md](appledict-export.md), will apply the same ops on
+the JVM — `shared.cljc` already models this split for `distinct-by`):
 
 - `present` — apply one ops map `{order hide rename unlisted}` to a
   sequence of maps keyed by `k`: drop the hidden, stable-sort by order

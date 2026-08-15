@@ -3,6 +3,9 @@
            org.clojure/data.json {:mvn/version "2.5.2"}}
  :aliases {;; The data build: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]
            :build  {:main-opts ["-m" "dk.cst.dmlex-viewer.build"]}
+           ;; The Apple Dictionary export:
+           ;; clojure -J-Xmx8g -M:appledict <dmlex.json> [<out-dir>] [<ddk-dir>]
+           :appledict {:main-opts ["-m" "dk.cst.dmlex-viewer.appledict"]}
            ;; The tests: clojure -M:test
            :test   {:extra-paths ["test"]
                     :extra-deps  {io.github.cognitect-labs/test-runner

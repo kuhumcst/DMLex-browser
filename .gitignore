@@ -1,5 +1,6 @@
 .shadow-cljs/
 out/
+export/
 .cpcache/
 node_modules/
 public/js/

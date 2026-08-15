@@ -6,6 +6,7 @@
   dk.cst.dmlex-viewer.build writes: manifest.json, index.json and one
   pre-resolved file per entry."
   (:require [clojure.string :as str]
+            [dk.cst.dmlex-viewer.shared :as shared]
             [replicant.dom :as r]))
 
 (defonce state
@@ -62,18 +63,6 @@
      (into [] (comp (filter #(str/starts-with? (:lower %) q))
                     (take n))
            index))))
-
-(defn distinct-by
-  "The elements of `coll`, keeping the first occurrence of each `(f x)`."
-  [f coll]
-  (->> coll
-       (reduce (fn [[seen out] x]
-                 (let [k (f x)]
-                   (if (contains? seen k)
-                     [seen out]
-                     [(conj seen k) (conj out x)])))
-               [#{} []])
-       (second)))
 
 (defn goto-entry!
   "Clear the search and go to the entry of the file basename `file`."
@@ -196,11 +185,12 @@
    (relations-view relations)])
 
 (defn inflections-view
-  "The inflected `forms` as one run-in definition list. The paradigm slot of
-  each form stays in the markup for assistive tech; sighted readers get it
-  as a tooltip."
-  [forms]
-  (when (seq forms)
+  "The inflected `forms` of `headword` as one run-in definition list. A form
+  spelled like the headword stays out of the line; the paradigm keeps it.
+  The paradigm slot of each form stays in the markup for assistive tech;
+  sighted readers get it as a tooltip."
+  [headword forms]
+  (when-let [forms (seq (remove #(= headword (:text %)) forms))]
     (into [:dl.inflections]
           (map-indexed
             (fn [i {:keys [tag text short description labels]}]
@@ -213,7 +203,7 @@
                 (or short text)
                 (when (seq labels)
                   [:span.form-label " (" (str/join ", " (map :tag labels)) ")"])]])
-            (distinct-by #(or (:short %) (:text %)) forms)))))
+            (shared/distinct-by #(or (:short %) (:text %)) forms)))))
 
 (defn paradigm-view
   "The full paradigm of the inflected `forms` as a table behind a details
@@ -247,7 +237,7 @@
             (interpose ", " (map (fn [{:keys [tag description]}]
                                    (tagged tag description))
                                  partsOfSpeech))))
-    (inflections-view inflectedForms)
+    (inflections-view headword inflectedForms)
     (paradigm-view inflectedForms)
     (labels-view "entry-labels" labels)]
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]

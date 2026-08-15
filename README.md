@@ -83,6 +83,45 @@ and an `llms.txt` for AI agents. The audit record against
 [The Website Specification](https://specification.website/) is in
 [doc/website-spec.md](doc/website-spec.md).
 
+## Build an Apple dictionary
+
+<img src="apple-dictionary.png" align="right" width="340"
+     alt="Dictionary.app shows the DanNet entry for the Danish word æblesort
+          (apple cultivar): the headword, the affixed inflected forms, a
+          definition, the classification, and a panel of related words. The
+          sidebar lists the inflected forms as search results.">
+
+The same DMLex file can become a dictionary for the macOS Dictionary
+app. Run the export from the project root:
+
+```sh
+clojure -J-Xmx8g -M:appledict datasets/your-dmlex.json
+```
+
+The export writes an Apple Dictionary source project into
+`export/appledict/`: the dictionary XML, the stylesheet, an Info.plist
+and a Makefile. The entries show the same content as the web viewer,
+with the short inflected forms on the entry and the full forms in the
+search index. If a Dublin Core `metadata.json` sits next to the DMLex
+file, its fields fill the bundle metadata and the front matter.
+
+To build and install the `.dictionary` bundle, you need the Dictionary
+Development Kit from Apple's "Additional Tools for Xcode". Then:
+
+```sh
+cd export/appledict && make && make install
+```
+
+The export command takes two optional arguments: the output directory
+and the path of the Dictionary Development Kit. The Makefile points at
+`/Library/Developer/Extras/Dictionary Development Kit` by default, and
+each export writes a new Makefile. If your kit is elsewhere, give its
+path on each export:
+
+```sh
+clojure -J-Xmx8g -M:appledict datasets/your-dmlex.json export/appledict "$HOME/Developer/Dictionary Development Kit"
+```
+
 ## Develop and test
 
 Start the development watch:

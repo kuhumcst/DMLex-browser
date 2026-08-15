@@ -1,21 +1,6 @@
 /* A typography-first dictionary view: Old Style serifs in black, white and
-   grey, with a single crimson accent. */
-
-:root {
-  --ink:     #1d1d1f;
-  --dark:    #3a3a3c;   /* secondary text: examples, inflections, pos */
-  --grey:    #58585c;   /* small metadata: keys, citations, counts */
-  --light:   #d2d2d7;   /* rules and idle link underlines */
-  --faint:   #f5f5f7;   /* the search field */
-  --panel:   #fafafb;   /* the relations panel */
-  --accent:  #901a1e;
-  --visited: #8f5f63;
-  --key-col: 10.5rem;
-  --serif:   'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052,
-             serif;
-  --sans:    -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica,
-             Arial, sans-serif;
-}
+   grey, with a single crimson accent. The palette and the font stacks come
+   from tokens.css, which index.html links before this file. */
 
 /* Base */
 

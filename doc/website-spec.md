@@ -25,7 +25,7 @@ published, not applicable, or declined with a reason.
 - SEO: heading hierarchy, internal links, implicit index policy.
 - Resilience: a friendly in-app error view with a way back, `<noscript>`
   fallback text.
-- Performance: system fonts, no images, one small stylesheet, deferred
+- Performance: system fonts, no images, two small stylesheets, deferred
   script, `scrollbar-gutter: stable`, `text-wrap: pretty`, no animation
   (nothing for `prefers-reduced-motion` to guard).
 - Agent readiness: the JSON data files are the machine-readable format of
