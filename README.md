@@ -1,8 +1,9 @@
 # dmlex-viewer
 
-<img src="screenshot.png" align="right" width="340"
-     alt="The viewer shows the entry for the Danish word ordbog (dictionary):
-          the headword, the inflected forms, a sense with an example, the
+<img src="web-viewer.png" align="right" width="340"
+     alt="The viewer shows the entry for the Danish word æblesort (apple
+          cultivar) as a white page on a grey background: the search field,
+          the headword, the affixed inflected forms, a definition, the
           classification, and a panel of related words.">
 
 A generic viewer for [DMLex 1.0](https://docs.oasis-open.org/lexidma/dmlex/v1.0/os/dmlex-v1.0-os.html)
