@@ -229,7 +229,10 @@
 
 (defn ->entry
   "One d:entry of the resolved `entry` map of dk.cst.dmlex-viewer.build:
-  the index terms, the header, the senses and the entry-level relations."
+  the index terms, the header, the senses and the entry-level relations.
+
+  Everything but the headword, the pos and the definitions carries
+  d:priority 2, which the compact Look Up panel omits."
   [{:keys [file headword homographNumber partsOfSpeech labels inflectedForms
            senses relations relation-groups]}]
   [:d/entry {:id file :d/title headword}

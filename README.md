@@ -78,8 +78,8 @@ types can also `combine` a qualifier type into its host and `show` the
 description in place of the tag; relation types can gather their rows
 into titled sections with `groups`. The
 data build copies the file into `public/data/`, and the Apple
-dictionary export reads it next to its input file. The full design is
-in [doc/presentation-config.md](doc/presentation-config.md).
+dictionary export reads it next to its input file. The design
+decisions behind the config are in [doc/design.md](doc/design.md).
 
 ## Build the frontend
 
@@ -119,9 +119,9 @@ browser revalidate each file.
 
 Some files stay out of the repository until the site has a stable public
 URL: a custom 404 page, the Open Graph tags, a `rel="canonical"` link,
-and an `llms.txt` for AI agents. The audit record against
-[The Website Specification](https://specification.website/) is in
-[doc/website-spec.md](doc/website-spec.md).
+and an `llms.txt` for AI agents. The reasoning, and the record of the
+audit against [The Website Specification](https://specification.website/),
+is in [doc/design.md](doc/design.md).
 
 ## Build an Apple dictionary
 
