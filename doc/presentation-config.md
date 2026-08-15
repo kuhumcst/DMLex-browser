@@ -1,9 +1,15 @@
 # Presentation config: analysis and plan
 
-Status: analysis, nothing implemented. This resolves the README TODO:
-an optional per-dataset presentation configuration that can hide,
-rename and reorder label types, without the viewer learning what any
-label type means. Written 2026-08-14.
+Status: plan steps 1–5 are implemented (2026-08-15):
+`dk.cst.dmlex-viewer.presentation` applies the ops on both surfaces,
+the build copies the config alongside the data, the Apple Dictionary
+export consumes the `appledict` section, and the README documents the
+format. What remains is polishing DanNet's own config (kept untracked
+in `datasets/` here) and transferring it to the DanNet repository per
+decision 3. Originally written 2026-08-14 as the analysis resolving
+the README TODO: an optional per-dataset presentation configuration
+that can hide, rename and reorder label types, without the viewer
+learning what any label type means.
 
 ## The problem
 
@@ -123,14 +129,25 @@ Everything below is optional, including the file itself.
     "order":    ["domain", "register"],
     "unlisted": "after",              // or "hide"
     "hide":     ["ontologicalType"],
-    "rename":   {"domain": "emne"}
+    "rename":   {"domain": "emne"},
+    "combine":  {"sentiment": "sentimentValue"},
+    "show":     {"synset": "description"}
   },
 
   // Rows in the relations panel, keyed by relation type.
   "relationTypes": {
     "order":  ["synonymy", "hyponymy"],
     "hide":   ["memberOf"],
-    "rename": {"synonymy": "synonymer"}
+    "rename": {"synonymy": "synonymer"},
+    // Alternatively, gather the rows into titled sections; "groups"
+    // subsumes "order". A group without "types" catches the rest.
+    "groups": [
+      {"types": ["synonymy"]},
+      {"title": "taksonomi",
+       "description": "Over- og underbegreber.",
+       "types": ["hypernymy", "hyponymy"]},
+      {"title": "andet"}
+    ]
   },
 
   // Renames of the displayed role names inside relation rows.
@@ -157,6 +174,22 @@ Everything below is optional, including the file itself.
 Semantics, precisely:
 
 - `hide` beats `order`: a key in both is hidden.
+- `show` (labelTypes only) picks the displayed field of a type: sending
+  a type to `"description"` makes its labels show the human-readable
+  description with the technical tag as the tooltip — the two switch
+  places. A label without a description keeps its tag.
+- `combine` (labelTypes only) merges a qualifier type into its host
+  type, rendered as `value (qualifier)`; it applies before the other
+  ops, so the qualifier needs no place in the order, and a qualifier
+  without a host stays an ordinary label.
+- `groups` (relationTypes only) partitions the rows into titled
+  sections rendered under headlines, with the optional description as
+  the headline's tooltip. Groups render in listed order, rows within a
+  group by their position in its `types`, so `groups` subsumes `order`.
+  A group without `types` is the fallback for unclaimed rows; without
+  one, unclaimed rows trail in an untitled section unless `unlisted`
+  is `"hide"`. An untitled group with `types` renders its rows without
+  a headline.
 - `order` lists first, in the given order; `unlisted` decides the rest.
   Sorting is stable, so unlisted keys keep dataset order among
   themselves — and, as a welcome side effect, labels of the same type
@@ -227,6 +260,31 @@ composition with the two hooks that cost almost nothing:
 Together those span the range from "rename one label type" to "looks
 like a different product", which is the flexibility asked for, on top
 of a config a curator can learn in one reading.
+
+## Considered extensions
+
+- **Combine (a type and its qualifier type).** The one structured
+  merge with a concrete consumer: DanNet renders `sentiment` and
+  `sentimentValue` as one row, "positiv (1.5)". The op fits the
+  invariant — a list operation over opaque tags, identical on both
+  surfaces: `"combine": {"sentiment": "sentimentValue"}` makes a host
+  type absorb its qualifier's values as `value (qualifier)` within the
+  same scope, the qualifier's own row disappears, and a qualifier
+  without a host falls back to its own row. The rendering convention is
+  fixed on purpose; a format template would be the first step toward
+  the rejected template DSL. Implemented 2026-08-15: `combine-labels`
+  merges before the other ops, so a qualifier needs no place of its
+  own in the order.
+- **Regexes in the config: declined.** A pattern that over-matches
+  fails silently (the failure mode the literal-tag design engineered
+  away), its position in an `order` list has murky semantics, and the
+  config runs on two regex engines (JavaScript and Java) whose dialects
+  diverge — a config matching differently per surface breaks the
+  one-config-two-surfaces promise. The need behind patterns is served
+  at authoring time instead: the dataset's export code knows the full
+  inventories and can use patterns — or any code — to *generate* the
+  exhaustive literal config, which ships dumb and deterministic and
+  doubles as documentation of the vocabulary.
 
 ## Rejected alternatives
 

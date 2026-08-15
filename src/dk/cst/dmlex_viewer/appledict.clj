@@ -20,6 +20,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [dk.cst.dmlex-viewer.build :as build]
+            [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]))
 
 ;; -----------------------------------------------------------------------------
@@ -43,10 +44,12 @@
     (name k)))
 
 (defn hiccup->xml
-  "Render the hiccup `x` — nil, a string, a [tag attrs? & children] vector or
-  a seq of hiccup — as an XML string. A nil child or attribute renders as
-  nothing, and a childless element self-closes. Only a vector opening with a
-  keyword is an element; any other sequential value is a seq of hiccup."
+  "Render the hiccup `x` — nil, a string, a [tag attrs? & children] vector
+  or a seq of hiccup — as an XML string.
+
+  A nil child or attribute renders as nothing, and a childless element
+  self-closes. Only a vector opening with a keyword is an element; any
+  other sequential value is a seq of hiccup."
   [x]
   (cond
     (nil? x) ""
@@ -79,11 +82,13 @@
     tag))
 
 (defn label-dd
-  "The dd of one label: its tag, linked when the label carries a URI."
-  [{:keys [tag description uri]}]
+  "The dd of one label: its tag, linked when the label carries a URI,
+  with any combined `:qualifier` values in parentheses."
+  [{:keys [tag description uri qualifier]}]
   [:dd (if uri
          [:a {:href uri} (tagged tag description)]
-         (tagged tag description))])
+         (tagged tag description))
+   (when qualifier (str " (" qualifier ")"))])
 
 (defn labels-view
   "The `labels` as a definition list grouped by label type, with the extra
@@ -92,10 +97,10 @@
   (when (seq labels)
     [:dl {:class (str "labels " class) :d/priority "2"}
      (for [group (partition-by :type labels)
-           :let [{:keys [type typeDescription]} (first group)]]
-       [:div
+           :let [{:keys [type typeDescription display]} (first group)]]
+       [:div {:data-type type}
         (if type
-          [:dt (tagged type typeDescription)]
+          [:dt (tagged (or display type) typeDescription)]
           [:dt {:class "visually-hidden" :lang "en"} "label"])
         (map label-dd group)])]))
 
@@ -122,10 +127,24 @@
   [relations]
   (when (seq relations)
     [:dl {:class "relations" :d/priority "2"}
-     (for [{:keys [type role description members]} relations]
-       [:div
-        [:dt {:title (or description type)} (or role type)]
+     (for [{:keys [type role description display display-role members]}
+           relations]
+       [:div {:data-type type :data-role role}
+        [:dt {:title (or description type)}
+         (or display-role role display type)]
         (members-dd members)])]))
+
+(defn relation-groups-view
+  "The titled `relation-groups` of the presentation config as sections:
+  each headline followed by its relation rows, with the group's
+  description as the headline's tooltip."
+  [relation-groups]
+  (for [{:keys [title description relations]} relation-groups]
+    [:div {:class      (str "relation-section" (when title " titled"))
+           :d/priority "2"}
+     (when title
+       [:h2 {:class "relation-group" :title description} title])
+     (relations-view relations)]))
 
 (defn example-view
   "One example as a quotation with its source citation."
@@ -142,7 +161,8 @@
 (defn sense-view
   "One sense as a list item: the indicator, the definitions, the examples,
   the labels and the relations."
-  [{:keys [indicator definitions examples labels relations]}]
+  [{:keys [indicator definitions examples labels relations
+           relation-groups]}]
   [:li {:class "sense"}
    [:p {:class "meaning"}
     (when indicator
@@ -151,11 +171,15 @@
      (interpose "; " (map :text definitions))]]
    (map example-view examples)
    (labels-view "sense-labels" labels)
-   (relations-view relations)])
+   (if (seq relation-groups)
+     (relation-groups-view relation-groups)
+     (relations-view relations))])
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list of
-  short forms, with the paradigm slot visually hidden and as a hover title.
+  short forms, with the paradigm slot visually hidden and as a hover
+  title.
+
   A form spelled like the headword stays out; the paradigm keeps it."
   [headword forms]
   (when-let [forms (seq (remove #(= headword (:text %)) forms))]
@@ -175,7 +199,9 @@
 
 (defn paradigm-view
   "The full paradigm of the inflected `forms` as a table behind a details
-  disclosure: one row per form, the paradigm slot as the row header."
+  disclosure.
+
+  One row per form, the paradigm slot as the row header."
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details {:class "paradigm" :d/priority "2"}
@@ -192,7 +218,9 @@
 
 (defn ->index
   "The d:index terms of one entry: the `headword` plus every distinct full
-  inflected form in `forms`, which redirects to the headword."
+  inflected form in `forms`.
+
+  The extra terms redirect to the headword."
   [headword forms]
   (cons [:d/index {:d/value headword}]
         (for [text (distinct (map :text forms))
@@ -203,7 +231,7 @@
   "One d:entry of the resolved `entry` map of dk.cst.dmlex-viewer.build:
   the index terms, the header, the senses and the entry-level relations."
   [{:keys [file headword homographNumber partsOfSpeech labels inflectedForms
-           senses relations]}]
+           senses relations relation-groups]}]
   [:d/entry {:id file :d/title headword}
    (->index headword inflectedForms)
    [:h1 {:class "headword"} [:dfn headword]
@@ -218,15 +246,18 @@
    (labels-view "entry-labels" labels)
    [:ol {:class (str "senses" (when (= 1 (count senses)) " single"))}
     (map sense-view senses)]
-   (relations-view relations)])
+   (if (seq relation-groups)
+     (relation-groups-view relation-groups)
+     (relations-view relations))])
 
 ;; -----------------------------------------------------------------------------
 ;; Bundle metadata
 
-(defn read-metadata
-  "The Dublin Core metadata.json next to the DMLex file `in`, or nil."
-  [in]
-  (let [f (io/file (or (.getParent (io/file in)) ".") "metadata.json")]
+(defn read-companion
+  "The JSON companion file `name` next to the DMLex file `in`, or nil:
+  the Dublin Core metadata.json or the presentation.json config."
+  [in name]
+  (let [f (io/file (or (.getParent (io/file in)) ".") name)]
     (when (.exists f)
       (json/read-str (slurp f)))))
 
@@ -261,8 +292,9 @@
 
 (defn front-matter
   "The front matter d:entry assembled from the bundle `info`: the title,
-  the description, the rights, the sources and the home URI. Info.plist
-  points at it via DCSDictionaryFrontMatterReferenceID."
+  the description, the rights, the sources and the home URI.
+
+  Info.plist points at it via DCSDictionaryFrontMatterReferenceID."
   [{:keys [title description rights license sources uri]}]
   [:d/entry {:id "front_back_matter" :d/title (str "About " title)}
    [:d/index {:d/value title}]
@@ -288,17 +320,34 @@
        "<d:dictionary xmlns=\"http://www.w3.org/1999/xhtml\" "
        "xmlns:d=\"http://www.apple.com/DTDs/DictionaryService-1.0.rng\">\n"))
 
+(defn front-matter-xml
+  "The front matter as XML: the dataset's own `front` XHTML fragment when
+  it ships one, else the generic assembly from the bundle `info`."
+  [info front]
+  (if front
+    (str "<d:entry id=\"front_back_matter\" d:title=\""
+         (escape (str "About " (:title info))) "\">"
+         (hiccup->xml [:d/index {:d/value (:title info)}])
+         front
+         "</d:entry>")
+    (hiccup->xml (front-matter info))))
+
 (defn write-xml!
-  "Stream the d:dictionary XML of the DMLex `resource` to `file`, opening
-  with the front matter of the bundle `info`."
-  [file info resource]
+  "Stream the d:dictionary XML of the DMLex `resource` to `file`, with
+  the presentation `config` applied to every entry.
+
+  The stream opens with the front matter of the bundle `info` — the
+  dataset's own `front` fragment when it ships one."
+  [file info config front resource]
   (let [env (build/->env resource)]
     (with-open [w (io/writer file)]
       (.write w xml-preamble)
-      (.write w (hiccup->xml (front-matter info)))
+      (.write w (front-matter-xml info front))
       (.write w "\n")
       (doseq [entry (:entries resource)]
-        (.write w (hiccup->xml (->entry (build/->entry-file env entry))))
+        (.write w (hiccup->xml
+                    (->entry (presentation/present-entry
+                               config (build/->entry-file env entry)))))
         (.write w "\n"))
       (.write w "</d:dictionary>\n"))))
 
@@ -361,10 +410,28 @@
        "\t/bin/rm -rf $(DICT_DEV_KIT_OBJ_DIR)\n"))
 
 (def css-files
-  "The stylesheet of the bundle: the shared tokens, then the Dictionary.app
-  rules. Paths are relative to the project root."
+  "The base stylesheet of the bundle: the shared tokens, then the
+  Dictionary.app rules.
+
+  Paths are relative to the project root."
   ["public/css/tokens.css"
    "resources/appledict/style.css"])
+
+(defn stylesheet
+  "The full stylesheet of the bundle: the base `css-files` plus any
+  dataset stylesheets the `config` names in the input directory `dir`.
+
+  The shared \"css\" hook comes first, then the appledict-specific one."
+  [dir config]
+  (->> (concat css-files
+               (for [name [(get config "css")
+                           (get-in config ["appledict" "css"])]
+                     :when name]
+                 (io/file dir name)))
+       (map io/file)
+       (filter #(.exists %))
+       (map slurp)
+       (str/join "\n")))
 
 (def ddk-default
   "The location where Apple's installer puts the Dictionary Development
@@ -373,16 +440,27 @@
 
 (defn export!
   "Convert the DMLex JSON file `in` into an Apple Dictionary source project
-  in the directory `out`, with a Makefile pointing at the DDK in `ddk-dir`."
+  in the directory `out`, with a Makefile pointing at the DDK in `ddk-dir`.
+
+  A presentation.json next to `in` shapes the entries; its \"appledict\"
+  section can override the bundle identifier and add a stylesheet and a
+  front-matter fragment."
   [in out ddk-dir]
   (println "Reading" in)
   (let [resource (json/read-str (slurp in) :key-fn keyword)
-        info     (bundle-info resource (read-metadata in))
+        dir      (or (.getParent (io/file in)) ".")
+        config   (read-companion in "presentation.json")
+        info     (cond-> (bundle-info resource (read-companion in "metadata.json"))
+                   (get-in config ["appledict" "identifier"])
+                   (assoc :identifier (get-in config ["appledict" "identifier"])))
+        front    (when-let [name (get-in config ["appledict" "frontMatter"])]
+                   (let [f (io/file dir name)]
+                     (when (.exists f) (slurp f))))
         xml-file (io/file out "Dictionary.xml")]
     (io/make-parents xml-file)
     (println "Writing" (count (:entries resource)) "entries into" (str out))
-    (write-xml! xml-file info resource)
-    (spit (io/file out "Dictionary.css") (str/join "\n" (map slurp css-files)))
+    (write-xml! xml-file info config front resource)
+    (spit (io/file out "Dictionary.css") (stylesheet dir config))
     (spit (io/file out "Info.plist") (info-plist info))
     (spit (io/file out "Makefile") (makefile (:title info) ddk-dir))
     (println "Done. Build the bundle with `make && make install` in" out)))

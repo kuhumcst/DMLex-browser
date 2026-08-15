@@ -1,8 +1,9 @@
 # Apple Dictionary export: analysis and migration plan
 
-Status: plan steps 1–3 are implemented (2026-08-15) as
-`dk.cst.dmlex-viewer.appledict`; steps 4–5 wait for the
-presentation-config feature. The question: DanNet's commit
+Status: plan steps 1–4 are implemented (2026-08-15) as
+`dk.cst.dmlex-viewer.appledict`; step 5 (DanNet's own config and the
+deletion of its MVP) waits on config polish and the transfer. The
+question: DanNet's commit
 `da3dc97` ("WIP: appledict MVP") added a 349-line namespace
 (`dk.cst.dannet.db.export.appledict`) plus a 146-line CSS file that
 export DanNet to the Dictionary.app format — consuming the DMLex
@@ -165,10 +166,13 @@ three-file split along the one seam where drift would be a real bug:
   whole palette.
 - `public/css/style.css` — the web rules, unchanged minus its `:root`
   block; `index.html` links `tokens.css` first.
-- `resources/appledict/style.css` — the Dictionary.app rules,
-  including the dark-mode token override (deliberately not shared:
-  the web viewer is light-only, and a shared dark block would leak
-  into it via `prefers-color-scheme`).
+- `resources/appledict/style.css` — the Dictionary.app rules. It
+  re-expresses the palette as `color-mix` blends of `CanvasText` and
+  `Canvas`, because Dictionary.app resolves semantic colours by its
+  appearance while pinning `prefers-color-scheme` to light — a dark
+  media block never fires there. The blends land on the web palette
+  in light mode and on legible counterparts in dark mode. Deliberately
+  not shared: the web viewer is light-only.
 
 The converter concatenates `tokens.css`, the appledict rules, and the
 dataset's optional extra CSS (the same `"css"` hook as the web viewer)

@@ -62,6 +62,26 @@
       (is (str/includes? xml "href=\"https://example.com/zoo\""))
       (is (str/includes? xml "title=\"subject domain\"")))))
 
+(deftest presentation-rendering-test
+  (testing "renamed label types and relation roles reach the XML"
+    (is (str/includes?
+          (appledict/hiccup->xml
+            (appledict/labels-view "entry-labels"
+                                   [{:tag "zoo" :type "domain"
+                                     :display "emne"}]))
+          "<dt>emne</dt>"))
+    (is (str/includes?
+          (appledict/hiccup->xml
+            (appledict/relations-view
+              [{:type "hyp" :role "hypernym" :display-role "overbegreb"
+                :members [{:headword "H" :file "h"}]}]))
+          "<dt title=\"hyp\">overbegreb</dt>"))
+    (is (str/includes?
+          (appledict/hiccup->xml
+            (appledict/label-dd {:tag "Neutral" :type "sentiment"
+                                 :qualifier "0"}))
+          "Neutral (0)"))))
+
 (deftest bundle-info-test
   (testing "metadata wins over the resource fields, with derived identifier"
     (is (= {:title       "DanNet"

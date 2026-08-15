@@ -6,22 +6,26 @@
   dk.cst.dmlex-viewer.build writes: manifest.json, index.json and one
   pre-resolved file per entry."
   (:require [clojure.string :as str]
+            [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]
             [replicant.dom :as r]))
 
 (defonce state
-  (atom {:manifest    nil
-         :index       nil
-         :index-error nil
-         :query       ""
-         :active      nil
-         :entry       nil
-         :error       nil}))
+  (atom {:manifest     nil
+         :presentation nil
+         :index        nil
+         :index-error  nil
+         :query        ""
+         :active       nil
+         :entry        nil
+         :error        nil}))
 
 (defn fetch-json!
   "Fetch the JSON file at `path` and call `callback` with its parsed
-  content. When the fetch fails, call `on-error` with the error; by default
-  this puts the error message into the app state."
+  content.
+
+  When the fetch fails, call `on-error` with the error; by default this
+  puts the error message into the app state."
   ([path callback]
    (fetch-json! path callback
                 (fn [e] (swap! state assoc :error (.-message e)))))
@@ -38,6 +42,7 @@
 
 (defn load-index!
   "Fetch the search index and cache a lowercase headword on every row.
+
   A failure lands in :index-error rather than :error, so the search view
   can surface it even while an entry is on screen."
   []
@@ -53,6 +58,20 @@
                               rows)))
                (fn [e]
                  (swap! state assoc :index-error (.-message e)))))
+
+(defn load-presentation!
+  "Fetch the optional presentation config next to the data.
+
+  Its keys are the dataset's own tags, so they stay strings rather than
+  keywords. A missing file is the normal case and leaves the state
+  untouched."
+  []
+  (-> (js/fetch "data/presentation.json")
+      (.then (fn [res] (when (.-ok res) (.json res))))
+      (.then (fn [data]
+               (when data
+                 (swap! state assoc :presentation (js->clj data)))))
+      (.catch (fn [_] nil))))
 
 (defn matches
   "The first 100 rows of `index` whose headword begins with `query`."
@@ -70,8 +89,10 @@
 
 (defn next-active
   "The active result index after pressing `key` (\"ArrowDown\" or
-  \"ArrowUp\") at index `active` among `n` results. Nil is the search
-  field itself: Down enters the list at the top, Up leaves it there."
+  \"ArrowUp\") at index `active` among `n` results.
+
+  Nil is the search field itself: Down enters the list at the top, Up
+  leaves it there."
   [key active n]
   (case key
     "ArrowDown" (if active (min (inc active) (dec n)) 0)
@@ -90,8 +111,10 @@
 
 (defn search-keydown!
   "Handle the keydown `e` in the search field over the current result
-  `rows`, `query` and `active` index: the arrow keys move the active
-  result, Enter follows it (or the first row), Escape clears."
+  `rows`, `query` and `active` index.
+
+  The arrow keys move the active result, Enter follows it (or the first
+  row, or goes home on a blank query), Escape clears the search."
   [rows query active e]
   (case (.-key e)
     ("ArrowDown" "ArrowUp")
@@ -118,6 +141,7 @@
 
 (defn route!
   "Load the entry of the current URL fragment, or return to the front page.
+
   Focus follows the navigation — to the headword or the search field — so
   that keyboard and screen-reader users land on the new content instead of
   on an element the re-render removed."
@@ -140,32 +164,38 @@
 ;; Views
 
 (defn tagged
-  "The `tag` as an abbr when the dataset supplies a `description` for it. A
-  tag from a controlled inventory is a short form with a known expansion."
+  "The `tag` as an abbr when the dataset supplies a `description` for it.
+
+  A tag from a controlled inventory is a short form with a known
+  expansion."
   [tag description]
   (if description
     [:abbr {:title description} tag]
     tag))
 
 (defn label-dd
-  "The dd of one label: its tag, linked when the label carries a URI."
-  [{:keys [tag description uri]}]
+  "The dd of one label: its tag, linked when the label carries a URI,
+  with any combined `:qualifier` values in parentheses."
+  [{:keys [tag description uri qualifier]}]
   [:dd (if uri
          [:a {:href uri :target "_blank"} (tagged tag description)]
-         (tagged tag description))])
+         (tagged tag description))
+   (when qualifier (str " (" qualifier ")"))])
 
 (defn labels-view
-  "The `labels` as a definition list grouped by label type, with the extra
-  `class` on the list, e.g. domain: zoo - gender: Male."
+  "The `labels` as a definition list grouped by label type, with the
+  extra `class` on the list.
+
+  E.g. domain: zoo · gender: Male."
   [class labels]
   (when (seq labels)
     (into [:dl {:class ["labels" class]}]
           (map-indexed
             (fn [i group]
-              (let [{:keys [type typeDescription]} (first group)]
-                (into [:div {:replicant/key i}
+              (let [{:keys [type typeDescription display]} (first group)]
+                (into [:div {:replicant/key i :data-type type}
                        (if type
-                         [:dt (tagged type typeDescription)]
+                         [:dt (tagged (or display type) typeDescription)]
                          [:dt.visually-hidden {:lang "en"} "label"])]
                       (map label-dd group))))
             (partition-by :type labels)))))
@@ -187,20 +217,38 @@
         (into [:p.member-list] links)]]
       (into [:dd] links))))
 
-(defn relations-view
-  "The pre-resolved `relations` rows as a navigation landmark holding a
-  definition list: the role of the related senses against the links to
-  their entries."
+(defn relations-dl
+  "The pre-resolved `relations` rows as a definition list: the role of
+  the related senses against the links to their entries."
   [relations]
-  (when (seq relations)
+  (into [:dl.relations]
+        (map-indexed
+          (fn [i {:keys [type role description display display-role members]}]
+            [:div {:replicant/key i :data-type type :data-role role}
+             [:dt {:title (or description type)}
+              (or display-role role display type)]
+             (members-dd members)])
+          relations)))
+
+(defn relations-view
+  "The `relations` rows — or the titled `relation-groups` of the
+  presentation config — as one navigation landmark.
+
+  Each group renders as a section under its headline, with the group's
+  description as the headline's tooltip."
+  [relations relation-groups]
+  (cond
+    (seq relation-groups)
     [:nav {:aria-label "related"}
-     (into [:dl.relations]
-           (map-indexed
-             (fn [i {:keys [type role description members]}]
-               [:div {:replicant/key i}
-                [:dt {:title (or description type)} (or role type)]
-                (members-dd members)])
-             relations))]))
+     (map-indexed
+       (fn [i {:keys [title description relations]}]
+         [:section {:replicant/key i :class (when title "titled")}
+          (when title [:h2.relation-group {:title description} title])
+          (relations-dl relations)])
+       relation-groups)]
+
+    (seq relations)
+    [:nav {:aria-label "related"} (relations-dl relations)]))
 
 (defn example-view
   "One example as a quotation with its source citation."
@@ -217,20 +265,22 @@
 (defn sense-view
   "The sense at index `i` as a numbered list item: the indicator, the
   definitions, the examples, the labels and the relations."
-  [i {:keys [id indicator labels definitions examples relations]}]
+  [i {:keys [id indicator labels definitions examples relations
+             relation-groups]}]
   [:li.sense {:replicant/key (or id i)}
    [:p.meaning
     (when indicator (list [:i.indicator indicator] [:span.sep "|"]))
     (into [:span.definitions] (interpose "; " (map :text definitions)))]
    (map example-view examples)
    (labels-view "sense-labels" labels)
-   (relations-view relations)])
+   (relations-view relations relation-groups)])
 
 (defn inflections-view
-  "The inflected `forms` of `headword` as one run-in definition list. A form
-  spelled like the headword stays out of the line; the paradigm keeps it.
-  The paradigm slot of each form stays in the markup for assistive tech;
-  sighted readers get it as a tooltip."
+  "The inflected `forms` of `headword` as one run-in definition list.
+
+  A form spelled like the headword stays out of the line; the paradigm
+  keeps it. The paradigm slot of each form stays in the markup for
+  assistive tech; sighted readers get it as a tooltip."
   [headword forms]
   (when-let [forms (seq (remove #(= headword (:text %)) forms))]
     (into [:dl.inflections]
@@ -249,7 +299,9 @@
 
 (defn paradigm-view
   "The full paradigm of the inflected `forms` as a table behind a details
-  disclosure: one row per form, the paradigm slot as the row header."
+  disclosure.
+
+  One row per form, the paradigm slot as the row header."
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details.paradigm
@@ -269,7 +321,7 @@
   "One entry as an article: the header, the senses and the entry-level
   relations."
   [{:keys [headword homographNumber partsOfSpeech labels inflectedForms
-           senses relations]}]
+           senses relations relation-groups]}]
   [:article.entry
    [:header
     [:h1.headword {:tabindex -1} [:dfn headword]
@@ -284,7 +336,7 @@
     (labels-view "entry-labels" labels)]
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
          (map-indexed sense-view senses))
-   (relations-view relations)])
+   (relations-view relations relation-groups)])
 
 (defn result-headword
   "The `headword` of one search result, with the matched `query` prefix
@@ -298,6 +350,7 @@
 (defn results-view
   "The search result `rows` as a listbox, with the `query` prefix marked
   and the `active` row selected for the combobox's aria-activedescendant.
+
   A status line announces the row count to assistive technology."
   [rows query active]
   (list
@@ -326,8 +379,9 @@
 
 (defn search-view
   "The search result `rows` with the `active` row selected and the `query`
-  prefix marked, or the `index-error` when the index failed to load. Nil
-  `rows` mean the index is still loading."
+  prefix marked, or the `index-error` when the index failed to load.
+
+  Nil `rows` mean the index is still loading."
   [rows index-error query active]
   (cond
     rows        (results-view rows query active)
@@ -349,10 +403,13 @@
       [:div [:dt "relations"] [:dd relations]]]]))
 
 (defn app
-  "The root view over one value of the app state. The search field and the
-  result list form an ARIA combobox: focus stays in the field while
-  aria-activedescendant points at the active option."
-  [{:keys [manifest index index-error query active entry error]}]
+  "The root view over one value of the app state.
+
+  The search field and the result list form an ARIA combobox: focus
+  stays in the field while aria-activedescendant points at the active
+  option."
+  [{:keys [manifest presentation index index-error query active entry
+           error]}]
   (let [rows (when (and index (seq query)) (matches index query))]
     [:div.container
      [:search
@@ -382,7 +439,8 @@
         [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
       (cond
         (seq query) (search-view rows index-error query active)
-        entry       (entry-view entry)
+        entry       (entry-view (presentation/present-entry presentation
+                                                            entry))
         error       [:p.error {:lang "en"}
                      "The page failed to load. "
                      [:a {:href "#/"} "Go to the front page."]]
@@ -407,6 +465,7 @@
                    (set! (.-lang js/document.documentElement) langCode))
                  (update-title!)))
   (load-index!)
+  (load-presentation!)
   (.addEventListener js/window "hashchange" route!)
   (route!)
   (render!))

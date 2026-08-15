@@ -42,6 +42,45 @@ computed affix, for example `-t` for the form *mennesket*. Each relation
 attaches to its member entries and senses as display rows. Rows with the
 same relation type and the same direction merge into one row.
 
+## Present the data
+
+A dataset can ship its taste as a small `presentation.json` file next
+to its DMLex JSON. The file can hide, rename, and reorder the label
+types and the relation types, and it can rename the relation roles.
+The keys are the dataset's own tags, so the viewer applies the
+operations without learning what any tag means. Without the file,
+everything renders with the dataset's own names and order.
+
+```jsonc
+{
+  "labelTypes": {
+    "order":    ["domain", "register"],
+    "unlisted": "hide",              // or "after" (the default)
+    "rename":   {"domain": "emne"},
+    "combine":  {"sentiment": "sentimentValue"},
+    "show":     {"synset": "description"}
+  },
+  "relationTypes": {"order": ["synonym"]},
+  "roles":         {"rename": {"hypernym": "overbegreb"}},
+
+  // Only the Apple dictionary export reads this section.
+  "appledict": {
+    "identifier":  "org.example.dictionary",
+    "css":         "appledict-extra.css",
+    "frontMatter": "front-matter.html"
+  }
+}
+```
+
+Three rules: `hide` always wins, `order` lists first and `unlisted`
+decides the rest, and `rename` changes only the displayed name. Label
+types can also `combine` a qualifier type into its host and `show` the
+description in place of the tag; relation types can gather their rows
+into titled sections with `groups`. The
+data build copies the file into `public/data/`, and the Apple
+dictionary export reads it next to its input file. The full design is
+in [doc/presentation-config.md](doc/presentation-config.md).
+
 ## Build the frontend
 
 1. Install the npm dependencies: `npm install`
@@ -146,11 +185,3 @@ The search and view logic of the frontend has Node tests:
 npx shadow-cljs compile test && node out/node-tests.js
 ```
 
-## TODO
-
-- Add an optional presentation configuration for each dataset: a small
-  JSON file next to the data. The configuration can hide, rename, and
-  reorder label types. The mechanism stays generic, and the taste stays
-  dataset-specific. The viewer never learns what a label type means.
-  The analysis and the plan are in
-  [doc/presentation-config.md](doc/presentation-config.md).

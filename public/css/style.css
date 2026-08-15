@@ -28,7 +28,7 @@ body {
   margin: 3rem auto;
   padding: 3.25rem 3rem 5rem;
   background: #fff;
-  border: 1px solid var(--light);
+  border: 1px solid var(--rule);
   border-top: 3px solid var(--accent);
 }
 
@@ -48,7 +48,7 @@ dl, dd, blockquote, p, h1 { margin: 0; padding: 0; }
 a {
   color: inherit;
   text-decoration: underline;
-  text-decoration-color: var(--light);
+  text-decoration-color: var(--rule);
   text-underline-offset: 2.5px;
 }
 
@@ -68,7 +68,7 @@ summary {
 
 /* The small-caps metadata voice: keys, citations and stat names. */
 .labels dt, .relations dt, .stats dt, .example cite {
-  font-family: var(--sans);
+  font-family: var(--serif);
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
   color: var(--grey);
@@ -97,7 +97,7 @@ search input {
   font-family: var(--sans);
   font-size: 1.1rem;
   padding: 0.7rem 1rem;
-  border: 1px solid var(--light);
+  border: 1px solid var(--rule);
   border-radius: 0.7rem;
   background: var(--faint);
   color: var(--ink);
@@ -174,8 +174,8 @@ p.pos { margin: 0 0 0.4rem; }
 .paradigm .form-label { color: var(--grey); }
 
 /* Labels and relations share one aligned key/value layout: keys sit
-   right-aligned in a fixed column next to the values. Only the relations
-   carry the dividing rule; the classification stands unframed. */
+   right-aligned in a fixed column next to the values, divided by the
+   vertical rule. */
 
 .labels {
   font-family: var(--sans);
@@ -191,7 +191,8 @@ p.pos { margin: 0 0 0.4rem; }
   padding: 0.2rem 0 0.2rem 0.85rem;
 }
 
-.relations div { border-left: 1px solid var(--light); }
+.labels div,
+.relations div { border-left: 1px solid var(--rule); }
 
 .labels dt,
 .relations dt {
@@ -241,7 +242,7 @@ p.pos { margin: 0 0 0.4rem; }
 .senses.single .sense::before { content: none; }
 
 .indicator { color: var(--grey); font-style: normal; font-weight: 700; }
-.sep { color: var(--light); margin: 0 0.45em; }
+.sep { color: var(--rule); margin: 0 0.45em; }
 
 .example { color: var(--dark); font-style: italic; margin: 0.5rem 0 0; }
 .example p { display: inline; }
@@ -259,6 +260,49 @@ p.pos { margin: 0 0 0.4rem; }
   padding: 0.75rem 1rem 0.75rem 0;
 }
 
+/* A titled group is a quiet fieldset: a bordered box with no fill and
+   the headline sitting on the border like a legend, the page's white
+   behind it. An untitled group renders as bare rows. */
+nav > section { margin-top: 1.5rem; }
+
+nav > section.titled {
+  position: relative;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  margin-top: 1.9rem;
+  padding: 1.1rem 1.25rem 0.9rem 0;
+}
+
+nav > section .relations {
+  background: none;
+  border-radius: 0;
+  margin-top: 0;
+  padding: 0;
+}
+
+/* The mobile override must follow the desktop rule: media queries add
+   no specificity, so source order decides. With the key column
+   collapsed, the box needs its own left padding. */
+@media (max-width: 40rem) {
+  nav > section.titled { padding: 1rem 1.1rem 0.9rem; }
+}
+
+.relation-group {
+  position: absolute;
+  top: 0;
+  left: 1.25rem;
+  transform: translateY(-52%);
+  margin: 0;
+  padding: 0 0.45em;
+  background: #fff;
+  font-family: var(--serif);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .relations details { display: block; }
 .member-list { margin: 0.25rem 0 0; }
 
@@ -267,7 +311,7 @@ p.pos { margin: 0 0 0.4rem; }
 .colophon {
   margin-top: 4.5rem;
   padding-top: 1.1rem;
-  border-top: 1px solid var(--light);
+  border-top: 1px solid var(--rule);
   font-family: var(--sans);
   font-size: 0.85rem;
   color: var(--grey);

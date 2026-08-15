@@ -8,7 +8,8 @@
   --ink:     #1d1d1f;
   --dark:    #3a3a3c;   /* secondary text: examples, inflections, pos */
   --grey:    #58585c;   /* small metadata: keys, citations, counts */
-  --light:   #d2d2d7;   /* rules and idle link underlines */
+  --rule:    #b8b8bd;   /* every hairline: borders, rules, dividers,
+                           separators and idle link underlines */
   --faint:   #f5f5f7;   /* the search field */
   --desk:    #e9eaec;   /* the surface behind the page (web only) */
   --panel:   #fafafb;   /* the relations panel */

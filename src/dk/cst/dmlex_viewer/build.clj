@@ -17,8 +17,10 @@
            [java.util Locale]))
 
 (defn ->file
-  "The file basename of the DMLex object `id`. An id that is unsafe as a
-  filename keeps its safe characters and gains a hash of the original."
+  "The file basename of the DMLex object `id`.
+
+  An id that is unsafe as a filename keeps its safe characters and gains
+  a hash of the original."
   [id]
   (let [safe (str/replace id #"[^A-Za-z0-9._-]" "_")]
     (if (= safe id)
@@ -49,10 +51,12 @@
               :uri             (first sameAs)})))
 
 (defn affix
-  "The short display form of the inflected `form` of `headword`: the suffix
-  after their longest common prefix, e.g. -t for mennesket, or the prefix
-  notation when the form instead shares its ending with the headword. Nil
-  when the reduction would mislead: a multiword headword, a stem change, a
+  "The short display form of the inflected `form` of `headword`,
+  e.g. -t for mennesket.
+
+  The suffix after their longest common prefix, or the prefix notation
+  when the form instead shares its ending with the headword. Nil when
+  the reduction would mislead: a multiword headword, a stem change, a
   remainder with a space or without letters (a form identical to the
   headword), or a remainder ending in a hyphen (a compound stem)."
   [headword form]
@@ -76,8 +80,8 @@
       (or suffix prefix))))
 
 (defn ->inflected-form
-  "Resolve one inflected `form` against the `form-tag-of` inventory and the
-  label inventories in `->label*`."
+  "Resolve one inflected `form` of `headword` against the `form-tag-of`
+  inventory and the label inventories in `->label*`."
   [form-tag-of ->label* headword {:keys [tag text labels]}]
   (compact {:tag         tag
             :description (:description (form-tag-of tag))
@@ -103,12 +107,13 @@
 
 (defn relation-rows
   "The display rows for the object `ref`, given its relation `idxs` into
-  `relations`. Each row holds the members of one other role, merged across
-  the relations that share the relation type, the roles of `ref` inside it,
-  and the member role. In a relation with more than one role, the members
-  that share the role of `ref` are its co-members rather than its relata,
-  so they are left out. `resolve-ref` turns a member ref into a display
-  map."
+  `relations` and the `reltype-of` and `resolve-ref` lookups.
+
+  Each row holds the members of one other role, merged across the
+  relations that share the relation type, the roles of `ref` inside it,
+  and the member role. In a relation with more than one role, the
+  members that share the role of `ref` are its co-members rather than
+  its relata, so they are left out."
   [relations reltype-of resolve-ref ref idxs]
   (let [rows (for [i idxs
                    :let [{:keys [type members]} (nth relations i)
@@ -132,9 +137,11 @@
                 :members     (vec (distinct (map :target ms)))}))))
 
 (defn ->entry-file
-  "The fully resolved display map of `entry`. Every tag is expanded through
-  the inventory indices in `env`, and every relation the entry or one of its
-  senses is a member of appears as pre-resolved rows."
+  "The fully resolved display map of `entry` under the lookups of `env`.
+
+  Every tag is expanded through the inventory indices, and every
+  relation the entry or one of its senses is a member of appears as
+  pre-resolved rows."
   [{:keys [label-of label-type-of form-tag-of pos-of source-of reltype-of
            relations ref->idxs resolve-ref]}
    {:keys [id headword homographNumber partsOfSpeech labels inflectedForms
@@ -195,8 +202,10 @@
      :resolve-ref   (some-fn sense-home entry-home)}))
 
 (defn index-rows
-  "The search index: one row per entry, sorted by headword with the collation
-  of `langCode`. A row is [headword file pos homographNumber]."
+  "The search index of `resource`: one row per entry, sorted by headword
+  with the collation of its `langCode`.
+
+  A row is [headword file pos homographNumber]."
   [{:keys [langCode entries]}]
   (let [collator (Collator/getInstance (Locale/forLanguageTag (or langCode "")))]
     (->> entries
@@ -221,6 +230,21 @@
   (io/make-parents f)
   (spit f (json/write-str data :escape-slash false :escape-unicode false)))
 
+(defn copy-companions!
+  "Copy the optional presentation companions sitting next to the DMLex
+  file `in` into `out`: presentation.json and the stylesheet it names.
+
+  The config belongs to the dataset, so the build only carries it along."
+  [in out]
+  (let [dir    (or (.getParent (io/file in)) ".")
+        config (io/file dir "presentation.json")]
+    (when (.exists config)
+      (io/copy config (io/file out "presentation.json"))
+      (when-let [css (get (json/read-str (slurp config)) "css")]
+        (let [f (io/file dir css)]
+          (when (.exists f)
+            (io/copy f (io/file out css))))))))
+
 (defn build!
   "Read the DMLex JSON file `in` and write the static data files of the
   viewer into the directory `out`."
@@ -235,6 +259,7 @@
       (write-json! (io/file out "entries" (str file ".json")) m))
     (write-json! (io/file out "index.json") (index-rows resource))
     (write-json! (io/file out "manifest.json") (manifest resource))
+    (copy-companions! in out)
     (println "Done.")))
 
 (defn -main
