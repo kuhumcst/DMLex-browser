@@ -142,3 +142,45 @@
           "a role without a rename keeps its name")
       (is (= {:indicator "bare"} (get-in e [:senses 1]))
           "a sense without labels or relations passes through"))))
+
+(deftest collate-members-test
+  (testing "every relation row of the entry, its senses and its groups sorts"
+    (is (= {:relations       [{:members [{:headword "a" :order 1}
+                                         {:headword "b"}]}]
+            :senses          [{:relations [{:members [{:headword "b"}
+                                                      {:headword "c"}]}]}]
+            :relation-groups [{:relations [{:members [{:headword "y"}
+                                                      {:headword "z"}]}]}]}
+           (presentation/collate-members
+             compare
+             {:relations       [{:members [{:headword "b"}
+                                           {:headword "a" :order 1}]}]
+              :senses          [{:relations [{:members [{:headword "c"}
+                                                        {:headword "b"}]}]}]
+              :relation-groups [{:relations [{:members [{:headword "z"}
+                                                        {:headword "y"}]}]}]})))))
+
+(deftest resolve-links-test
+  (testing "sameAs-derived URIs route through the resolver, encoded"
+    (is (= {:labels [{:tag     "zoo"
+                      :uri     "https://home.org/browse?subject=https%3A%2F%2Fvocab.org%2Fx%23y"
+                      :typeUri "https://home.org/browse?subject=https%3A%2F%2Fvocab.org%2Ft"}]
+            :senses [{:examples [{:sourceUri "https://home.org/browse?subject=https%3A%2F%2Fsrc.org%2Fddo"}]}]}
+           (presentation/resolve-links
+             "https://home.org/browse?subject="
+             {:labels [{:tag     "zoo"
+                        :uri     "https://vocab.org/x#y"
+                        :typeUri "https://vocab.org/t"}]
+              :senses [{:examples [{:sourceUri "https://src.org/ddo"}]}]}))))
+  (testing "a URI on the resolver's own host links directly"
+    (is (= {:relations [{:uri "https://home.org/data/syn"}]}
+           (presentation/resolve-links
+             "https://home.org/browse?subject="
+             {:relations [{:uri "https://home.org/data/syn"}]}))))
+  (testing "present-entry applies the config's linkResolver"
+    (is (= {:labels [{:tag  "a1"
+                      :type "alpha"
+                      :uri  "https://home.org/browse?subject=https%3A%2F%2Fvocab.org%2Fa"}]}
+           (presentation/present-entry
+             {"linkResolver" "https://home.org/browse?subject="}
+             {:labels [{:tag "a1" :type "alpha" :uri "https://vocab.org/a"}]})))))

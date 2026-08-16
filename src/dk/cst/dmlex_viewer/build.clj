@@ -12,7 +12,8 @@
   Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [dk.cst.dmlex-viewer.shared :as shared])
   (:import [java.text Collator]
            [java.util Locale]))
 
@@ -43,11 +44,13 @@
   "Resolve the `tag` of a label against the `label-of` and `label-type-of`
   inventories into the display map of the viewer."
   [label-of label-type-of tag]
-  (let [{:keys [description typeTag sameAs]} (label-of tag)]
+  (let [{:keys [description typeTag sameAs]} (label-of tag)
+        type-tag (label-type-of typeTag)]
     (compact {:tag             tag
               :type            typeTag
               :description     description
-              :typeDescription (:description (label-type-of typeTag))
+              :typeDescription (:description type-tag)
+              :typeUri         (first (:sameAs type-tag))
               :uri             (first sameAs)})))
 
 (defn affix
@@ -56,28 +59,29 @@
 
   The suffix after their longest common prefix, or the prefix notation
   when the form instead shares its ending with the headword. Nil when
-  the reduction would mislead: a multiword headword, a stem change, a
-  remainder with a space or without letters (a form identical to the
-  headword), or a remainder ending in a hyphen (a compound stem)."
+  the reduction would mislead: a stem change, a remainder with a space
+  or without letters (a form identical to the headword), or a remainder
+  ending in a hyphen (a compound stem). A multiword expression that
+  inflects internally fails those checks by itself, so one that merely
+  extends its last word still reduces."
   [headword form]
-  (when-not (str/includes? headword " ")
-    (let [lcp    (count (take-while identity (map = headword form)))
-          lcs    (count (take-while identity (map = (reverse headword)
-                                                   (reverse form))))
-          tail   (subs form lcp)
-          head   (subs form 0 (- (count form) lcs))
-          ok?    (fn [remainder]
-                   (and (not (str/includes? remainder " "))
-                        (not (str/ends-with? remainder "-"))
-                        (re-find #"\p{L}" remainder)))
-          suffix (when (and (>= lcp (max 2 (quot (inc (count headword)) 2)))
-                            (ok? tail))
-                   (str "-" tail))
-          prefix (when (and (> lcs lcp)
-                            (>= lcs (max 3 (quot (* 2 (count headword)) 3)))
-                            (ok? head))
-                   (str head "-"))]
-      (or suffix prefix))))
+  (let [lcp    (count (take-while identity (map = headword form)))
+        lcs    (count (take-while identity (map = (reverse headword)
+                                                 (reverse form))))
+        tail   (subs form lcp)
+        head   (subs form 0 (- (count form) lcs))
+        ok?    (fn [remainder]
+                 (and (not (str/includes? remainder " "))
+                      (not (str/ends-with? remainder "-"))
+                      (re-find #"\p{L}" remainder)))
+        suffix (when (and (>= lcp (max 2 (quot (inc (count headword)) 2)))
+                          (ok? tail))
+                 (str "-" tail))
+        prefix (when (and (> lcs lcp)
+                          (>= lcs (max 3 (quot (* 2 (count headword)) 3)))
+                          (ok? head))
+                 (str head "-"))]
+    (or suffix prefix)))
 
 (defn ->inflected-form
   "Resolve one inflected `form` of `headword` against the `form-tag-of`
@@ -89,34 +93,64 @@
             :short       (affix headword text)
             :labels      (mapv ->label* labels)}))
 
+(defn text-runs
+  "The display runs of `text` under its stand-off `headword-markers` and
+  `collocate-markers`, or nil when it has no markers.
+
+  A run is {:text ...}, marked runs also carry :marker (\"headword\" or
+  \"collocate\") and the collocate's :lemma. A marker that overlaps an
+  earlier one or falls outside the text is ignored."
+  [text headword-markers collocate-markers]
+  (when-let [markers (->> (concat (map #(assoc % :marker "headword")
+                                       headword-markers)
+                                  (map #(assoc % :marker "collocate")
+                                       collocate-markers))
+                          (sort-by (juxt :startIndex :endIndex))
+                          (seq))]
+    (loop [pos 0, markers markers, runs []]
+      (if-let [{:keys [startIndex endIndex marker lemma]} (first markers)]
+        (if (and (<= pos startIndex)
+                 (< startIndex endIndex)
+                 (<= endIndex (count text)))
+          (recur endIndex (rest markers)
+                 (cond-> runs
+                   (< pos startIndex) (conj {:text (subs text pos startIndex)})
+                   true (conj (compact {:text   (subs text startIndex endIndex)
+                                        :marker marker
+                                        :lemma  lemma}))))
+          (recur pos (rest markers) runs))
+        (cond-> runs
+          (< pos (count text)) (conj {:text (subs text pos)}))))))
+
+(defn ->definition
+  "Resolve one `definition` against the `deftype-of` inventory, with its
+  marker runs."
+  [deftype-of {:keys [text definitionType headwordMarkers collocateMarkers]}]
+  (compact {:text            text
+            :type            definitionType
+            :typeDescription (:description (deftype-of definitionType))
+            :runs            (text-runs text headwordMarkers collocateMarkers)}))
+
+;; TODO: no known dataset exercises example labels yet; only unit-tested.
 (defn ->example
-  "Resolve one example against the `source-of` inventory."
-  [source-of {:keys [text sourceIdentity sourceElaboration]}]
-  (compact {:text              text
-            :source            sourceIdentity
-            :sourceDescription (:description (source-of sourceIdentity))
-            :sourceElaboration sourceElaboration}))
+  "Resolve one example against the `source-of` inventory and the label
+  resolver `->label*`."
+  [source-of ->label* {:keys [text sourceIdentity sourceElaboration labels
+                              headwordMarkers collocateMarkers]}]
+  (let [{:keys [description sameAs]} (source-of sourceIdentity)]
+    (compact {:text              text
+              :runs              (text-runs text headwordMarkers collocateMarkers)
+              :labels            (mapv ->label* labels)
+              :source            sourceIdentity
+              :sourceDescription description
+              :sourceUri         (first sameAs)
+              :sourceElaboration sourceElaboration})))
 
 (defn ->collator
   "The collator of `lang-code`, which orders headwords the way the language
   does rather than the way their code points fall."
   [lang-code]
   (Collator/getInstance (Locale/forLanguageTag (or lang-code ""))))
-
-(defn member-order
-  "A comparator for the members of one relation row: the `obverseListingOrder`
-  of the dataset first, then the headword in the `collator` collation.
-
-  A member without an order sorts after every member with one, so a dataset
-  that states no order lists alphabetically and one that states a partial
-  order keeps its ranked members on top."
-  [collator]
-  (fn [a b]
-    (let [c (compare (or (:order a) Long/MAX_VALUE)
-                     (or (:order b) Long/MAX_VALUE))]
-      (if (zero? c)
-        (.compare collator (:headword (:target a)) (:headword (:target b)))
-        c))))
 
 (defn member-refs
   "All member refs of the `relations`, as a map of ref -> relation indices."
@@ -126,37 +160,54 @@
           {}
           (map-indexed vector relations)))
 
+;; TODO: no known dataset exercises the relation :note, the role description
+;; or the "none" hint yet; only unit-tested.
 (defn relation-rows
   "The display rows for the object `ref` under the lookups of `env`.
 
   Each row holds the members of one other role, merged across the
   relations that share the relation type, the roles of `ref` inside it,
-  and the member role, ordered by `member-order` under the collator. In
-  a relation with more than one role, the members that share the role of
-  `ref` are its co-members rather than its relata, so they are left out."
-  [{:keys [collator relations reltype-of resolve-ref ref->idxs]} ref]
+  and the member role, in the listing order of the dataset and with the
+  `obverseListingOrder` of each member as its `:order`, so the displays
+  can collate. The description of a relation instance becomes the row's
+  `:note` and the description of the role's memberType its
+  `:roleDescription`. In a relation with more than one role, the members
+  that share the role of `ref` are its co-members rather than its
+  relata, so they are left out — as is any member whose memberType hints
+  \"none\"."
+  [{:keys [relations reltype-of resolve-ref ref->idxs]} ref]
   (let [rows (for [i (ref->idxs ref)
-                   :let [{:keys [type members]} (nth relations i)
+                   :let [{:keys [type members description]} (nth relations i)
+                         mt-of  (index-by :role (:memberTypes (reltype-of type)))
                          own    (into #{} (comp (filter #(= ref (:ref %)))
                                                 (map :role))
                                       members)
                          multi? (> (count (distinct (map :role members))) 1)
                          others (cond->> (remove #(= ref (:ref %)) members)
-                                  multi? (remove (comp own :role)))]
+                                  multi?  (remove (comp own :role))
+                                  :always (remove #(= "none" (:hint (mt-of (:role %))))))]
                    {:keys [role] :as m} others
                    :let [target (resolve-ref (:ref m))]
                    :when target]
                {:key    [type own role]
                 :type   type
                 :role   role
+                :note   description
                 :order  (:obverseListingOrder m)
                 :target target})]
-    (for [[[type _ role] ms] (group-by :key rows)]
-      (compact {:type        type
-                :role        role
-                :description (:description (reltype-of type))
-                :members     (into [] (comp (map :target) (distinct))
-                                   (sort (member-order collator) ms))}))))
+    (for [[[type _ role] ms] (group-by :key rows)
+          :let [{:keys [description sameAs memberTypes]} (reltype-of type)]]
+      (compact {:type            type
+                :role            role
+                :description     description
+                :roleDescription (:description ((index-by :role memberTypes) role))
+                :note            (some :note ms)
+                :uri             (first sameAs)
+                :members         (->> ms
+                                      (map (fn [{:keys [order target]}]
+                                             (compact (assoc target :order order))))
+                                      (shared/distinct-by #(dissoc % :order))
+                                      (vec))}))))
 
 (defn ->entry-file
   "The fully resolved display map of `entry` under the lookups of `env`.
@@ -164,7 +215,8 @@
   Every tag is expanded through the inventory indices, and every
   relation the entry or one of its senses is a member of appears as
   pre-resolved rows."
-  [{:keys [label-of label-type-of form-tag-of pos-of source-of] :as env}
+  [{:keys [label-of label-type-of deftype-of form-tag-of pos-of source-of]
+    :as   env}
    {:keys [id headword homographNumber partsOfSpeech labels inflectedForms
            senses]}]
   (let [->label*   (partial ->label label-of label-type-of)
@@ -173,23 +225,30 @@
                        (->> (relation-rows env ref)
                             (sort-by (juxt :type (comp str :role)))
                             (vec))))
-        ->sense    (fn [{:keys [id indicator labels definitions examples]}]
-                     (compact {:id          id
-                               :indicator   indicator
-                               :labels      (mapv ->label* labels)
-                               :definitions (mapv #(compact {:text (:text %)
-                                                             :type (:definitionType %)})
-                                                  definitions)
-                               :examples    (mapv (partial ->example source-of)
-                                                  examples)
-                               :relations   (rows-of id)}))]
+        ->sense    (fn [{:keys [id indicator labels definitions examples
+                                headwordTranslations]}]
+                     (compact {:id           id
+                               :indicator    indicator
+                               :labels       (mapv ->label* labels)
+                               :definitions  (mapv (partial ->definition deftype-of)
+                                                   definitions)
+                               :examples     (mapv (partial ->example source-of
+                                                            ->label*)
+                                                   examples)
+                               :translations (mapv (fn [{:keys [text langCode]}]
+                                                     (compact {:text text
+                                                               :lang langCode}))
+                                                   headwordTranslations)
+                               :relations    (rows-of id)}))]
     (compact {:id              id
               :file            (->file id)
               :headword        headword
               :homographNumber homographNumber
               :partsOfSpeech   (mapv (fn [tag]
-                                       (compact {:tag         tag
-                                                 :description (:description (pos-of tag))}))
+                                       (let [{:keys [description sameAs]} (pos-of tag)]
+                                         (compact {:tag         tag
+                                                   :description description
+                                                   :uri         (first sameAs)})))
                                      partsOfSpeech)
               :labels          (mapv ->label* labels)
               :inflectedForms  (mapv (partial ->inflected-form form-tag-of ->label* headword)
@@ -200,7 +259,7 @@
 (defn ->env
   "The lookup environment of `resource`: the inventory indices, the relation
   attachment map and the member ref resolver."
-  [{:keys [langCode entries labelTags labelTypeTags partOfSpeechTags
+  [{:keys [entries labelTags labelTypeTags definitionTypeTags partOfSpeechTags
            inflectedFormTags sourceIdentityTags relations relationTypes]}]
   (let [sense-home (into {} (for [{:keys [id headword senses]} entries
                                   {sense-id :id :keys [indicator]} senses
@@ -213,11 +272,11 @@
                                    :file     (->file id)}]))]
     {:label-of      (index-by :tag labelTags)
      :label-type-of (index-by :tag labelTypeTags)
+     :deftype-of    (index-by :tag definitionTypeTags)
      :pos-of        (index-by :tag partOfSpeechTags)
      :form-tag-of   (index-by :tag inflectedFormTags)
      :source-of     (index-by :tag sourceIdentityTags)
      :reltype-of    (index-by :type relationTypes)
-     :collator      (->collator langCode)
      :relations     (vec relations)
      :ref->idxs     (member-refs relations)
      :resolve-ref   (some-fn sense-home entry-home)}))

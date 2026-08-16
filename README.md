@@ -35,19 +35,31 @@ The build writes three kinds of file into `public/data/`:
   resource language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
 
-The build resolves the display data before the frontend runs. Labels
-carry the description and the `sameAs` URI of their `labelTag`.
-Inflected forms carry the description of their `inflectedFormTag` and a
-computed affix, for example `-t` for the form *mennesket*. Each relation
-attaches to its member entries and senses as display rows. Rows with the
-same relation type and the same direction merge into one row.
+The build resolves the display data before the frontend runs. Labels,
+label types, parts of speech, relation types, and example sources carry
+the description and the `sameAs` URI of their inventory tag; the viewer
+renders the URI as a link. Inflected forms carry the description of
+their `inflectedFormTag` and a computed affix, for example `-t` for the
+form *mennesket*. Definition and example texts carry their stand-off
+`headwordMarkers` and `collocateMarkers` as display runs; the viewer
+renders the marked headword in bold and a collocate with its lemma as
+the tooltip. The labels of an example trail it in parentheses, and the
+`headwordTranslations` of a sense render as a language-grouped line of
+equivalents. Each
+relation attaches to its member entries and senses as display rows.
+Rows with the same relation type and the same direction merge into one
+row; a row prefers the description of its relation instance, then of
+its role's memberType, then of its relation type as the tooltip, and a
+member whose memberType hints `"none"` stays out.
 
-The members of a row list in the order the dataset asks for: the
-`obverseListingOrder` of each member first, then the headword in the
-collation of the resource language. A dataset that states no order lists
-alphabetically, and one that states a partial order keeps its ranked
-members on top. DanNet, for example, derives the order from how many
-relations point at each synset, so the most central words come first.
+The members of a row keep the listing order of the dataset. A
+`presentation.json` with `"memberOrder": "collation"` sorts them by the
+`obverseListingOrder` of each member first, then by the headword in the
+collation of the resource language; a member without an order sorts
+after every member with one. The web viewer adds a checkbox switching
+between the two orders. DanNet, for example, derives the member order
+from how many relations point at each synset, so with `"collation"` the
+most central words come first.
 
 ## Present the data
 
@@ -69,6 +81,8 @@ everything renders with the dataset's own names and order.
   },
   "relationTypes": {"order": ["synonym"]},
   "roles":         {"rename": {"hypernym": "overbegreb"}},
+  "memberOrder":   "collation",      // or "listing" (the default)
+  "linkResolver":  "https://wordnet.dk/dannet/external?subject=",
 
   // Only the Apple dictionary export reads this section.
   "appledict": {
@@ -83,7 +97,10 @@ Three rules: `hide` always wins, `order` lists first and `unlisted`
 decides the rest, and `rename` changes only the displayed name. Label
 types can also `combine` a qualifier type into its host and `show` the
 description in place of the tag; relation types can gather their rows
-into titled sections with `groups`. The
+into titled sections with `groups`. A `linkResolver` reroutes every
+`sameAs` link through the dataset's own resource browser — vocabulary
+URIs usually serve raw RDF files — while links already on the
+resolver's host stay direct. The
 data build copies the file into `public/data/`, and the Apple
 dictionary export reads it next to its input file. The design
 decisions behind the config are in [doc/design.md](doc/design.md).

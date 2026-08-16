@@ -1,7 +1,8 @@
 (ns dk.cst.dmlex-viewer.build-test
   "Tests of the pure resolution logic of the data build."
   (:require [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.build :as build]))
+            [dk.cst.dmlex-viewer.build :as build]
+            [dk.cst.dmlex-viewer.presentation :as presentation]))
 
 (deftest ->file-test
   (testing "a filename-safe id passes through unchanged"
@@ -24,8 +25,16 @@
     (is (= "-e" (build/affix "hund" "hunde"))))
   (testing "prefix notation when the form shares its ending instead"
     (is (= "op-" (build/affix "give" "opgive"))))
+  (testing "a multiword compound that extends its last word reduces"
+    (is (= "-t" (build/affix "belle de boskoop-æble"
+                             "belle de boskoop-æblet")))
+    (is (= "-rne" (build/affix "belle de boskoop-æble"
+                               "belle de boskoop-æblerne"))))
   (testing "nil when the reduction would mislead"
-    (is (nil? (build/affix "slå op" "slog op")) "multiword headword")
+    (is (nil? (build/affix "slå op" "slog op"))
+        "an internally inflecting multiword expression")
+    (is (nil? (build/affix "kaste op" "kastede op"))
+        "a multiword expression whose remainder crosses the space")
     (is (nil? (build/affix "barn" "børn")) "stem change")
     (is (nil? (build/affix "gå" "gå i stå")) "remainder with a space")
     (is (nil? (build/affix "hund" "hund2")) "remainder without letters")
@@ -45,12 +54,13 @@
 
 (defn env
   "The lookup environment of `relations`, resolving refs against `homes*`."
-  [relations homes*]
-  {:collator    (build/->collator "da")
-   :relations   relations
-   :reltype-of  {}
-   :resolve-ref homes*
-   :ref->idxs   (build/member-refs relations)})
+  ([relations homes*]
+   (env relations homes* {}))
+  ([relations homes* reltype-of]
+   {:relations   relations
+    :reltype-of  reltype-of
+    :resolve-ref homes*
+    :ref->idxs   (build/member-refs relations)}))
 
 (defn rows
   "The relation rows of `ref` in `relations`, resolved against `homes`."
@@ -93,53 +103,76 @@
                  "h"))))
   (testing "an unresolvable ref is skipped"
     (is (= [] (rows [{:type "syn" :members [{:ref "a"} {:ref "gone"}]}]
-                    "a")))))
-
-(def collated-homes
-  {"h" {:headword "H" :file "h"}
-   "æ" {:headword "æble" :file "æ"}
-   "å" {:headword "ål" :file "å"}
-   "b" {:headword "bær" :file "b"}})
-
-(defn collated-rows
-  "The members of the one relation row of `ref`, by headword."
-  [relations ref]
-  (->> (build/relation-rows (env relations collated-homes) ref)
-       (first)
-       (:members)
-       (mapv :headword)))
+                    "a"))))
+  (testing "the instance description and the role description reach the row"
+    (is (= [{:type            "hyp"
+             :role            "hyper"
+             :roleDescription "the broader concept"
+             :note            "a curated note"
+             :members         [{:headword "H" :file "h"}]}]
+           (build/relation-rows
+             (env [{:type        "hyp"
+                    :description "a curated note"
+                    :members     [{:ref "h" :role "hyper"}
+                                  {:ref "a" :role "hypo"}]}]
+                  homes
+                  {"hyp" {:memberTypes [{:role        "hyper"
+                                         :description "the broader concept"}]}})
+             "a"))))
+  (testing "a member whose memberType hints \"none\" is not shown"
+    (is (= [] (build/relation-rows
+                (env [{:type    "internal"
+                       :members [{:ref "a"} {:ref "b" :role "hidden"}]}]
+                     homes
+                     {"internal" {:memberTypes [{:role "hidden"
+                                                 :hint "none"}]}})
+                "a")))))
 
 (deftest member-ordering-test
+  (testing "members keep the listing order of the dataset and carry :order"
+    (is (= [{:headword "B" :file "b" :order 2}
+            {:headword "A" :file "a"}]
+           (->> (build/relation-rows
+                  (env [{:type    "syn"
+                         :members [{:ref "h"}
+                                   {:ref "b" :obverseListingOrder 2}
+                                   {:ref "a"}]}]
+                       homes)
+                  "h")
+                (first)
+                (:members))))))
+
+(defn collated
+  "The `members` of one relation row, by headword, under the Danish
+  collation."
+  [members]
+  (let [collator (build/->collator "da")
+        compare* (fn [a b] (.compare collator a b))]
+    (->> (presentation/collate-members compare* {:relations [{:members members}]})
+         (:relations)
+         (first)
+         (:members)
+         (mapv :headword))))
+
+(deftest collate-members-test
   (testing "members without an order sort by the collation of the language"
     (is (= ["bær" "æble" "ål"]
-           (collated-rows [{:type    "syn"
-                            :members [{:ref "h"} {:ref "å"} {:ref "æ"}
-                                      {:ref "b"}]}]
-                          "h"))
+           (collated [{:headword "ål"} {:headword "æble"} {:headword "bær"}]))
         "æ and å sort after the plain letters in Danish"))
-  (testing "obverseListingOrder wins over the collation"
+  (testing ":order wins over the collation"
     (is (= ["ål" "æble" "bær"]
-           (collated-rows [{:type    "syn"
-                            :members [{:ref "h"}
-                                      {:ref "å" :obverseListingOrder 1}
-                                      {:ref "æ" :obverseListingOrder 2}
-                                      {:ref "b" :obverseListingOrder 3}]}]
-                          "h"))))
+           (collated [{:headword "æble" :order 2}
+                      {:headword "bær" :order 3}
+                      {:headword "ål" :order 1}]))))
   (testing "an unordered member sorts after every ordered one"
     (is (= ["ål" "bær" "æble"]
-           (collated-rows [{:type    "syn"
-                            :members [{:ref "h"}
-                                      {:ref "æ"}
-                                      {:ref "b"}
-                                      {:ref "å" :obverseListingOrder 1}]}]
-                          "h")))
+           (collated [{:headword "æble"}
+                      {:headword "bær"}
+                      {:headword "ål" :order 1}])))
     (is (= ["ål" "bær" "æble"]
-           (collated-rows [{:type    "syn"
-                            :members [{:ref "h"}
-                                      {:ref "æ" :obverseListingOrder 7}
-                                      {:ref "b" :obverseListingOrder 7}
-                                      {:ref "å" :obverseListingOrder 1}]}]
-                          "h"))
+           (collated [{:headword "æble" :order 7}
+                      {:headword "bær" :order 7}
+                      {:headword "ål" :order 1}]))
         "an equal order falls back to the collation")))
 
 (deftest index-rows-test
@@ -170,19 +203,38 @@
                          :description "zoology"
                          :typeTag     "domain"
                          :sameAs      ["https://example.com/zoo"]}]
-   :labelTypeTags      [{:tag "domain" :description "subject domain"}]
-   :partOfSpeechTags   [{:tag "sb." :description "substantiv"}]
+   :labelTypeTags      [{:tag         "domain"
+                         :description "subject domain"
+                         :sameAs      ["https://example.com/domain"]}]
+   :definitionTypeTags [{:tag "short" :description "short definition"}]
+   :partOfSpeechTags   [{:tag         "sb."
+                         :description "substantiv"
+                         :sameAs      ["https://example.com/sb"]}]
    :inflectedFormTags  [{:tag "pl" :description "plural"}]
-   :sourceIdentityTags []
-   :relationTypes      [{:type "syn" :description "synonymy"}]
+   :sourceIdentityTags [{:tag         "DDO"
+                         :description "Den Danske Ordbog"
+                         :sameAs      ["https://ordnet.dk/ddo"]}]
+   :relationTypes      [{:type        "syn"
+                         :description "synonymy"
+                         :sameAs      ["https://example.com/syn"]}]
    :relations          [{:type "syn" :members [{:ref "s1"} {:ref "s2"}]}]
    :entries            [{:id             "hund"
                          :headword       "hund"
                          :partsOfSpeech  ["sb."]
                          :labels         ["zoo"]
                          :inflectedForms [{:tag "pl" :text "hunde"}]
-                         :senses         [{:id          "s1"
-                                           :definitions [{:text "et dyr"}]}]}
+                         :senses         [{:id                   "s1"
+                                           :headwordTranslations [{:text     "dog"
+                                                                   :langCode "en"}
+                                                                  {:text     "hound"
+                                                                   :langCode "en"}]
+                                           :definitions [{:text           "et dyr"
+                                                          :definitionType "short"}]
+                                           :examples    [{:text            "en stor hund"
+                                                          :sourceIdentity  "DDO"
+                                                          :labels          ["zoo"]
+                                                          :headwordMarkers [{:startIndex 8
+                                                                             :endIndex   12}]}]}]}
                         {:id       "køter"
                          :headword "køter"
                          :senses   [{:id        "s2"
@@ -192,22 +244,71 @@
   (let [env   (build/->env resource)
         entry (build/->entry-file env (first (:entries resource)))]
     (testing "tags resolve through every inventory"
-      (is (= [{:tag "sb." :description "substantiv"}]
+      (is (= [{:tag         "sb."
+               :description "substantiv"
+               :uri         "https://example.com/sb"}]
              (:partsOfSpeech entry)))
       (is (= [{:tag             "zoo"
                :type            "domain"
                :description     "zoology"
                :typeDescription "subject domain"
+               :typeUri         "https://example.com/domain"
                :uri             "https://example.com/zoo"}]
              (:labels entry)))
       (is (= [{:tag "pl" :description "plural" :text "hunde" :short "-e"}]
              (:inflectedForms entry))))
+    (testing "headword translations pass through with their language"
+      (is (= [{:text "dog" :lang "en"} {:text "hound" :lang "en"}]
+             (:translations (first (:senses entry))))))
+    (testing "a definition resolves its type"
+      (is (= [{:text            "et dyr"
+               :type            "short"
+               :typeDescription "short definition"}]
+             (:definitions (first (:senses entry))))))
+    (testing "an example resolves its source, its labels and its marker runs"
+      (is (= [{:text              "en stor hund"
+               :runs              [{:text "en stor "}
+                                   {:text "hund" :marker "headword"}]
+               :labels            [{:tag             "zoo"
+                                    :type            "domain"
+                                    :description     "zoology"
+                                    :typeDescription "subject domain"
+                                    :typeUri         "https://example.com/domain"
+                                    :uri             "https://example.com/zoo"}]
+               :source            "DDO"
+               :sourceDescription "Den Danske Ordbog"
+               :sourceUri         "https://ordnet.dk/ddo"}]
+             (:examples (first (:senses entry))))))
     (testing "a sense carries the pre-resolved rows of its relations"
       (is (= [{:type        "syn"
                :description "synonymy"
+               :uri         "https://example.com/syn"
                :members     [{:headword  "køter"
                               :file      (build/->file "køter")
                               :indicator "nedsættende"}]}]
              (:relations (first (:senses entry))))))
     (testing "an entry without relations of its own has no :relations key"
       (is (not (contains? entry :relations))))))
+
+(deftest text-runs-test
+  (testing "text without markers has no runs"
+    (is (nil? (build/text-runs "en stor hund" nil nil))))
+  (testing "a headword marker splits the text into runs"
+    (is (= [{:text "en stor "}
+            {:text "hund" :marker "headword"}
+            {:text " gør"}]
+           (build/text-runs "en stor hund gør"
+                            [{:startIndex 8 :endIndex 12}] nil))))
+  (testing "a collocate marker keeps its lemma"
+    (is (= [{:text "hunden "}
+            {:text "gør" :marker "collocate" :lemma "gø"}]
+           (build/text-runs "hunden gør" nil
+                            [{:startIndex 7 :endIndex 10 :lemma "gø"}]))))
+  (testing "a marker overlapping an earlier one is ignored"
+    (is (= [{:text "abcd" :marker "headword"} {:text "ef"}]
+           (build/text-runs "abcdef"
+                            [{:startIndex 0 :endIndex 4}]
+                            [{:startIndex 2 :endIndex 6}]))))
+  (testing "a marker outside the text is ignored"
+    (is (= [{:text "kort"}]
+           (build/text-runs "kort" [{:startIndex 3 :endIndex 99}] nil)))))

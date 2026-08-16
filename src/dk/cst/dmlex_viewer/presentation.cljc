@@ -9,7 +9,9 @@
   substitution), so the viewer never learns what any tag means. The web
   viewer applies them at render time and the Apple Dictionary export at
   export time, which is why this namespace is cljc."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [clojure.walk :as walk]
+            [dk.cst.dmlex-viewer.shared :as shared]))
 
 (defn show-labels
   "Exchange the tag and description of every label whose type the `show`
@@ -103,6 +105,58 @@
           (conj {:relations unclaimed}))
         (not-empty))))
 
+(defn resolve-links
+  "Rewrite every sameAs-derived URI of the presented `entry` — :uri,
+  :typeUri and :sourceUri wherever they appear — to the `resolver` URL
+  with the encoded URI appended, so external links land on the
+  dataset's own resource browser instead of raw vocabulary files.
+
+  A URI already on the resolver's host stays untouched, so the
+  dataset's own pages link directly. This is the one config operation
+  that constructs text, and deliberately the least expressive one: a
+  fixed prefix plus one percent-encoded value, no templates."
+  [resolver entry]
+  (let [origin  (let [i (str/index-of resolver "://")
+                      j (when i (str/index-of resolver "/" (+ i 3)))]
+                  (if j (subs resolver 0 j) resolver))
+        reroute (fn [uri]
+                  (if (str/starts-with? uri origin)
+                    uri
+                    (str resolver (shared/encode-uri uri))))]
+    (walk/postwalk (fn [x]
+                     (if (map? x)
+                       (reduce (fn [m k]
+                                 (cond-> m
+                                   (contains? m k) (update k reroute)))
+                               x
+                               [:uri :typeUri :sourceUri])
+                       x))
+                   entry)))
+
+(defn collate-members
+  "Sort the members of every relation row of the presented `entry` — on
+  the entry, its senses and any relation groups — with the member order
+  of the dataset first, then the headword under `compare-headwords`.
+
+  Without this the members keep the listing order of the dataset; the
+  \"memberOrder\" config value \"collation\" and the toggle of the web
+  viewer apply it."
+  [compare-headwords entry]
+  (let [rows*   (fn [rows]
+                  (mapv (fn [row]
+                          (update row :members
+                                  #(vec (sort (shared/member-order compare-headwords)
+                                              %))))
+                        rows))
+        groups* (fn [groups]
+                  (mapv #(update % :relations rows*) groups))
+        scope*  (fn [m]
+                  (cond-> m
+                    (:relations m) (update :relations rows*)
+                    (:relation-groups m) (update :relation-groups groups*)))]
+    (cond-> (scope* entry)
+      (:senses entry) (update :senses #(mapv scope* %)))))
+
 (defn present-entry
   "Apply the presentation `config` to the resolved display `entry` of
   the build.
@@ -112,7 +166,9 @@
   and on each of its senses. Combined label types merge first, so a
   qualifier needs no place of its own in the order. When the config
   declares relation \"groups\", :relations becomes :relation-groups.
-  An empty `config` returns `entry` unchanged."
+  A \"linkResolver\" reroutes every sameAs-derived URI through the
+  dataset's resource browser. An empty `config` returns `entry`
+  unchanged."
   [config entry]
   (if (empty? config)
     entry
@@ -146,8 +202,10 @@
                             (:labels sense)    (update :labels labels*)
                             (:relations sense) (update :relations rels*))
                           (section*)))]
-      (-> (cond-> entry
-            (:labels entry)    (update :labels labels*)
-            (:relations entry) (update :relations rels*)
-            (:senses entry)    (update :senses #(mapv sense* %)))
-          (section*)))))
+      (cond->> (-> (cond-> entry
+                     (:labels entry)    (update :labels labels*)
+                     (:relations entry) (update :relations rels*)
+                     (:senses entry)    (update :senses #(mapv sense* %)))
+                   (section*))
+        (get config "linkResolver")
+        (resolve-links (get config "linkResolver"))))))

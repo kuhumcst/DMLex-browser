@@ -63,6 +63,25 @@ lost by accident: a qualifier without a host stays an ordinary label,
 and unclaimed relation rows trail in a fallback group unless
 explicitly hidden.
 
+Member order is taste too. By default the members of a relation row
+keep the listing order of the dataset, which is what the DMLex spec
+asks a conforming display to do; `"memberOrder": "collation"` sorts
+them by each member's `obverseListingOrder` and then alphabetically
+instead, and the web viewer offers the reader a toggle. This reads
+`obverseListingOrder` more liberally than the spec, which reserves it
+for ordering relations on a member's own page — a job the config's
+relation `order` and `groups` already do here, deliberately.
+
+`"linkResolver"` bends the no-construction rule, deliberately and
+minimally. Vocabulary URIs are identifiers first and links second:
+most serve raw RDF files, so sending readers there helps nobody, while
+a linked-data project usually has a resource browser that renders any
+URI. The op is a fixed prefix plus one percent-encoded value — no
+placeholders and no choices, so it cannot grow into a template
+language — and the encoding is pinned to `encodeURIComponent`
+semantics on both platforms so one config renders identical hrefs
+everywhere. URIs already on the resolver's host are left direct.
+
 ## Two surfaces, one alignment rule
 
 The web app is a ClojureScript SPA (Replicant, hash routing, a single

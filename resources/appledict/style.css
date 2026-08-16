@@ -41,6 +41,7 @@ a {
 
 a:hover { text-decoration-color: var(--accent); }
 abbr[title] { text-decoration: none; cursor: help; }
+.collocate[title] { cursor: help; }
 dfn { font-style: normal; }
 
 summary {
@@ -48,7 +49,16 @@ summary {
   font-family: var(--sans);
   font-size: 0.8rem;
   color: var(--grey);
+  -webkit-user-select: none;
 }
+
+/* Disclosure captions and header text live in CSS content rather than
+   document text so that Dictionary.app cannot look the words up on
+   click. */
+summary.all-forms::after { content: "all forms"; }
+.relations summary::after { content: attr(data-count) " entries"; }
+.relation-group::after { content: attr(data-label); }
+.paradigm th::after { content: attr(data-label); }
 
 /* The small-caps metadata voice: keys and citations. */
 .labels dt, .relations dt, .example cite {
@@ -119,6 +129,8 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
   margin-top: 0.5rem;
 }
 
+.labels + .translations { margin-top: 0; }
+
 .labels div, .relations div { display: block; }
 .labels dt, .relations dt { display: inline; margin-right: 0.4em; }
 .labels dd, .relations dd { display: inline; }
@@ -150,6 +162,7 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .example p { display: inline; }
 .example footer { display: inline; margin-left: 0.45rem; }
 .example cite { font-style: normal; font-size: 0.75rem; }
+.example-labels { font-style: normal; font-size: 0.75rem; }
 
 /* Relations */
 

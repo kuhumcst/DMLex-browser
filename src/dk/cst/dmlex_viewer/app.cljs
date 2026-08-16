@@ -18,7 +18,8 @@
          :query        ""
          :active       nil
          :entry        nil
-         :error        nil}))
+         :error        nil
+         :collate?     nil}))
 
 (defn fetch-json!
   "Fetch the JSON file at `path` and call `callback` with its parsed
@@ -173,13 +174,32 @@
     [:abbr {:title description} tag]
     tag))
 
+(defn linked
+  "The hiccup `x`, linked to `uri` when the dataset supplies one."
+  [uri x]
+  (if uri
+    [:a {:href uri :target "_blank"} x]
+    x))
+
+(defn runs-view
+  "The `text` of one definition or example, with its marker `runs` — the
+  marked headword in bold, a collocate with its lemma as the tooltip —
+  or plain when it has none."
+  [text runs]
+  (if runs
+    (map (fn [{:keys [text marker lemma]}]
+           (case marker
+             "headword"  [:b text]
+             "collocate" [:span.collocate {:title lemma} text]
+             text))
+         runs)
+    text))
+
 (defn label-dd
   "The dd of one label: its tag, linked when the label carries a URI,
   with any combined `:qualifier` values in parentheses."
   [{:keys [tag description uri qualifier]}]
-  [:dd (if uri
-         [:a {:href uri :target "_blank"} (tagged tag description)]
-         (tagged tag description))
+  [:dd (linked uri (tagged tag description))
    (when qualifier (str " (" qualifier ")"))])
 
 (defn labels-view
@@ -192,10 +212,11 @@
     (into [:dl {:class ["labels" class]}]
           (map-indexed
             (fn [i group]
-              (let [{:keys [type typeDescription display]} (first group)]
+              (let [{:keys [type typeDescription typeUri display]} (first group)]
                 (into [:div {:replicant/key i :data-type type}
                        (if type
-                         [:dt (tagged (or display type) typeDescription)]
+                         [:dt (linked typeUri (tagged (or display type)
+                                                      typeDescription))]
                          [:dt.visually-hidden {:lang "en"} "label"])]
                       (map label-dd group))))
             (partition-by :type labels)))))
@@ -223,10 +244,11 @@
   [relations]
   (into [:dl.relations]
         (map-indexed
-          (fn [i {:keys [type role description display display-role members]}]
+          (fn [i {:keys [type role description roleDescription note uri
+                         display display-role members]}]
             [:div {:replicant/key i :data-type type :data-role role}
-             [:dt {:title (or description type)}
-              (or display-role role display type)]
+             [:dt {:title (or note roleDescription description type)}
+              (linked uri (or display-role role display type))]
              (members-dd members)])
           relations)))
 
@@ -250,39 +272,75 @@
     (seq relations)
     [:nav {:aria-label "related"} (relations-dl relations)]))
 
+(defn translations-view
+  "The headword `translations` of one sense as a definition list grouped
+  by language: the language code against its comma-joined equivalents."
+  [translations]
+  (when (seq translations)
+    (into [:dl.labels.translations]
+          (for [lang (distinct (map :lang translations))]
+            [:div {:replicant/key lang}
+             [:dt lang]
+             [:dd {:lang lang}
+              (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
+                                   translations))]]))))
+
 (defn example-view
-  "One example as a quotation with its source citation."
-  [{:keys [text source sourceDescription sourceElaboration]}]
+  "One example as a quotation with its labels and its source citation."
+  [{:keys [text runs labels source sourceDescription sourceUri
+           sourceElaboration]}]
   [:blockquote.example
-   [:p text]
+   [:p (runs-view text runs)
+    (when (seq labels)
+      [:span.example-labels " ("
+       (interpose ", " (map (fn [{:keys [tag description uri]}]
+                              (linked uri (tagged tag description)))
+                            labels))
+       ")"])]
    (when source
      [:footer
-      [:cite (tagged source
-                     (not-empty
-                       (str/join " " (remove nil? [sourceDescription
-                                                   sourceElaboration]))))]])])
+      [:cite (linked sourceUri
+                     (tagged source
+                             (not-empty
+                               (str/join " " (remove nil? [sourceDescription
+                                                           sourceElaboration])))))]])])
 
 (defn sense-view
   "The sense at index `i` as a numbered list item: the indicator, the
-  definitions, the examples, the labels and the relations."
-  [i {:keys [id indicator labels definitions examples relations
-             relation-groups]}]
+  definitions, the examples, the labels, the translations and the
+  relations."
+  [i {:keys [id indicator labels definitions translations examples
+             relations relation-groups]}]
   [:li.sense {:replicant/key (or id i)}
    [:p.meaning
     (when indicator (list [:i.indicator indicator] [:span.sep "|"]))
-    (into [:span.definitions] (interpose "; " (map :text definitions)))]
+    (into [:span.definitions]
+          (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
+                                 [:span.definition {:data-type type
+                                                    :title     typeDescription}
+                                  (runs-view text runs)])
+                               definitions)))]
    (map example-view examples)
    (labels-view "sense-labels" labels)
+   (translations-view translations)
    (relations-view relations relation-groups)])
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list.
 
-  A form spelled like the headword stays out of the line; the paradigm
-  keeps it. The paradigm slot of each form stays in the markup for
-  assistive tech; sighted readers get it as a tooltip."
+  One representative per paradigm slot — the form with a reduced short
+  when the slot has one — so variant spellings stay in the paradigm, as
+  does a form spelled like the headword. The paradigm slot of each form
+  stays in the markup for assistive tech; sighted readers get it as a
+  tooltip."
   [headword forms]
-  (when-let [forms (seq (remove #(= headword (:text %)) forms))]
+  (when-let [forms (->> (partition-by #(or (:description %) (:tag %) (:text %))
+                                      forms)
+                        (map (fn [group]
+                               (or (first (filter :short group))
+                                   (first group))))
+                        (remove #(= headword (:text %)))
+                        (seq))]
     (into [:dl.inflections]
           (map-indexed
             (fn [i {:keys [tag text short description labels]}]
@@ -301,7 +359,8 @@
   "The full paradigm of the inflected `forms` as a table behind a details
   disclosure.
 
-  One row per form, the paradigm slot as the row header."
+  One row per paradigm slot; forms that share the slot — variant
+  spellings — join on the row."
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details.paradigm
@@ -309,13 +368,19 @@
      [:table
       (into [:tbody]
             (map-indexed
-              (fn [i {:keys [tag text description labels]}]
-                [:tr {:replicant/key i}
-                 [:th {:scope "row"} (or description tag)]
-                 [:td text
-                  (when (seq labels)
-                    [:span.form-label " (" (str/join ", " (map :tag labels)) ")"])]])
-              forms))]]))
+              (fn [i group]
+                (let [{:keys [tag description]} (first group)]
+                  [:tr {:replicant/key i}
+                   [:th {:scope "row"} (or description tag)]
+                   (into [:td]
+                         (interpose ", "
+                                    (map (fn [{:keys [text labels]}]
+                                           (list text
+                                                 (when (seq labels)
+                                                   [:span.form-label
+                                                    " (" (str/join ", " (map :tag labels)) ")"])))
+                                         group)))]))
+              (partition-by #(or (:description %) (:tag %)) forms)))]]))
 
 (defn entry-view
   "One entry as an article: the header, the senses and the entry-level
@@ -328,8 +393,8 @@
      (when homographNumber [:sup.hom homographNumber])]
     (when (seq partsOfSpeech)
       (into [:p.pos]
-            (interpose ", " (map (fn [{:keys [tag description]}]
-                                   (tagged tag description))
+            (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                   (linked uri (tagged tag description)))
                                  partsOfSpeech))))
     (inflections-view headword inflectedForms)
     (paradigm-view inflectedForms)
@@ -337,6 +402,31 @@
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
          (map-indexed sense-view senses))
    (relations-view relations relation-groups)])
+
+(defn headword-collation
+  "The headword comparator of `lang-code`, using the collator of the
+  browser."
+  [lang-code]
+  (let [collator (js/Intl.Collator. (or lang-code js/undefined))]
+    (fn [a b] (.compare collator a b))))
+
+(defn related?
+  "Does the presented `entry` or one of its senses carry relation rows?"
+  [{:keys [relations relation-groups senses]}]
+  (boolean (or relations relation-groups
+               (some #(or (:relations %) (:relation-groups %)) senses))))
+
+(defn collate-toggle
+  "The checkbox switching relation members between the listing order of
+  the dataset and the alphabetical collation."
+  [collate?]
+  [:label.member-order {:lang "en"}
+   [:input {:type    "checkbox"
+            :checked collate?
+            :on      {:change (fn [e]
+                                (swap! state assoc :collate?
+                                       (.. e -target -checked)))}}]
+   " sort related words alphabetically"])
 
 (defn result-headword
   "The `headword` of one search result, with the matched `query` prefix
@@ -409,8 +499,11 @@
   stays in the field while aria-activedescendant points at the active
   option."
   [{:keys [manifest presentation index index-error query active entry
-           error]}]
-  (let [rows (when (and index (seq query)) (matches index query))]
+           error collate?]}]
+  (let [rows     (when (and index (seq query)) (matches index query))
+        collate? (if (some? collate?)
+                   collate?
+                   (= "collation" (get presentation "memberOrder")))]
     [:div.container
      [:search
       [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
@@ -439,8 +532,15 @@
         [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
       (cond
         (seq query) (search-view rows index-error query active)
-        entry       (entry-view (presentation/present-entry presentation
-                                                            entry))
+        entry       (let [presented (cond->> (presentation/present-entry
+                                               presentation entry)
+                                      collate?
+                                      (presentation/collate-members
+                                        (headword-collation
+                                          (:langCode manifest))))]
+                      (list (entry-view presented)
+                            (when (related? presented)
+                              (collate-toggle collate?))))
         error       [:p.error {:lang "en"}
                      "The page failed to load. "
                      [:a {:href "#/"} "Go to the front page."]]

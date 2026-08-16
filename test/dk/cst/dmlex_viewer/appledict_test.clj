@@ -42,6 +42,19 @@
                                               {:text "årene" :short "-ene"}]))
           ">-ene</dd>"))))
 
+(deftest paradigm-view-test
+  (testing "variant forms share their paradigm row"
+    (is (str/includes?
+          (appledict/hiccup->xml
+            (appledict/paradigm-view
+              [{:tag "110" :description "sg" :text "68'er"}
+               {:tag "110" :description "sg" :text "otteogtresser"}
+               {:tag "111" :description "sg def" :text "68'eren"}]))
+          (str "<th scope=\"row\" data-label=\"sg\"></th>"
+               "<td>68'er, otteogtresser</td></tr>"
+               "<tr><th scope=\"row\" data-label=\"sg def\"></th>"
+               "<td>68'eren</td>")))))
+
 (deftest ->entry-test
   (let [env   (build/->env build-test/resource)
         xml   (appledict/hiccup->xml
@@ -60,7 +73,24 @@
       (is (str/includes? xml (str "x-dictionary:r:" (build/->file "køter")))))
     (testing "labels resolve with description and URI"
       (is (str/includes? xml "href=\"https://example.com/zoo\""))
-      (is (str/includes? xml "title=\"subject domain\"")))))
+      (is (str/includes? xml "title=\"subject domain\"")))
+    (testing "the pos tag and the example source link by their sameAs URI"
+      (is (str/includes? xml "href=\"https://example.com/sb\""))
+      (is (str/includes? xml "href=\"https://ordnet.dk/ddo\"")))
+    (testing "the marked headword of an example renders in bold"
+      (is (str/includes? xml "en stor <b>hund</b>")))
+    (testing "the labels of an example trail it in parentheses"
+      (is (str/includes? xml "<span class=\"example-labels\"> (")))
+    (testing "headword translations group by language"
+      (is (str/includes?
+            xml
+            (str "<dl class=\"labels translations\" d:priority=\"2\">"
+                 "<div><dt>en</dt><dd lang=\"en\">dog, hound</dd></div></dl>"))))
+    (testing "the definition carries its type silently"
+      (is (str/includes?
+            xml
+            (str "<span class=\"definition\" data-type=\"short\""
+                 " title=\"short definition\">et dyr</span>"))))))
 
 (deftest presentation-rendering-test
   (testing "renamed label types and relation roles reach the XML"

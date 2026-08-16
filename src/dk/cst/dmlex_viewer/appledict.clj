@@ -81,13 +81,32 @@
     [:abbr {:title description} tag]
     tag))
 
+(defn linked
+  "The hiccup `x`, linked to `uri` when the dataset supplies one."
+  [uri x]
+  (if uri
+    [:a {:href uri} x]
+    x))
+
+(defn runs-view
+  "The `text` of one definition or example, with its marker `runs` — the
+  marked headword in bold, a collocate with its lemma as the tooltip —
+  or plain when it has none."
+  [text runs]
+  (if runs
+    (map (fn [{:keys [text marker lemma]}]
+           (case marker
+             "headword"  [:b text]
+             "collocate" [:span {:class "collocate" :title lemma} text]
+             text))
+         runs)
+    text))
+
 (defn label-dd
   "The dd of one label: its tag, linked when the label carries a URI,
   with any combined `:qualifier` values in parentheses."
   [{:keys [tag description uri qualifier]}]
-  [:dd (if uri
-         [:a {:href uri} (tagged tag description)]
-         (tagged tag description))
+  [:dd (linked uri (tagged tag description))
    (when qualifier (str " (" qualifier ")"))])
 
 (defn labels-view
@@ -97,10 +116,10 @@
   (when (seq labels)
     [:dl {:class (str "labels " class) :d/priority "2"}
      (for [group (partition-by :type labels)
-           :let [{:keys [type typeDescription display]} (first group)]]
+           :let [{:keys [type typeDescription typeUri display]} (first group)]]
        [:div {:data-type type}
         (if type
-          [:dt (tagged (or display type) typeDescription)]
+          [:dt (linked typeUri (tagged (or display type) typeDescription))]
           [:dt {:class "visually-hidden" :lang "en"} "label"])
         (map label-dd group)])]))
 
@@ -117,7 +136,9 @@
     (if (> (count members) 10)
       [:dd
        [:details
-        [:summary {:lang "en"} (str (count members) " entries")]
+        ;; The text lives in CSS content so that Dictionary.app cannot
+        ;; look it up on click.
+        [:summary {:lang "en" :data-count (count members)} ""]
         [:p {:class "member-list"} links]]]
       [:dd links])))
 
@@ -127,11 +148,12 @@
   [relations]
   (when (seq relations)
     [:dl {:class "relations" :d/priority "2"}
-     (for [{:keys [type role description display display-role members]}
+     (for [{:keys [type role description roleDescription note uri display
+                   display-role members]}
            relations]
        [:div {:data-type type :data-role role}
-        [:dt {:title (or description type)}
-         (or display-role role display type)]
+        [:dt {:title (or note roleDescription description type)}
+         (linked uri (or display-role role display type))]
         (members-dd members)])]))
 
 (defn relations-view
@@ -146,35 +168,66 @@
       [:div {:class      (str "relation-section" (when title " titled"))
              :d/priority "2"}
        (when title
-         [:h2 {:class "relation-group" :title description} title])
+         ;; Header text lives in CSS content so that Dictionary.app
+         ;; cannot look it up on click; likewise the paradigm rows.
+         [:h2 {:class      "relation-group"
+               :title      description
+               :data-label title} ""])
        (relations-dl relations)])
     (relations-dl relations)))
 
+(defn translations-view
+  "The headword `translations` of one sense as a definition list grouped
+  by language: the language code against its comma-joined equivalents."
+  [translations]
+  (when (seq translations)
+    [:dl {:class "labels translations" :d/priority "2"}
+     (for [lang (distinct (map :lang translations))]
+       [:div
+        [:dt lang]
+        [:dd {:lang lang}
+         (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
+                              translations))]])]))
+
 (defn example-view
-  "One example as a quotation with its source citation."
-  [{:keys [text source sourceDescription sourceElaboration]}]
+  "One example as a quotation with its labels and its source citation."
+  [{:keys [text runs labels source sourceDescription sourceUri
+           sourceElaboration]}]
   [:blockquote {:class "example" :d/priority "2"}
-   [:p text]
+   [:p (runs-view text runs)
+    (when (seq labels)
+      [:span {:class "example-labels"} " ("
+       (interpose ", " (map (fn [{:keys [tag description uri]}]
+                              (linked uri (tagged tag description)))
+                            labels))
+       ")"])]
    (when source
      [:footer
-      [:cite (tagged source
-                     (not-empty
-                       (str/join " " (remove nil? [sourceDescription
-                                                   sourceElaboration]))))]])])
+      [:cite (linked sourceUri
+                     (tagged source
+                             (not-empty
+                               (str/join " " (remove nil? [sourceDescription
+                                                           sourceElaboration])))))]])])
 
 (defn sense-view
-  "One sense as a list item: the indicator, the definitions, the examples,
-  the labels and the relations."
-  [{:keys [indicator definitions examples labels relations
+  "One sense as a list item: the indicator, the definitions, the
+  examples, the labels, the translations and the relations."
+  [{:keys [indicator definitions translations examples labels relations
            relation-groups]}]
   [:li {:class "sense"}
    [:p {:class "meaning"}
     (when indicator
       (list [:i {:class "indicator"} indicator] [:span {:class "sep"} "|"]))
     [:span {:class "definitions"}
-     (interpose "; " (map :text definitions))]]
+     (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
+                            [:span {:class     "definition"
+                                    :data-type type
+                                    :title     typeDescription}
+                             (runs-view text runs)])
+                          definitions))]]
    (map example-view examples)
    (labels-view "sense-labels" labels)
+   (translations-view translations)
    (relations-view relations relation-groups)])
 
 (defn inflections-view
@@ -182,9 +235,17 @@
   short forms, with the paradigm slot visually hidden and as a hover
   title.
 
-  A form spelled like the headword stays out; the paradigm keeps it."
+  One representative per paradigm slot — the form with a reduced short
+  when the slot has one — so variant spellings stay in the paradigm, as
+  does a form spelled like the headword."
   [headword forms]
-  (when-let [forms (seq (remove #(= headword (:text %)) forms))]
+  (when-let [forms (->> (partition-by #(or (:description %) (:tag %) (:text %))
+                                      forms)
+                        (map (fn [group]
+                               (or (first (filter :short group))
+                                   (first group))))
+                        (remove #(= headword (:text %)))
+                        (seq))]
     [:dl {:class "inflections" :d/priority "2"}
      (for [{:keys [tag text short description labels]}
            (shared/distinct-by #(or (:short %) (:text %)) forms)]
@@ -203,20 +264,25 @@
   "The full paradigm of the inflected `forms` as a table behind a details
   disclosure.
 
-  One row per form, the paradigm slot as the row header."
+  One row per paradigm slot; forms that share the slot — variant
+  spellings — join on the row."
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details {:class "paradigm" :d/priority "2"}
-     [:summary {:lang "en"} "all forms"]
+     [:summary {:lang "en" :class "all-forms"} ""]
      [:table
       [:tbody
-       (for [{:keys [tag text description labels]} forms]
+       (for [group (partition-by #(or (:description %) (:tag %)) forms)
+             :let [{:keys [tag description]} (first group)]]
          [:tr
-          [:th {:scope "row"} (or description tag)]
-          [:td text
-           (when (seq labels)
-             [:span {:class "form-label"}
-              (str " (" (str/join ", " (map :tag labels)) ")")])]])]]]))
+          [:th {:scope "row" :data-label (or description tag)} ""]
+          [:td (interpose ", "
+                          (map (fn [{:keys [text labels]}]
+                                 (list text
+                                       (when (seq labels)
+                                         [:span {:class "form-label"}
+                                          (str " (" (str/join ", " (map :tag labels)) ")")])))
+                               group))]])]]]))
 
 (defn ->index
   "The d:index terms of one entry: the `headword` plus every distinct full
@@ -243,8 +309,8 @@
     (when homographNumber [:sup {:class "hom"} homographNumber])]
    (when (seq partsOfSpeech)
      [:p {:class "pos"}
-      (interpose ", " (map (fn [{:keys [tag description]}]
-                             (tagged tag description))
+      (interpose ", " (map (fn [{:keys [tag description uri]}]
+                             (linked uri (tagged tag description)))
                            partsOfSpeech))])
    (inflections-view headword inflectedForms)
    (paradigm-view inflectedForms)
@@ -342,15 +408,20 @@
   The stream opens with the front matter of the bundle `info` — the
   dataset's own `front` fragment when it ships one."
   [file info config front resource]
-  (let [env (build/->env resource)]
+  (let [env     (build/->env resource)
+        collate (when (= "collation" (get config "memberOrder"))
+                  (let [collator (build/->collator (:langCode resource))]
+                    (fn [a b] (.compare collator a b))))
+        present (fn [entry]
+                  (cond->> (presentation/present-entry config entry)
+                    collate (presentation/collate-members collate)))]
     (with-open [w (io/writer file)]
       (.write w xml-preamble)
       (.write w (front-matter-xml info front))
       (.write w "\n")
       (doseq [entry (:entries resource)]
         (.write w (hiccup->xml
-                    (->entry (presentation/present-entry
-                               config (build/->entry-file env entry)))))
+                    (->entry (present (build/->entry-file env entry)))))
         (.write w "\n"))
       (.write w "</d:dictionary>\n"))))
 

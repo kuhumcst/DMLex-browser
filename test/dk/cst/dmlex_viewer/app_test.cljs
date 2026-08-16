@@ -20,6 +20,15 @@
   (is (= [{:x 1 :y :a} {:x 2 :y :c}]
          (shared/distinct-by :x [{:x 1 :y :a} {:x 1 :y :b} {:x 2 :y :c}]))))
 
+(deftest runs-view-test
+  (testing "marker runs render the marked headword in bold"
+    (is (= (list "en stor " [:b "hund"])
+           (app/runs-view "en stor hund"
+                          [{:text "en stor "}
+                           {:text "hund" :marker "headword"}]))))
+  (testing "text without runs renders plain"
+    (is (= "en stor hund" (app/runs-view "en stor hund" nil)))))
+
 (deftest result-headword-test
   (testing "the matched prefix is marked"
     (is (= (list [:mark "ab"] "ekat")
@@ -32,7 +41,11 @@
     (is (nil? (app/inflections-view "år" [{:text "år"}])))
     (is (= 1 (count (rest (app/inflections-view
                             "år" [{:text "år"}
-                                  {:text "årene" :short "-ene"}])))))))
+                                  {:text "årene" :short "-ene"}]))))))
+  (testing "the reduced form represents its slot; the variant stays out"
+    (is (= 1 (count (rest (app/inflections-view
+                            "hund" [{:tag "111" :text "hunden" :short "-en"}
+                                    {:tag "111" :text "hund-en"}])))))))
 
 (deftest search-view-test
   (testing "results render once the index is loaded"
