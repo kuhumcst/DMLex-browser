@@ -77,6 +77,8 @@
     (testing "the pos tag and the example source link by their sameAs URI"
       (is (str/includes? xml "href=\"https://example.com/sb\""))
       (is (str/includes? xml "href=\"https://ordnet.dk/ddo\"")))
+    (testing "the pos shows its description with the tag as the tooltip"
+      (is (str/includes? xml "<abbr title=\"sb.\">substantiv</abbr>")))
     (testing "the marked headword of an example renders in bold"
       (is (str/includes? xml "en stor <b>hund</b>")))
     (testing "the labels of an example trail it in parentheses"

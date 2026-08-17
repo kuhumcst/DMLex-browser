@@ -312,7 +312,8 @@
    (when (seq partsOfSpeech)
      [:p {:class "pos"}
       (interpose ", " (map (fn [{:keys [tag description uri]}]
-                             (linked uri (tagged tag description)))
+                             (linked uri (tagged (or description tag)
+                                                 (when description tag))))
                            partsOfSpeech))])
    (inflections-view headword inflectedForms)
    (paradigm-view inflectedForms)

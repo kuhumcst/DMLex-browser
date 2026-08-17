@@ -288,12 +288,18 @@
   "The search index of `resource`: one row per entry, sorted by headword
   with the collation of its `langCode`.
 
-  A row is [headword file pos homographNumber]."
-  [{:keys [langCode entries]}]
-  (let [collator (->collator langCode)]
+  A row is [headword file pos homographNumber]. The pos column prefers
+  the description of each partOfSpeechTag over its technical tag."
+  [{:keys [langCode partOfSpeechTags entries]}]
+  (let [collator (->collator langCode)
+        pos-of   (index-by :tag partOfSpeechTags)
+        pos-name (fn [tag]
+                   (or (:description (pos-of tag)) tag))]
     (->> entries
          (map (fn [{:keys [id headword homographNumber partsOfSpeech]}]
-                [headword (->file id) (str/join ", " partsOfSpeech) homographNumber]))
+                [headword (->file id)
+                 (str/join ", " (map pos-name partsOfSpeech))
+                 homographNumber]))
          (sort-by first collator)
          (vec))))
 

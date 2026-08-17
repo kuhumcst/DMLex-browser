@@ -187,7 +187,14 @@
             ["æble" (build/->file "æble") "" nil]
             ["åben" (build/->file "åben") "" nil]]
            (build/index-rows resource))
-        "æ, ø and å sort after z with the Danish collation")))
+        "æ, ø and å sort after z with the Danish collation"))
+  (testing "the pos column prefers the inventory description over the tag"
+    (is (= [["abe" "abe" "substantiv" nil]]
+           (build/index-rows
+             {:partOfSpeechTags [{:tag "sb." :description "substantiv"}]
+              :entries          [{:id            "abe"
+                                  :headword      "abe"
+                                  :partsOfSpeech ["sb."]}]})))))
 
 (deftest manifest-test
   (is (= {:title     "Test"
