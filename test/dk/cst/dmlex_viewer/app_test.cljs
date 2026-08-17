@@ -55,6 +55,43 @@
   (testing "nothing renders while the index is still loading"
     (is (nil? (app/search-view nil nil "abe" nil)))))
 
+(deftest front-matter-view-test
+  (testing "the merged metadata fields render on the front page"
+    (let [rendered (pr-str (app/front-matter-view
+                             {:description "Det danske WordNet."
+                              :rights      "© DSL & CST"
+                              :license     "https://example.com/by-sa"
+                              :sources     [{:title       "DDS"
+                                             :full        "Det Danske Sentimentleksikon"
+                                             :uri         "https://example.com/dds"
+                                             :license     "https://example.com/cc0"
+                                             :licenseName "CC0 1.0"}
+                                            {:title "NN"}]}))]
+      (is (str/includes? rendered "Det danske WordNet."))
+      (is (str/includes? rendered "© DSL & CST"))
+      (is (str/includes? rendered "https://example.com/by-sa"))
+      (is (str/includes? rendered "https://example.com/cc0"))
+      (is (str/includes? rendered ":abbr")
+          "an abbreviated source expands its full name on hover")
+      (is (str/includes? rendered "Det Danske Sentimentleksikon"))
+      (is (str/includes? rendered "https://example.com/dds")
+          "a source with a home URI links its name")
+      (is (str/includes? rendered "CC0 1.0")
+          "a named license shows its short name over the URL")
+      (is (str/includes? rendered "sources & licences")
+          "the group title mentions licences when a source carries one")
+      (is (str/includes? rendered ":aria-labelledby")
+          "the sections are named landmarks for assistive technology"))
+    (let [rendered (pr-str (app/front-matter-view
+                             {:sources [{:title "NN"}]}))]
+      (is (str/includes? rendered "\"sources\""))
+      (is (not (str/includes? rendered "licences"))
+          "licence-less sources title the group plain")
+      (is (str/includes? rendered "\"NN\"")
+          "a bare title renders without a link or license")))
+  (testing "a manifest without metadata renders nothing"
+    (is (nil? (app/front-matter-view {:title "Test" :entries 5})))))
+
 (deftest next-active-test
   (testing "Down enters the list at the top and stops at the bottom"
     (is (= 0 (app/next-active "ArrowDown" nil 3)))

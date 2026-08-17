@@ -21,16 +21,23 @@ and [Replicant](https://github.com/cjohansen/replicant), without React.
 
 ## Build the data
 
-1. Copy your DMLex JSON file into `datasets/`.
+1. Copy your DMLex JSON file, or a zip export containing it, into
+   `datasets/`.
 2. Run the build:
 
 ```sh
 clojure -J-Xmx8g -M:build datasets/your-dmlex.json
 ```
 
+A zip works as-is: the build finds the DMLex JSON inside it and reads
+the companion files from the same place, so a downloaded export like
+`dannet-dmlex.zip` needs no unpacking.
+
 The build writes three kinds of file into `public/data/`:
 
-- `manifest.json` holds the resource metadata.
+- `manifest.json` holds the resource metadata. A Dublin Core
+  `metadata.json` next to the DMLex file merges in; the viewer shows
+  its description, rights, license and sources on the front page.
 - `index.json` holds the search index, sorted with the collation of the
   resource language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
@@ -167,7 +174,8 @@ The export writes an Apple Dictionary source project into
 and a Makefile. The entries show the same content as the web viewer,
 with the short inflected forms on the entry and the full forms in the
 search index. If a Dublin Core `metadata.json` sits next to the DMLex
-file, its fields fill the bundle metadata and the front matter.
+file, its fields fill the bundle metadata and the front matter. A zip
+export works here too, exactly as in the data build.
 
 To build and install the `.dictionary` bundle, you need the Dictionary
 Development Kit from Apple's "Additional Tools for Xcode". Then:

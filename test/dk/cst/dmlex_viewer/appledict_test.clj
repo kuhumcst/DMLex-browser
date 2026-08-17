@@ -123,7 +123,8 @@
             :publisher   "CST"
             :rights      "© DSL & CST"
             :license     "https://creativecommons.org/licenses/by-sa/4.0/"
-            :sources     nil}
+            :licenseName "CC BY-SA 4.0"
+            :sources     []}
            (appledict/bundle-info
              {:title "ignored" :langCode "da"}
              {"dc:title"       "DanNet"

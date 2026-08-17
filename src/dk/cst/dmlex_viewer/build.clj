@@ -1,21 +1,24 @@
 (ns dk.cst.dmlex-viewer.build
   "Shard a DMLex 1.0 JSON file into the static data files of the viewer.
 
-  Reads the single-file JSON serialization of a lexicographic resource and
-  writes three kinds of file into the output directory: manifest.json with
-  the resource metadata, index.json with one row per entry for the search
-  field, and one file per entry under entries/ with every tag and relation
-  resolved for display, so that the frontend needs no other lookup. The
-  Apple Dictionary export (dk.cst.dmlex-viewer.appledict) renders the same
-  resolved entries.
+  Reads the single-file JSON serialization of a lexicographic resource,
+  either the file itself or a zip export containing it, and writes three
+  kinds of file into the output directory: manifest.json with the resource
+  metadata, index.json with one row per entry for the search field, and
+  one file per entry under entries/ with every tag and relation resolved
+  for display, so that the frontend needs no other lookup. A Dublin Core
+  metadata.json next to the DMLex file merges into manifest.json for the
+  front page of the viewer. The Apple Dictionary export
+  (dk.cst.dmlex-viewer.appledict) renders the same resolved entries.
 
-  Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"
+  Usage: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [dk.cst.dmlex-viewer.shared :as shared])
   (:import [java.text Collator]
-           [java.util Locale]))
+           [java.util Locale]
+           [java.util.zip ZipFile]))
 
 (defn ->file
   "The file basename of the DMLex object `id`.
@@ -294,15 +297,107 @@
          (sort-by first collator)
          (vec))))
 
+(defn ->input
+  "The input interface of the path `in`: either a DMLex JSON file or a
+  zip export containing one.
+
+  A map of :dmlex-file, the filename of the DMLex JSON, and
+  :content-of, which returns the content of a named file sitting next
+  to it (in the same directory, or in the same folder of the zip), or
+  nil when the file is absent. In a zip, the DMLex file is the first
+  .json entry that is neither a companion nor a hidden file."
+  [in]
+  (if (str/ends-with? in ".zip")
+    (let [names  (with-open [zip (ZipFile. (io/file in))]
+                   (->> (enumeration-seq (.entries zip))
+                        (remove #(.isDirectory %))
+                        (mapv #(.getName %))))
+          dmlex  (or (first (for [name names
+                                  :let [base (.getName (io/file name))]
+                                  :when (and (str/ends-with? base ".json")
+                                             (not (str/starts-with? base "."))
+                                             (not (#{"metadata.json"
+                                                     "presentation.json"} base)))]
+                              name))
+                     (throw (ex-info (str "No DMLex JSON file in " in)
+                                     {:names names})))
+          folder (.getParent (io/file dmlex))]
+      {:dmlex-file (.getName (io/file dmlex))
+       :content-of (fn [filename]
+                     (with-open [zip (ZipFile. (io/file in))]
+                       (when-let [entry (.getEntry zip (if folder
+                                                         (str folder "/" filename)
+                                                         filename))]
+                         (slurp (.getInputStream zip entry)))))})
+    (let [dir (or (.getParent (io/file in)) ".")]
+      {:dmlex-file (.getName (io/file in))
+       :content-of (fn [filename]
+                     (let [f (io/file dir filename)]
+                       (when (.exists f) (slurp f))))})))
+
+(defn read-companion
+  "The JSON companion `filename` of the input, read through its
+  `content-of`, or nil when the input has none.
+
+  The known companions are the Dublin Core metadata.json and the
+  presentation.json config."
+  [content-of filename]
+  (some-> (content-of filename) (json/read-str)))
+
+(defn localized
+  "The string `s` itself, or the entry of `lang` (falling back to English,
+  then to anything) when `s` is a language-keyed map."
+  [s lang]
+  (if (map? s)
+    (or (get s lang) (get s "en") (first (vals s)))
+    s))
+
+(defn license-name
+  "The conventional short name of the Creative Commons license `url`,
+  e.g. CC BY-SA 4.0 or CC0 1.0, or nil for any other license."
+  [url]
+  (let [[_ path version] (re-find #"creativecommons\.org/(licenses/[a-z-]+|publicdomain/zero)/([0-9.]+)"
+                                  (str url))]
+    (cond
+      (nil? path)                  nil
+      (= path "publicdomain/zero") (str "CC0 " version)
+      :else (str "CC " (str/upper-case (subs path (count "licenses/")))
+                 " " version))))
+
+(defn ->source
+  "The display map of one Dublin Core `source` of the metadata.
+
+  Carries its title, home URI and license, every field optional. An
+  all-caps abbreviation splits from the full name it precedes in
+  parentheses, e.g. DDS (Det Danske Sentimentleksikon)."
+  [source]
+  (let [title   (get source "dc:title")
+        license (get source "dc:license")
+        [_ abbr full] (re-matches #"(\p{Lu}{2,})\s*\((.+)\)" (str title))]
+    (compact {:title       (or abbr title)
+              :full        full
+              :uri         (get source "dc:identifier")
+              :license     license
+              :licenseName (license-name license)})))
+
 (defn manifest
-  "The metadata and the object counts of `resource`."
-  [{:keys [title uri langCode entries relations] :as resource}]
-  (compact {:title     title
-            :uri       uri
-            :langCode  langCode
-            :entries   (count entries)
-            :senses    (count (mapcat :senses entries))
-            :relations (count relations)}))
+  "The metadata and the object counts of `resource`, with the fields of
+  its Dublin Core companion `metadata` merged in for the front page."
+  [{:keys [title uri langCode entries relations] :as resource} metadata]
+  (let [lang    (or (get metadata "dc:language") langCode)
+        license (get metadata "dc:license")]
+    (compact {:title       (or (get metadata "dc:title") title)
+              :uri         (or (get metadata "dc:identifier") uri)
+              :langCode    lang
+              :description (localized (get metadata "dc:description") lang)
+              :publisher   (get metadata "dc:publisher")
+              :rights      (get metadata "dc:rights")
+              :license     license
+              :licenseName (license-name license)
+              :sources     (mapv ->source (get metadata "dc:source"))
+              :entries     (count entries)
+              :senses      (count (mapcat :senses entries))
+              :relations   (count relations)})))
 
 (defn write-json!
   "Write `data` as JSON to the file `f`, creating its parent directories."
@@ -311,26 +406,26 @@
   (spit f (json/write-str data :escape-slash false :escape-unicode false)))
 
 (defn copy-companions!
-  "Copy the optional presentation companions sitting next to the DMLex
-  file `in` into `out`: presentation.json and the stylesheet it names.
+  "Copy the optional presentation companions of the input into `out`,
+  read through its `content-of`.
 
+  The companions are presentation.json and the stylesheet it names.
   The config belongs to the dataset, so the build only carries it along."
-  [in out]
-  (let [dir    (or (.getParent (io/file in)) ".")
-        config (io/file dir "presentation.json")]
-    (when (.exists config)
-      (io/copy config (io/file out "presentation.json"))
-      (when-let [css (get (json/read-str (slurp config)) "css")]
-        (let [f (io/file dir css)]
-          (when (.exists f)
-            (io/copy f (io/file out css))))))))
+  [content-of out]
+  (when-let [config (content-of "presentation.json")]
+    (spit (io/file out "presentation.json") config)
+    (when-let [css (get (json/read-str config) "css")]
+      (when-let [content (content-of css)]
+        (spit (io/file out css) content)))))
 
 (defn build!
-  "Read the DMLex JSON file `in` and write the static data files of the
-  viewer into the directory `out`."
+  "Read the DMLex JSON file (or zip export) `in` and write the static
+  data files of the viewer into the directory `out`."
   [in out]
   (println "Reading" in)
-  (let [resource (json/read-str (slurp in) :key-fn keyword)
+  (let [{:keys [dmlex-file content-of]} (->input in)
+        resource (json/read-str (content-of dmlex-file) :key-fn keyword)
+        metadata (read-companion content-of "metadata.json")
         env      (->env resource)
         entries  (:entries resource)]
     (println "Writing" (count entries) "entries into" out)
@@ -338,8 +433,8 @@
             :let [{:keys [file] :as m} (->entry-file env entry)]]
       (write-json! (io/file out "entries" (str file ".json")) m))
     (write-json! (io/file out "index.json") (index-rows resource))
-    (write-json! (io/file out "manifest.json") (manifest resource))
-    (copy-companions! in out)
+    (write-json! (io/file out "manifest.json") (manifest resource metadata))
+    (copy-companions! content-of out)
     (println "Done.")))
 
 (defn -main
@@ -347,7 +442,7 @@
   [& [in out]]
   (if in
     (build! in (or out "public/data"))
-    (println "Usage: clojure -J-Xmx8g -M:build <dmlex.json> [<out-dir>]"))
+    (println "Usage: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]"))
   (shutdown-agents))
 
 (comment

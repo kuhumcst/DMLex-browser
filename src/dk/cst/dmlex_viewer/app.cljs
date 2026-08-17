@@ -366,6 +366,7 @@
     [:details.paradigm
      [:summary {:lang "en"} "all forms"]
      [:table
+      [:caption.visually-hidden {:lang "en"} "all forms"]
       (into [:tbody]
             (map-indexed
               (fn [i group]
@@ -479,6 +480,40 @@
                  "The search index failed to load. Reload the page to try
                   again."]))
 
+(defn front-matter-view
+  "The front matter of the `manifest` metadata on the front page.
+
+  The description reads as a serif lead, and the publisher, the
+  licence and the rights sit in the aligned key/value voice of the
+  entry labels. The source datasets form a titled group in the same
+  voice, each linked to its home and paired with its licence when the
+  metadata carries them. The fields come from the Dublin Core
+  metadata.json that the data build merges into the manifest; without
+  one, nothing renders."
+  [{:keys [description publisher rights license licenseName sources]}]
+  (when (or description publisher rights license (seq sources))
+    [:section.front-matter {:aria-labelledby "resource-title"}
+     (when description [:p.description description])
+     [:dl.labels
+      (when publisher
+        [:div [:dt {:lang "en"} "publisher"] [:dd publisher]])
+      (when license
+        [:div [:dt {:lang "en"} "licence"]
+         [:dd (linked license (or licenseName license))]])
+      (when rights
+        [:div [:dt {:lang "en"} "rights"] [:dd rights]])]
+     (when (seq sources)
+       [:section.titled {:aria-labelledby "front-matter-sources"}
+        [:h2.relation-group {:id "front-matter-sources" :lang "en"}
+         (if (some :license sources) "sources & licences" "sources")]
+        (into [:dl.labels]
+              (map-indexed
+                (fn [i {:keys [title full uri license licenseName]}]
+                  [:div {:replicant/key i}
+                   [:dt (linked uri (tagged title full))]
+                   [:dd (linked license (or licenseName license))]]))
+              sources)])]))
+
 (defn footer-view
   "The colophon at the foot of every view: the title, the counts and the
   URI of the resource."
@@ -529,7 +564,9 @@
                                                                    active e))}}]]
      [:main
       (when (or (seq query) (not entry))
-        [:h1.visually-hidden (or (:title manifest) "DMLex viewer")])
+        [:h1 {:id    "resource-title"
+              :class (if (seq query) "visually-hidden" "resource-title")}
+         (or (:title manifest) "DMLex viewer")])
       (cond
         (seq query) (search-view rows index-error query active)
         entry       (let [presented (cond->> (presentation/present-entry
@@ -544,9 +581,11 @@
         error       [:p.error {:lang "en"}
                      "The page failed to load. "
                      [:a {:href "#/"} "Go to the front page."]]
-        :else       [:p.intro {:lang "en"}
-                     "Type a word in the search field to look it up. Every
-                      underlined word links to another word in the dictionary."])]
+        :else       (list
+                      (front-matter-view manifest)
+                      [:p.intro {:lang "en"}
+                       "Type a word in the search field to look it up. Every
+                        underlined word links to another word in the dictionary."]))]
      (footer-view manifest)]))
 
 (defn render!

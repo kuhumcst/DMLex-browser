@@ -1,8 +1,11 @@
 (ns dk.cst.dmlex-viewer.build-test
   "Tests of the pure resolution logic of the data build."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
             [dk.cst.dmlex-viewer.build :as build]
-            [dk.cst.dmlex-viewer.presentation :as presentation]))
+            [dk.cst.dmlex-viewer.presentation :as presentation])
+  (:import [java.io File]
+           [java.util.zip ZipEntry ZipOutputStream]))
 
 (deftest ->file-test
   (testing "a filename-safe id passes through unchanged"
@@ -193,7 +196,114 @@
           :relations 1}
          (build/manifest {:title     "Test"
                           :entries   [{:senses [{} {}]} {:senses [{}]}]
-                          :relations [{}]}))))
+                          :relations [{}]}
+                         nil)))
+  (testing "the Dublin Core companion merges in, winning over the resource"
+    (is (= {:title       "DanNet"
+            :uri         "https://wordnet.dk/dannet/data/"
+            :langCode    "da"
+            :description "Det danske WordNet."
+            :publisher   "CST"
+            :rights      "© DSL & CST"
+            :license     "https://creativecommons.org/licenses/by-sa/4.0/"
+            :licenseName "CC BY-SA 4.0"
+            :sources     [{:title       "COR"
+                           :license     "https://creativecommons.org/publicdomain/zero/1.0/"
+                           :licenseName "CC0 1.0"}
+                          {:title       "DDS"
+                           :full        "Det Danske Sentimentleksikon"
+                           :license     "https://creativecommons.org/licenses/by-sa/4.0/"
+                           :licenseName "CC BY-SA 4.0"}]
+            :entries     0
+            :senses      0
+            :relations   0}
+           (build/manifest
+             {:title "ignored" :langCode "da"}
+             {"dc:title"       "DanNet"
+              "dc:identifier"  "https://wordnet.dk/dannet/data/"
+              "dc:description" {"en" "The Danish WordNet."
+                                "da" "Det danske WordNet."}
+              "dc:publisher"   "CST"
+              "dc:rights"      "© DSL & CST"
+              "dc:license"     "https://creativecommons.org/licenses/by-sa/4.0/"
+              "dc:source"      [{"dc:title"   "COR"
+                                 "dc:license" "https://creativecommons.org/publicdomain/zero/1.0/"}
+                                {"dc:title"   "DDS (Det Danske Sentimentleksikon)"
+                                 "dc:license" "https://creativecommons.org/licenses/by-sa/4.0/"}]})))))
+
+(deftest license-name-test
+  (is (= "CC BY-SA 4.0"
+         (build/license-name "https://creativecommons.org/licenses/by-sa/4.0/")))
+  (is (= "CC BY 4.0"
+         (build/license-name "https://creativecommons.org/licenses/by/4.0/")))
+  (is (= "CC0 1.0"
+         (build/license-name "https://creativecommons.org/publicdomain/zero/1.0/")))
+  (testing "a license that is not Creative Commons keeps its URL"
+    (is (nil? (build/license-name "https://example.com/license")))
+    (is (nil? (build/license-name nil)))))
+
+(deftest ->source-test
+  (testing "an all-caps abbreviation splits from the parenthesized full name"
+    (is (= {:title   "DDS"
+            :full    "Det Danske Sentimentleksikon"
+            :uri     "https://wordnet.dk/sentiment/"
+            :license "https://example.com/by-sa"}
+           (build/->source
+             {"dc:title"      "DDS (Det Danske Sentimentleksikon)"
+              "dc:identifier" "https://wordnet.dk/sentiment/"
+              "dc:license"    "https://example.com/by-sa"}))))
+  (testing "a plain title passes through unsplit"
+    (is (= {:title "DanNet"} (build/->source {"dc:title" "DanNet"}))))
+  (testing "every field is optional"
+    (is (= {:title "COR" :uri "https://ordregister.dk"}
+           (build/->source {"dc:title"      "COR"
+                            "dc:identifier" "https://ordregister.dk"})))
+    (is (= {:title "COR" :license "https://example.com/cc0"}
+           (build/->source {"dc:title"   "COR"
+                            "dc:license" "https://example.com/cc0"})))
+    (is (= {} (build/->source {})))))
+
+(defn temp-zip
+  "A temporary zip file of the `entries` map of name -> content."
+  [entries]
+  (let [f (File/createTempFile "dmlex" ".zip")]
+    (with-open [out (ZipOutputStream. (io/output-stream f))]
+      (doseq [[name content] entries]
+        (.putNextEntry out (ZipEntry. ^String name))
+        (.write out (.getBytes ^String content "UTF-8"))
+        (.closeEntry out)))
+    (.deleteOnExit f)
+    f))
+
+(deftest ->input-test
+  (testing "a zip export: the DMLex JSON is found among the companions"
+    (let [f (temp-zip {"dict.xml"          "<xml/>"
+                       "metadata.json"     "{\"dc:title\": \"T\"}"
+                       "presentation.json" "{}"
+                       "dict.json"         "{\"title\": \"T\"}"})
+          {:keys [dmlex-file content-of]} (build/->input (str f))]
+      (is (= "dict.json" dmlex-file))
+      (is (= "{\"title\": \"T\"}" (content-of "dict.json")))
+      (is (= {"dc:title" "T"} (build/read-companion content-of "metadata.json")))
+      (is (nil? (content-of "missing.json")))))
+  (testing "a zip with the files inside a folder"
+    (let [f (temp-zip {"export/dict.json"     "{}"
+                       "export/metadata.json" "{\"dc:title\": \"T\"}"})
+          {:keys [dmlex-file content-of]} (build/->input (str f))]
+      (is (= "dict.json" dmlex-file))
+      (is (= "{\"dc:title\": \"T\"}" (content-of "metadata.json")))))
+  (testing "a plain JSON file reads its neighbours from its directory"
+    (let [dir (doto (io/file (System/getProperty "java.io.tmpdir")
+                             (str "dmlex-test-" (System/nanoTime)))
+                (.mkdirs))]
+      (spit (io/file dir "dict.json") "{}")
+      (spit (io/file dir "metadata.json") "{\"dc:title\": \"T\"}")
+      (let [{:keys [dmlex-file content-of]}
+            (build/->input (str (io/file dir "dict.json")))]
+        (is (= "dict.json" dmlex-file))
+        (is (= "{}" (content-of "dict.json")))
+        (is (= "{\"dc:title\": \"T\"}" (content-of "metadata.json")))
+        (is (nil? (content-of "missing.json")))))))
 
 (def resource
   "A minimal DMLex resource exercising every inventory."

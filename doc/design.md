@@ -172,4 +172,5 @@ inside the DMLex export zip alongside `metadata.json` (the Dublin Core
 file both surfaces read for bundle identity and front matter). The
 commit that renames a tag is the commit that updates the config, and
 the export is the place to validate or generate it. The workflow:
-export DMLex there, run the builds here.
+export DMLex there, run the builds here. Both builds take the export
+zip directly and find the DMLex JSON and its companions inside it.

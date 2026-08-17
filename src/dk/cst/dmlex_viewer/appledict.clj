@@ -1,5 +1,6 @@
 (ns dk.cst.dmlex-viewer.appledict
-  "Convert a DMLex 1.0 JSON file into an Apple Dictionary source project.
+  "Convert a DMLex 1.0 JSON file, or a zip export containing one, into
+  an Apple Dictionary source project.
 
   Renders the same resolved entry maps that dk.cst.dmlex-viewer.build
   writes for the web viewer as the d:dictionary XML of the Dictionary
@@ -15,7 +16,7 @@
   whose namespace-aware emission cannot reproduce that shape verbatim.
 
   Usage (from the project root, which anchors the stylesheet paths):
-  clojure -J-Xmx8g -M:appledict <dmlex.json> [<out-dir>] [<ddk-dir>]"
+  clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -271,6 +272,7 @@
     [:details {:class "paradigm" :d/priority "2"}
      [:summary {:lang "en" :class "all-forms"} ""]
      [:table
+      [:caption {:class "visually-hidden" :lang "en"} "all forms"]
       [:tbody
        (for [group (partition-by #(or (:description %) (:tag %)) forms)
              :let [{:keys [tag description]} (first group)]]
@@ -322,22 +324,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Bundle metadata
 
-(defn read-companion
-  "The JSON companion file `filename` in the directory `dir`, or nil: the
-  Dublin Core metadata.json or the presentation.json config."
-  [dir filename]
-  (let [f (io/file dir filename)]
-    (when (.exists f)
-      (json/read-str (slurp f)))))
-
-(defn localized
-  "The string `s` itself, or the entry of `lang` (falling back to English,
-  then to anything) when `s` is a language-keyed map."
-  [s lang]
-  (if (map? s)
-    (or (get s lang) (get s "en") (first (vals s)))
-    s))
-
 (defn bundle-info
   "The bundle identity of the export: the display fields of the DMLex
   `resource` merged with its Dublin Core `metadata`."
@@ -353,30 +339,31 @@
      :version     (or (get metadata "dc:issued") "1.0")
      :lang        lang
      :uri         (or (get metadata "dc:identifier") uri)
-     :description (localized (get metadata "dc:description") lang)
+     :description (build/localized (get metadata "dc:description") lang)
      :publisher   (get metadata "dc:publisher")
      :rights      (get metadata "dc:rights")
      :license     (get metadata "dc:license")
-     :sources     (get metadata "dc:source")}))
+     :licenseName (build/license-name (get metadata "dc:license"))
+     :sources     (mapv build/->source (get metadata "dc:source"))}))
 
 (defn front-matter
   "The front matter d:entry assembled from the bundle `info`: the title,
   the description, the rights, the sources and the home URI.
 
   Info.plist points at it via DCSDictionaryFrontMatterReferenceID."
-  [{:keys [title description rights license sources uri]}]
+  [{:keys [title description rights license licenseName sources uri]}]
   [:d/entry {:id "front_back_matter" :d/title (str "About " title)}
    [:d/index {:d/value title}]
    [:div {:class "front-matter"}
     [:h1 title]
     (when description [:p description])
     (when rights [:p rights])
-    (when license [:p [:a {:href license} license]])
+    (when license [:p [:a {:href license} (or licenseName license)]])
     (when (seq sources)
-      [:ul (for [source sources]
-             [:li (get source "dc:title")
-              (when-let [url (get source "dc:license")]
-                (list " · " [:a {:href url} url]))])])
+      [:ul (for [{:keys [title full uri license licenseName]} sources]
+             [:li (linked uri (tagged title full))
+              (when license
+                (list " · " [:a {:href license} (or licenseName license)]))])])
     (when uri [:p [:a {:href uri} uri]])]])
 
 ;; -----------------------------------------------------------------------------
@@ -455,33 +442,37 @@
 
 (defn makefile
   "The Makefile of the export directory: build the `title` dictionary with
-  the DDK in `ddk-dir`."
+  the DDK in `ddk-dir`.
+
+  Variable values stay unquoted and every use site quotes, so a path
+  with spaces works both here and in a command-line override like
+  make DICT_BUILD_TOOL_DIR=..."
   [title ddk-dir]
-  (str "DICT_NAME\t\t=\t\"" title "\"\n"
+  (str "DICT_NAME\t\t=\t" title "\n"
        "DICT_SRC_PATH\t\t=\tDictionary.xml\n"
        "CSS_PATH\t\t=\tDictionary.css\n"
        "PLIST_PATH\t\t=\tInfo.plist\n"
        "DICT_BUILD_OPTS\t\t=\n"
-       "DICT_BUILD_TOOL_DIR\t=\t\"" ddk-dir "\"\n"
-       "DICT_BUILD_TOOL_BIN\t=\t\"$(DICT_BUILD_TOOL_DIR)/bin\"\n"
+       "DICT_BUILD_TOOL_DIR\t=\t" ddk-dir "\n"
+       "DICT_BUILD_TOOL_BIN\t=\t$(DICT_BUILD_TOOL_DIR)/bin\n"
        "DICT_DEV_KIT_OBJ_DIR\t=\t./objects\n"
        "export\tDICT_DEV_KIT_OBJ_DIR\n"
-       "DESTINATION_FOLDER\t=\t~/Library/Dictionaries\n"
+       "DESTINATION_FOLDER\t=\t$(HOME)/Library/Dictionaries\n"
        "\n"
        "all:\n"
        "\t\"$(DICT_BUILD_TOOL_BIN)/build_dict.sh\" $(DICT_BUILD_OPTS)"
-       " $(DICT_NAME) $(DICT_SRC_PATH) $(CSS_PATH) $(PLIST_PATH)\n"
+       " \"$(DICT_NAME)\" \"$(DICT_SRC_PATH)\" \"$(CSS_PATH)\" \"$(PLIST_PATH)\"\n"
        "\techo \"Done.\"\n"
        "\n"
        "install:\n"
-       "\tmkdir -p $(DESTINATION_FOLDER)\n"
-       "\tditto --noextattr --norsrc $(DICT_DEV_KIT_OBJ_DIR)/$(DICT_NAME).dictionary"
-       " $(DESTINATION_FOLDER)/$(DICT_NAME).dictionary\n"
-       "\ttouch $(DESTINATION_FOLDER)\n"
+       "\tmkdir -p \"$(DESTINATION_FOLDER)\"\n"
+       "\tditto --noextattr --norsrc \"$(DICT_DEV_KIT_OBJ_DIR)/$(DICT_NAME).dictionary\""
+       " \"$(DESTINATION_FOLDER)/$(DICT_NAME).dictionary\"\n"
+       "\ttouch \"$(DESTINATION_FOLDER)\"\n"
        "\techo \"Done.\"\n"
        "\n"
        "clean:\n"
-       "\t/bin/rm -rf $(DICT_DEV_KIT_OBJ_DIR)\n"))
+       "\t/bin/rm -rf \"$(DICT_DEV_KIT_OBJ_DIR)\"\n"))
 
 (def css-files
   "The base stylesheet of the bundle: the shared tokens, then the
@@ -492,18 +483,18 @@
    "resources/appledict/style.css"])
 
 (defn stylesheet
-  "The full stylesheet of the bundle: the base `css-files` plus any
-  dataset stylesheets the `config` names in the input directory `dir`.
+  "The full stylesheet of the bundle: the base `css-files` plus the
+  dataset stylesheets the `config` names, read through `content-of`.
 
   The shared \"css\" hook comes first, then the appledict-specific one."
-  [dir config]
-  (->> (concat (map io/file css-files)
-               (for [filename [(get config "css")
-                               (get-in config ["appledict" "css"])]
-                     :when filename]
-                 (io/file dir filename)))
-       (filter #(.exists %))
-       (map slurp)
+  [content-of config]
+  (->> (concat (->> (map io/file css-files)
+                    (filter #(.exists %))
+                    (map slurp))
+               (->> [(get config "css")
+                     (get-in config ["appledict" "css"])]
+                    (remove nil?)
+                    (keep content-of)))
        (str/join "\n")))
 
 (def ddk-default
@@ -512,28 +503,28 @@
   "/Library/Developer/Extras/Dictionary Development Kit")
 
 (defn export!
-  "Convert the DMLex JSON file `in` into an Apple Dictionary source project
-  in the directory `out`, with a Makefile pointing at the DDK in `ddk-dir`.
+  "Convert the DMLex JSON file (or zip export) `in` into an Apple
+  Dictionary source project in `out`, with a Makefile for `ddk-dir`.
 
   A presentation.json next to `in` shapes the entries; its \"appledict\"
   section can override the bundle identifier and add a stylesheet and a
   front-matter fragment."
   [in out ddk-dir]
   (println "Reading" in)
-  (let [resource (json/read-str (slurp in) :key-fn keyword)
-        dir      (or (.getParent (io/file in)) ".")
-        config   (read-companion dir "presentation.json")
-        info     (cond-> (bundle-info resource (read-companion dir "metadata.json"))
+  (let [{:keys [dmlex-file content-of]} (build/->input in)
+        resource (json/read-str (content-of dmlex-file) :key-fn keyword)
+        config   (build/read-companion content-of "presentation.json")
+        metadata (build/read-companion content-of "metadata.json")
+        info     (cond-> (bundle-info resource metadata)
                    (get-in config ["appledict" "identifier"])
                    (assoc :identifier (get-in config ["appledict" "identifier"])))
-        front    (when-let [filename (get-in config ["appledict" "frontMatter"])]
-                   (let [f (io/file dir filename)]
-                     (when (.exists f) (slurp f))))
+        front    (some-> (get-in config ["appledict" "frontMatter"])
+                         (content-of))
         xml-file (io/file out "Dictionary.xml")]
     (io/make-parents xml-file)
     (println "Writing" (count (:entries resource)) "entries into" (str out))
     (write-xml! xml-file info config front resource)
-    (spit (io/file out "Dictionary.css") (stylesheet dir config))
+    (spit (io/file out "Dictionary.css") (stylesheet content-of config))
     (spit (io/file out "Info.plist") (info-plist info))
     (spit (io/file out "Makefile") (makefile (:title info) ddk-dir))
     (println "Done. Build the bundle with `make && make install` in" out)))
@@ -545,7 +536,7 @@
   (if in
     (export! in (or out "export/appledict") (or ddk-dir ddk-default))
     (println (str "Usage: clojure -J-Xmx8g -M:appledict"
-                  " <dmlex.json> [<out-dir>] [<ddk-dir>]")))
+                  " <dmlex.json|zip> [<out-dir>] [<ddk-dir>]")))
   (shutdown-agents))
 
 (comment

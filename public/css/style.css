@@ -21,7 +21,9 @@ body {
 
 /* The content column is a page lying on the desk: a flat white sheet
    with a hairline edge and the binding's crimson band on top. Under
-   48rem the desk disappears and the page fills the viewport. */
+   48rem the desk disappears and the page fills the viewport. The sheet
+   is a flex column and main absorbs the slack, so the colophon sits at
+   the foot of the sheet even when the content is short. */
 .container {
   max-width: 44rem;
   min-height: calc(100vh - 6rem);
@@ -30,7 +32,11 @@ body {
   background: #fff;
   border: 1px solid var(--rule);
   border-top: 3px solid var(--accent);
+  display: flex;
+  flex-direction: column;
 }
+
+main { flex: 1; }
 
 @media (max-width: 48rem) {
   body { background: #fff; }
@@ -268,7 +274,8 @@ p.pos { margin: 0 0 0.4rem; }
    behind it. An untitled group renders as bare rows. */
 nav > section { margin-top: 1.5rem; }
 
-nav > section.titled {
+nav > section.titled,
+.front-matter section.titled {
   position: relative;
   border: 1px solid var(--rule);
   border-radius: 2px;
@@ -287,7 +294,8 @@ nav > section .relations {
    no specificity, so source order decides. With the key column
    collapsed, the box needs its own left padding. */
 @media (max-width: 40rem) {
-  nav > section.titled { padding: 1rem 1.1rem 0.9rem; }
+  nav > section.titled,
+  .front-matter section.titled { padding: 1rem 1.1rem 0.9rem; }
 }
 
 .relation-group {
@@ -336,4 +344,63 @@ nav > section .relations {
 .stats dd { display: inline; color: var(--dark); }
 
 .intro { color: var(--grey); margin-top: 3rem; }
+
+/* Front matter: the resource in the entry's own voice. The title takes
+   the headword style, the description reads as a serif lead, and the
+   facts sit in the aligned key/value list of the entry labels. */
+
+.resource-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--accent);
+  margin: 2.5rem 0 0;
+}
+
+.front-matter { margin-top: 0.5rem; }
+
+.front-matter .description {
+  color: var(--dark);
+  font-size: 1.05rem;
+  max-width: 34rem;
+}
+
+.front-matter > .labels { margin-top: 1.4rem; }
+
+/* The source rows keep their dt in flow as a grid column: a long
+   dataset name wraps inside the key column, and the absolute layout of
+   the labels would let it overlap the neighbouring rows. */
+.front-matter section.titled .labels div {
+  display: grid;
+  /* The key column plus its gap, minus the box border, so the rule and
+     the keys line up with the list outside the box. */
+  grid-template-columns: calc(var(--key-col) + 0.85rem - 1px) 1fr;
+  margin-left: 0;
+  border-left: none;
+  padding: 0;
+}
+
+.front-matter section.titled .labels dt {
+  position: static;
+  width: auto;
+  text-align: right;
+  padding: 0.2rem 0.85rem 0.2rem 0;
+}
+
+.front-matter section.titled .labels dd {
+  border-left: 1px solid var(--rule);
+  padding: 0.2rem 0 0.2rem 0.85rem;
+}
+
+@media (max-width: 40rem) {
+  .front-matter section.titled .labels div { display: block; }
+  .front-matter section.titled .labels dt {
+    text-align: left;
+    padding: 0.2rem 0 0;
+  }
+  .front-matter section.titled .labels dd {
+    border-left: none;
+    padding: 0 0 0.2rem;
+  }
+}
 .error { color: var(--grey); margin-top: 3rem; }
