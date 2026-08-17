@@ -91,6 +91,12 @@ everything renders with the dataset's own names and order.
   "memberOrder":   "collation",      // or "listing" (the default)
   "linkResolver":  "https://wordnet.dk/dannet/external?subject=",
 
+  // Translations of the viewer chrome into the dataset's language.
+  "ui": {
+    "all forms":   "alle former",
+    "{n} entries": "{n} ord"
+  },
+
   // Only the Apple dictionary export reads this section.
   "appledict": {
     "identifier":  "org.example.dictionary",
@@ -99,6 +105,27 @@ everything renders with the dataset's own names and order.
   }
 }
 ```
+
+The viewer's own interface strings are English. The `ui` section
+translates them in the gettext style: the English string is its own
+key, `{n}` carries a count, and singular and plural are separate keys
+(`"1 match shown"`, `"{n} matches shown"`). An untranslated string
+stays English and keeps its `lang="en"` marker for assistive
+technology; a translated one is assumed to be in the language of the
+resource. The Apple dictionary export applies the same table at export
+time, including the strings its stylesheet renders as CSS content.
+
+The viewer bundles a Danish translation ([i18n/da.po](i18n/da.po)) and
+picks it by the `langCode` of the resource; adding a language is one
+more po file in [i18n/](i18n/) and its entry in
+`dk.cst.dmlex-viewer.translations`. A dataset can override or extend
+the bundled table with its own `ui` section, or ship the translations
+as a gettext `ui.po` next to its DMLex file — the format translation
+tools like Poedit produce — which the builds merge over the section.
+The keys live in [i18n/template.pot](i18n/template.pot), regenerated
+from the source with `clojure -M:i18n`; tests compare the template and
+every bundled po file against a fresh extraction, so neither can drift
+from the code.
 
 Three rules: `hide` always wins, `order` lists first and `unlisted`
 decides the rest, and `rename` changes only the displayed name. Label

@@ -15,7 +15,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [dk.cst.dmlex-viewer.shared :as shared])
+            [dk.cst.dmlex-viewer.shared :as shared]
+            [pottery.core :as pottery])
   (:import [java.text Collator]
            [java.util Locale]
            [java.util.zip ZipFile]))
@@ -358,6 +359,24 @@
     (or (get s lang) (get s "en") (first (vals s)))
     s))
 
+(defn read-ui
+  "The \"ui\" translation table of the input, read through `content-of`.
+
+  The gettext ui.po next to the DMLex file merges over the \"ui\"
+  section of the presentation `config`; the po file is what translation
+  tools produce from i18n/template.pot (see dk.cst.dmlex-viewer.i18n)."
+  [content-of config]
+  (merge (get config "ui")
+         (some-> (content-of "ui.po") (pottery/read-po-str))))
+
+(defn read-config
+  "The presentation config of the input, read through `content-of`,
+  with any ui.po translations merged into its \"ui\" section."
+  [content-of]
+  (let [config (read-companion content-of "presentation.json")
+        ui     (read-ui content-of config)]
+    (cond-> config (seq ui) (assoc "ui" ui))))
+
 (defn license-name
   "The conventional short name of the Creative Commons license `url`,
   e.g. CC BY-SA 4.0 or CC0 1.0, or nil for any other license."
@@ -415,12 +434,14 @@
   "Copy the optional presentation companions of the input into `out`,
   read through its `content-of`.
 
-  The companions are presentation.json and the stylesheet it names.
+  The companions are presentation.json — with any ui.po translations
+  merged into its \"ui\" section — and the stylesheet the config names.
   The config belongs to the dataset, so the build only carries it along."
   [content-of out]
-  (when-let [config (content-of "presentation.json")]
-    (spit (io/file out "presentation.json") config)
-    (when-let [css (get (json/read-str config) "css")]
+  (let [config (read-config content-of)]
+    (when config
+      (write-json! (io/file out "presentation.json") config))
+    (when-let [css (get config "css")]
       (when-let [content (content-of css)]
         (spit (io/file out css) content)))))
 

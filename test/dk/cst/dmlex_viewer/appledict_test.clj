@@ -35,10 +35,10 @@
 
 (deftest inflections-view-test
   (testing "a form spelled like the headword stays out of the line"
-    (is (nil? (appledict/inflections-view "år" [{:text "år"}])))
+    (is (nil? (appledict/inflections-view nil "år" [{:text "år"}])))
     (is (str/includes?
           (appledict/hiccup->xml
-            (appledict/inflections-view "år" [{:text "år"}
+            (appledict/inflections-view nil "år" [{:text "år"}
                                               {:text "årene" :short "-ene"}]))
           ">-ene</dd>"))))
 
@@ -47,6 +47,7 @@
     (is (str/includes?
           (appledict/hiccup->xml
             (appledict/paradigm-view
+              nil
               [{:tag "110" :description "sg" :text "68'er"}
                {:tag "110" :description "sg" :text "otteogtresser"}
                {:tag "111" :description "sg def" :text "68'eren"}]))
@@ -59,6 +60,7 @@
   (let [env   (build/->env build-test/resource)
         xml   (appledict/hiccup->xml
                 (appledict/->entry
+                  nil
                   (build/->entry-file env (first (:entries build-test/resource)))))]
     (testing "the entry id and title"
       (is (str/includes? xml "<d:entry id=\"hund\" d:title=\"hund\">")))
@@ -98,13 +100,14 @@
   (testing "renamed label types and relation roles reach the XML"
     (is (str/includes?
           (appledict/hiccup->xml
-            (appledict/labels-view "entry-labels"
+            (appledict/labels-view nil "entry-labels"
                                    [{:tag "zoo" :type "domain"
                                      :display "emne"}]))
           "<dt>emne</dt>"))
     (is (str/includes?
           (appledict/hiccup->xml
             (appledict/relations-dl
+              nil
               [{:type "hyp" :role "hypernym" :display-role "overbegreb"
                 :members [{:headword "H" :file "h"}]}]))
           "<dt title=\"hyp\">overbegreb</dt>"))
@@ -113,6 +116,26 @@
             (appledict/label-dd {:tag "Neutral" :type "sentiment"
                                  :qualifier "0"}))
           "Neutral (0)"))))
+
+(deftest chrome-css-test
+  (testing "nothing without translated chrome strings"
+    (is (nil? (appledict/chrome-css nil))))
+  (testing "translated strings override the content rules of the base CSS"
+    (is (= (str "summary.all-forms::after { content: \"alle former\"; }\n"
+                ".relations summary::after"
+                " { content: attr(data-count) \" ord\"; }")
+           (appledict/chrome-css {"all forms"   "alle former"
+                                  "{n} entries" "{n} ord"})))))
+
+(deftest front-matter-translation-test
+  (testing "the About title translates through the ui table"
+    (is (str/includes?
+          (appledict/front-matter-xml {"About {title}" "Om {title}"}
+                                      {:title "DanNet"} nil)
+          "d:title=\"Om DanNet\""))
+    (is (str/includes?
+          (appledict/front-matter-xml nil {:title "DanNet"} nil)
+          "d:title=\"About DanNet\""))))
 
 (deftest bundle-info-test
   (testing "metadata wins over the resource fields, with derived identifier"

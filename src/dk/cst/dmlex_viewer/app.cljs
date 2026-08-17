@@ -8,7 +8,8 @@
   (:require [clojure.string :as str]
             [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]
-            [replicant.dom :as r]))
+            [replicant.dom :as r])
+  (:require-macros [dk.cst.dmlex-viewer.translations :refer [inline-tables]]))
 
 (defonce state
   (atom {:manifest     nil
@@ -73,6 +74,31 @@
                (when data
                  (swap! state assoc :presentation (js->clj data)))))
       (.catch (fn [_] nil))))
+
+(def translations
+  "The bundled UI tables by language code, inlined from i18n/*.po."
+  (inline-tables))
+
+(defn ui-table
+  "The active UI table: the bundled table of the resource language,
+  under any \"ui\" table of the presentation config."
+  []
+  (merge (get translations (:langCode (:manifest @state)))
+         (get (:presentation @state) "ui")))
+
+(defn tr
+  "The UI string `s`, with the count `n` in its {n} placeholder,
+  translated by the active UI table.
+
+  Untranslated strings stay English."
+  ([s] (shared/tr (ui-table) s))
+  ([s n] (shared/tr (ui-table) s n)))
+
+(defn en
+  "The lang attribute of the UI string `s`: \"en\" while it is
+  untranslated, nil once a translation supplies its own language."
+  [s]
+  (shared/en (ui-table) s))
 
 (defn matches
   "The first 100 rows of `index` whose headword begins with `query`."
@@ -217,7 +243,7 @@
                        (if type
                          [:dt (linked typeUri (tagged (or display type)
                                                       typeDescription))]
-                         [:dt.visually-hidden {:lang "en"} "label"])]
+                         [:dt.visually-hidden {:lang (en "label")} (tr "label")])]
                       (map label-dd group))))
             (partition-by :type labels)))))
 
@@ -234,7 +260,8 @@
     (if (> (count members) 10)
       [:dd
        [:details
-        [:summary {:lang "en"} (str (count members) " entries")]
+        [:summary {:lang (en "{n} entries")}
+         (tr "{n} entries" (count members))]
         (into [:p.member-list] links)]]
       (into [:dd] links))))
 
@@ -261,7 +288,7 @@
   [relations relation-groups]
   (cond
     (seq relation-groups)
-    [:nav {:aria-label "related"}
+    [:nav {:aria-label (tr "related")}
      (map-indexed
        (fn [i {:keys [title description relations]}]
          [:section {:replicant/key i :class (when title "titled")}
@@ -270,7 +297,7 @@
        relation-groups)]
 
     (seq relations)
-    [:nav {:aria-label "related"} (relations-dl relations)]))
+    [:nav {:aria-label (tr "related")} (relations-dl relations)]))
 
 (defn translations-view
   "The headword `translations` of one sense as a definition list grouped
@@ -345,7 +372,7 @@
           (map-indexed
             (fn [i {:keys [tag text short description labels]}]
               [:div {:replicant/key i}
-               [:dt.visually-hidden (or description tag "form")]
+               [:dt.visually-hidden (or description tag (tr "form"))]
                [:dd {:title (if short
                               (str text (when description
                                           (str " — " description)))
@@ -364,9 +391,9 @@
   [forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details.paradigm
-     [:summary {:lang "en"} "all forms"]
+     [:summary {:lang (en "all forms")} (tr "all forms")]
      [:table
-      [:caption.visually-hidden {:lang "en"} "all forms"]
+      [:caption.visually-hidden {:lang (en "all forms")} (tr "all forms")]
       (into [:tbody]
             (map-indexed
               (fn [i group]
@@ -422,13 +449,13 @@
   "The checkbox switching relation members between the listing order of
   the dataset and the alphabetical collation."
   [collate?]
-  [:label.member-order {:lang "en"}
+  [:label.member-order {:lang (en "sort alphabetically")}
    [:input {:type    "checkbox"
             :checked collate?
             :on      {:change (fn [e]
                                 (swap! state assoc :collate?
                                        (.. e -target -checked)))}}]
-   " sort related words alphabetically"])
+   " " (tr "sort alphabetically")])
 
 (defn result-headword
   "The `headword` of one search result, with the matched `query` prefix
@@ -446,15 +473,14 @@
   A status line announces the row count to assistive technology."
   [rows query active]
   (list
-    [:p.result-count {:role  "status"
-                      :lang  "en"
-                      :class (when (seq rows) "visually-hidden")}
-     (if (empty? rows)
-       "No matches"
-       (str (count rows) " matches shown"))]
+    (let [s (if (empty? rows) "No matches" "matches: {n}")]
+      [:p.result-count {:role  "status"
+                        :lang  (en s)
+                        :class (when (seq rows) "visually-hidden")}
+       (tr s (count rows))])
     (when (seq rows)
       [:ol.results {:id "search-results" :role "listbox"
-                    :aria-label "Search results"}
+                    :aria-label (tr "Search results")}
        (map-indexed
          (fn [i {:keys [headword file pos hom]}]
            [:li {:replicant/key file :role "none"}
@@ -477,9 +503,8 @@
   [rows index-error query active]
   (cond
     rows        (results-view rows query active)
-    index-error [:p.error {:lang "en"}
-                 "The search index failed to load. Reload the page to try
-                  again."]))
+    index-error (let [s "Search failed to load. Reload the page."]
+                  [:p.error {:lang (en s)} (tr s)])))
 
 (defn front-matter-view
   "The front matter of the `manifest` metadata on the front page.
@@ -497,16 +522,17 @@
      (when description [:p.description description])
      [:dl.labels
       (when publisher
-        [:div [:dt {:lang "en"} "publisher"] [:dd publisher]])
+        [:div [:dt {:lang (en "publisher")} (tr "publisher")] [:dd publisher]])
       (when license
-        [:div [:dt {:lang "en"} "licence"]
+        [:div [:dt {:lang (en "licence")} (tr "licence")]
          [:dd (linked license (or licenseName license))]])
       (when rights
-        [:div [:dt {:lang "en"} "rights"] [:dd rights]])]
+        [:div [:dt {:lang (en "rights")} (tr "rights")] [:dd rights]])]
      (when (seq sources)
        [:section.titled {:aria-labelledby "front-matter-sources"}
-        [:h2.relation-group {:id "front-matter-sources" :lang "en"}
-         (if (some :license sources) "sources & licences" "sources")]
+        (let [s (if (some :license sources) "sources & licences" "sources")]
+          [:h2.relation-group {:id "front-matter-sources" :lang (en s)}
+           (tr s)])
         (into [:dl.labels]
               (map-indexed
                 (fn [i {:keys [title full uri license licenseName]}]
@@ -523,10 +549,10 @@
     [:footer.colophon
      [:p.resource (or title "DMLex resource")
       (when uri (list " · " [:a {:href uri} uri]))]
-     [:dl.stats {:lang "en"}
-      [:div [:dt "entries"] [:dd entries]]
-      [:div [:dt "senses"] [:dd senses]]
-      [:div [:dt "relations"] [:dd relations]]]]))
+     [:dl.stats
+      [:div [:dt {:lang (en "entries")} (tr "entries")] [:dd entries]]
+      [:div [:dt {:lang (en "senses")} (tr "senses")] [:dd senses]]
+      [:div [:dt {:lang (en "relations")} (tr "relations")] [:dd relations]]]]))
 
 (defn app
   "The root view over one value of the app state.
@@ -542,10 +568,12 @@
                    (= "collation" (get presentation "memberOrder")))]
     [:div.container
      [:search
-      [:label.visually-hidden {:for "search" :lang "en"} "Search the dictionary"]
+      [:label.visually-hidden {:for  "search"
+                               :lang (en "Search the dictionary")}
+       (tr "Search the dictionary")]
       [:input {:id                    "search"
                :type                  "search"
-               :placeholder           "Search…"
+               :placeholder           (tr "Type a word to look it up.")
                :value                 query
                :autofocus             true
                :enterkeyhint          "go"
@@ -579,14 +607,10 @@
                       (list (entry-view presented)
                             (when (related? presented)
                               (collate-toggle collate?))))
-        error       [:p.error {:lang "en"}
-                     "The page failed to load. "
-                     [:a {:href "#/"} "Go to the front page."]]
-        :else       (list
-                      (front-matter-view manifest)
-                      [:p.intro {:lang "en"}
-                       "Type a word in the search field to look it up. Every
-                        underlined word links to another word in the dictionary."]))]
+        error       [:p.error {:lang (en "The page failed to load.")}
+                     (tr "The page failed to load.") " "
+                     [:a {:href "#/"} (tr "Go to the front page.")]]
+        :else       (front-matter-view manifest))]
      (footer-view manifest)]))
 
 (defn render!

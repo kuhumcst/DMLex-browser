@@ -1,6 +1,23 @@
 (ns dk.cst.dmlex-viewer.shared
   "Pure helpers shared between the frontend and the JVM exports."
-  #?(:clj (:require [clojure.string :as str])))
+  (:require [clojure.string :as str]))
+
+(defn tr
+  "The translation of the UI string `s` in the `ui` table, or `s`
+  itself; the count `n` fills the {n} placeholder of a template.
+
+  The English string is its own key, so the table maps English chrome
+  to the dataset's language, e.g. {\"all forms\" \"alle former\"}."
+  ([ui s]
+   (get ui s s))
+  ([ui s n]
+   (str/replace (tr ui s) "{n}" (str n))))
+
+(defn en
+  "The lang attribute of the UI string `s`: \"en\" while the `ui` table
+  leaves it untranslated, nil once the dataset supplies its own."
+  [ui s]
+  (when-not (contains? ui s) "en"))
 
 (defn encode-uri
   "Percent-encode `s` as one URI component, the way JavaScript's

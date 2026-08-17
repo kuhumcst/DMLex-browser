@@ -20,6 +20,32 @@
   (is (= [{:x 1 :y :a} {:x 2 :y :c}]
          (shared/distinct-by :x [{:x 1 :y :a} {:x 1 :y :b} {:x 2 :y :c}]))))
 
+(deftest tr-test
+  (testing "the English string is its own key and its own fallback"
+    (is (= "alle former" (shared/tr {"all forms" "alle former"} "all forms")))
+    (is (= "all forms" (shared/tr nil "all forms"))))
+  (testing "a count fills the {n} placeholder"
+    (is (= "3 ord" (shared/tr {"{n} entries" "{n} ord"} "{n} entries" 3)))
+    (is (= "3 entries" (shared/tr nil "{n} entries" 3))))
+  (testing "the lang attribute marks only untranslated strings"
+    (is (= "en" (shared/en nil "all forms")))
+    (is (nil? (shared/en {"all forms" "alle former"} "all forms")))))
+
+(deftest translated-chrome-test
+  (swap! app/state assoc :presentation
+         {"ui" {"entries"   "opslagsord"
+                "senses"    "betydninger"
+                "relations" "relationer"}})
+  (try
+    (let [rendered (pr-str (app/footer-view {:title   "T"
+                                             :entries 1 :senses 2 :relations 3}))]
+      (testing "translated chrome renders in the dataset's language"
+        (is (str/includes? rendered "opslagsord")))
+      (testing "a translated string drops its English lang marker"
+        (is (not (str/includes? rendered "\"en\"")))))
+    (finally
+      (swap! app/state dissoc :presentation))))
+
 (deftest runs-view-test
   (testing "marker runs render the marked headword in bold"
     (is (= (list "en stor " [:b "hund"])

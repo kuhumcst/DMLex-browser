@@ -22,7 +22,8 @@
             [clojure.string :as str]
             [dk.cst.dmlex-viewer.build :as build]
             [dk.cst.dmlex-viewer.presentation :as presentation]
-            [dk.cst.dmlex-viewer.shared :as shared]))
+            [dk.cst.dmlex-viewer.shared :as shared]
+            [dk.cst.dmlex-viewer.translations :as translations]))
 
 ;; -----------------------------------------------------------------------------
 ;; XML emission
@@ -112,8 +113,8 @@
 
 (defn labels-view
   "The `labels` as a definition list grouped by label type, with the extra
-  `class` on the list."
-  [class labels]
+  `class` on the list and the chrome translated by the `ui` table."
+  [ui class labels]
   (when (seq labels)
     [:dl {:class (str "labels " class) :d/priority "2"}
      (for [group (partition-by :type labels)
@@ -121,7 +122,8 @@
        [:div {:data-type type}
         (if type
           [:dt (linked typeUri (tagged (or display type) typeDescription))]
-          [:dt {:class "visually-hidden" :lang "en"} "label"])
+          [:dt {:class "visually-hidden" :lang (shared/en ui "label")}
+           (shared/tr ui "label")])
         (map label-dd group)])]))
 
 (defn member-link
@@ -130,23 +132,25 @@
   [:a {:href (str "x-dictionary:r:" file) :title indicator} headword])
 
 (defn members-dd
-  "The `members` of one relation row, folded behind a details disclosure when
-  the row is long."
-  [members]
+  "The `members` of one relation row, with `ui` translating the chrome.
+
+  A long row folds behind a details disclosure."
+  [ui members]
   (let [links (interpose ", " (map member-link members))]
     (if (> (count members) 10)
       [:dd
        [:details
         ;; The text lives in CSS content so that Dictionary.app cannot
         ;; look it up on click.
-        [:summary {:lang "en" :data-count (count members)} ""]
+        [:summary {:lang       (shared/en ui "{n} entries")
+                   :data-count (count members)} ""]
         [:p {:class "member-list"} links]]]
       [:dd links])))
 
 (defn relations-dl
   "The pre-resolved `relations` rows as a definition list: the role of the
   related senses against the links to their entries."
-  [relations]
+  [ui relations]
   (when (seq relations)
     [:dl {:class "relations" :d/priority "2"}
      (for [{:keys [type role description roleDescription note uri display
@@ -155,7 +159,7 @@
        [:div {:data-type type :data-role role}
         [:dt {:title (or note roleDescription description type)}
          (linked uri (or display-role role display type))]
-        (members-dd members)])]))
+        (members-dd ui members)])]))
 
 (defn relations-view
   "The `relations` rows — or the titled `relation-groups` of the
@@ -163,7 +167,7 @@
 
   Each group renders as a section under its headline, with the group's
   description as the headline's tooltip."
-  [relations relation-groups]
+  [ui relations relation-groups]
   (if (seq relation-groups)
     (for [{:keys [title description relations]} relation-groups]
       [:div {:class      (str "relation-section" (when title " titled"))
@@ -174,8 +178,8 @@
          [:h2 {:class      "relation-group"
                :title      description
                :data-label title} ""])
-       (relations-dl relations)])
-    (relations-dl relations)))
+       (relations-dl ui relations)])
+    (relations-dl ui relations)))
 
 (defn translations-view
   "The headword `translations` of one sense as a definition list grouped
@@ -213,8 +217,8 @@
 (defn sense-view
   "One sense as a list item: the indicator, the definitions, the
   examples, the labels, the translations and the relations."
-  [{:keys [indicator definitions translations examples labels relations
-           relation-groups]}]
+  [ui {:keys [indicator definitions translations examples labels relations
+              relation-groups]}]
   [:li {:class "sense"}
    [:p {:class "meaning"}
     (when indicator
@@ -227,9 +231,9 @@
                              (runs-view text runs)])
                           definitions))]]
    (map example-view examples)
-   (labels-view "sense-labels" labels)
+   (labels-view ui "sense-labels" labels)
    (translations-view translations)
-   (relations-view relations relation-groups)])
+   (relations-view ui relations relation-groups)])
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list of
@@ -239,7 +243,7 @@
   One representative per paradigm slot — the form with a reduced short
   when the slot has one — so variant spellings stay in the paradigm, as
   does a form spelled like the headword."
-  [headword forms]
+  [ui headword forms]
   (when-let [forms (->> (partition-by #(or (:description %) (:tag %) (:text %))
                                       forms)
                         (map (fn [group]
@@ -251,7 +255,8 @@
      (for [{:keys [tag text short description labels]}
            (shared/distinct-by #(or (:short %) (:text %)) forms)]
        [:div
-        [:dt {:class "visually-hidden"} (or description tag "form")]
+        [:dt {:class "visually-hidden"}
+         (or description tag (shared/tr ui "form"))]
         [:dd {:title (if short
                        (str text (when description
                                    (str " — " description)))
@@ -267,12 +272,13 @@
 
   One row per paradigm slot; forms that share the slot — variant
   spellings — join on the row."
-  [forms]
+  [ui forms]
   (when (some #(or (:tag %) (:description %)) forms)
     [:details {:class "paradigm" :d/priority "2"}
-     [:summary {:lang "en" :class "all-forms"} ""]
+     [:summary {:lang (shared/en ui "all forms") :class "all-forms"} ""]
      [:table
-      [:caption {:class "visually-hidden" :lang "en"} "all forms"]
+      [:caption {:class "visually-hidden" :lang (shared/en ui "all forms")}
+       (shared/tr ui "all forms")]
       [:tbody
        (for [group (partition-by #(or (:description %) (:tag %)) forms)
              :let [{:keys [tag description]} (first group)]]
@@ -303,8 +309,8 @@
 
   Everything but the headword, the pos and the definitions carries
   d:priority 2, which the compact Look Up panel omits."
-  [{:keys [file headword homographNumber partsOfSpeech labels inflectedForms
-           senses relations relation-groups]}]
+  [ui {:keys [file headword homographNumber partsOfSpeech labels inflectedForms
+              senses relations relation-groups]}]
   [:d/entry {:id file :d/title headword}
    (->index headword inflectedForms)
    [:h1 {:class "headword"} [:dfn headword]
@@ -315,15 +321,20 @@
                              (linked uri (tagged (or description tag)
                                                  (when description tag))))
                            partsOfSpeech))])
-   (inflections-view headword inflectedForms)
-   (paradigm-view inflectedForms)
-   (labels-view "entry-labels" labels)
+   (inflections-view ui headword inflectedForms)
+   (paradigm-view ui inflectedForms)
+   (labels-view ui "entry-labels" labels)
    [:ol {:class (str "senses" (when (= 1 (count senses)) " single"))}
-    (map sense-view senses)]
-   (relations-view relations relation-groups)])
+    (map (partial sense-view ui) senses)]
+   (relations-view ui relations relation-groups)])
 
 ;; -----------------------------------------------------------------------------
 ;; Bundle metadata
+
+(defn about-title
+  "The About title of the bundle `title`, translated by the `ui` table."
+  [ui title]
+  (str/replace (shared/tr ui "About {title}") "{title}" title))
 
 (defn bundle-info
   "The bundle identity of the export: the display fields of the DMLex
@@ -352,8 +363,8 @@
   the description, the rights, the sources and the home URI.
 
   Info.plist points at it via DCSDictionaryFrontMatterReferenceID."
-  [{:keys [title description rights license licenseName sources uri]}]
-  [:d/entry {:id "front_back_matter" :d/title (str "About " title)}
+  [ui {:keys [title description rights license licenseName sources uri]}]
+  [:d/entry {:id "front_back_matter" :d/title (about-title ui title)}
    [:d/index {:d/value title}]
    [:div {:class "front-matter"}
     [:h1 title]
@@ -380,14 +391,14 @@
 (defn front-matter-xml
   "The front matter as XML: the dataset's own `front` XHTML fragment when
   it ships one, else the generic assembly from the bundle `info`."
-  [info front]
+  [ui info front]
   (if front
     (str "<d:entry id=\"front_back_matter\" d:title=\""
-         (escape (str "About " (:title info))) "\">"
+         (escape (about-title ui (:title info))) "\">"
          (hiccup->xml [:d/index {:d/value (:title info)}])
          front
          "</d:entry>")
-    (hiccup->xml (front-matter info))))
+    (hiccup->xml (front-matter ui info))))
 
 (defn write-xml!
   "Stream the d:dictionary XML of the DMLex `resource` to `file`, with
@@ -397,6 +408,7 @@
   dataset's own `front` fragment when it ships one."
   [file info config front resource]
   (let [env     (build/->env resource)
+        ui      (get config "ui")
         collate (when (= "collation" (get config "memberOrder"))
                   (let [collator (build/->collator (:langCode resource))]
                     (fn [a b] (.compare collator a b))))
@@ -405,11 +417,11 @@
                     collate (presentation/collate-members collate)))]
     (with-open [w (io/writer file)]
       (.write w xml-preamble)
-      (.write w (front-matter-xml info front))
+      (.write w (front-matter-xml ui info front))
       (.write w "\n")
       (doseq [entry (:entries resource)]
         (.write w (hiccup->xml
-                    (->entry (present (build/->entry-file env entry)))))
+                    (->entry ui (present (build/->entry-file env entry)))))
         (.write w "\n"))
       (.write w "</d:dictionary>\n"))))
 
@@ -483,9 +495,29 @@
   ["public/css/tokens.css"
    "resources/appledict/style.css"])
 
+(defn chrome-css
+  "CSS overriding the English strings the base stylesheet renders as
+  content, with their translations in the `ui` table, or nil.
+
+  The count template must open with {n}, which maps onto the
+  data-count attribute."
+  [ui]
+  (let [entries (get ui "{n} entries")
+        rules   (remove nil?
+                        [(when-let [s (get ui "all forms")]
+                           (str "summary.all-forms::after { content: \""
+                                s "\"; }"))
+                         (when (and entries (str/starts-with? entries "{n}"))
+                           (str ".relations summary::after"
+                                " { content: attr(data-count) \""
+                                (subs entries 3) "\"; }"))])]
+    (when (seq rules)
+      (str/join "\n" rules))))
+
 (defn stylesheet
-  "The full stylesheet of the bundle: the base `css-files` plus the
-  dataset stylesheets the `config` names, read through `content-of`.
+  "The full stylesheet of the bundle: the base `css-files`, the dataset
+  stylesheets the `config` names read through `content-of`, and the
+  translated chrome strings.
 
   The shared \"css\" hook comes first, then the appledict-specific one."
   [content-of config]
@@ -495,7 +527,8 @@
                (->> [(get config "css")
                      (get-in config ["appledict" "css"])]
                     (remove nil?)
-                    (keep content-of)))
+                    (keep content-of))
+               (some-> (chrome-css (get config "ui")) (vector)))
        (str/join "\n")))
 
 (def ddk-default
@@ -514,7 +547,10 @@
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (build/->input in)
         resource (json/read-str (content-of dmlex-file) :key-fn keyword)
-        config   (build/read-companion content-of "presentation.json")
+        config   (build/read-config content-of)
+        ui       (merge (get (translations/tables) (:langCode resource))
+                        (get config "ui"))
+        config   (cond-> config (seq ui) (assoc "ui" ui))
         metadata (build/read-companion content-of "metadata.json")
         info     (cond-> (bundle-info resource metadata)
                    (get-in config ["appledict" "identifier"])

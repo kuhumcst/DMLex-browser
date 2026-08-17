@@ -1,11 +1,14 @@
 {:paths   ["src"]
  :deps    {org.clojure/clojure   {:mvn/version "1.12.5"}
-           org.clojure/data.json {:mvn/version "2.5.2"}}
+           org.clojure/data.json {:mvn/version "2.5.2"}
+           brightin/pottery      {:mvn/version "1.0.2"}}
  :aliases {;; The data build: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]
            :build  {:main-opts ["-m" "dk.cst.dmlex-viewer.build"]}
            ;; The Apple Dictionary export:
            ;; clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]
            :appledict {:main-opts ["-m" "dk.cst.dmlex-viewer.appledict"]}
+           ;; Regenerate the translation template: clojure -M:i18n
+           :i18n   {:main-opts ["-m" "dk.cst.dmlex-viewer.i18n"]}
            ;; The tests: clojure -M:test
            :test   {:extra-paths ["test"]
                     :extra-deps  {io.github.cognitect-labs/test-runner

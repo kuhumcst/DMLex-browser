@@ -343,8 +343,6 @@ nav > section .relations {
 .stats dt { display: inline; margin-right: 0.4em; }
 .stats dd { display: inline; color: var(--dark); }
 
-.intro { color: var(--grey); margin-top: 3rem; }
-
 /* Front matter: the resource in the entry's own voice. The title takes
    the headword style, the description reads as a serif lead, and the
    facts sit in the aligned key/value list of the entry labels. */

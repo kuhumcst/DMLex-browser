@@ -312,6 +312,25 @@
         (is (= "{\"dc:title\": \"T\"}" (content-of "metadata.json")))
         (is (nil? (content-of "missing.json")))))))
 
+(deftest read-ui-test
+  (testing "a ui.po next to the DMLex file wins over the config table"
+    (let [dir (doto (io/file (System/getProperty "java.io.tmpdir")
+                             (str "dmlex-ui-" (System/nanoTime)))
+                (.mkdirs))]
+      (spit (io/file dir "dict.json") "{}")
+      (spit (io/file dir "ui.po")
+            (str "msgid \"\"\nmsgstr \"\"\n"
+                 "\"Content-Type: text/plain; charset=UTF-8\\n\"\n"
+                 "\n"
+                 "msgid \"all forms\"\nmsgstr \"alle former\"\n"))
+      (let [{:keys [content-of]} (build/->input (str (io/file dir "dict.json")))]
+        (is (= {"all forms" "alle former"}
+               (build/read-ui content-of nil)))
+        (is (= {"all forms" "alle former"
+                "label"     "etiket"}
+               (build/read-ui content-of {"ui" {"all forms" "gammel"
+                                                "label"     "etiket"}})))))))
+
 (def resource
   "A minimal DMLex resource exercising every inventory."
   {:title              "Test"

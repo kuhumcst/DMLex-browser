@@ -1,0 +1,96 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "related"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "sort alphabetically"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "No matches"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "matches: {n}"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Search results"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Search failed to load. Reload the page."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "publisher"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "licence"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "rights"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "sources & licences"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "sources"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "entries"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "senses"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "relations"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Search the dictionary"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Type a word to look it up."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "The page failed to load."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Go to the front page."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "label"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "{n} entries"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "form"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "all forms"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/appledict.clj
+msgid "About {title}"
+msgstr ""
+

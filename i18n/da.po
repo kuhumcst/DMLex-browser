@@ -1,0 +1,72 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "label"
+msgstr "etiket"
+
+msgid "{n} entries"
+msgstr "{n} ord"
+
+msgid "related"
+msgstr "relaterede ord"
+
+msgid "form"
+msgstr "form"
+
+msgid "all forms"
+msgstr "alle former"
+
+msgid "sort alphabetically"
+msgstr "sortér alfabetisk"
+
+msgid "No matches"
+msgstr "Ingen resultater"
+
+msgid "matches: {n}"
+msgstr "resultater: {n}"
+
+msgid "Search results"
+msgstr "Søgeresultater"
+
+msgid "Search failed to load. Reload the page."
+msgstr "Søgningen kunne ikke indlæses. Genindlæs siden."
+
+msgid "publisher"
+msgstr "udgiver"
+
+msgid "licence"
+msgstr "licens"
+
+msgid "rights"
+msgstr "rettigheder"
+
+msgid "sources & licences"
+msgstr "kilder & licenser"
+
+msgid "sources"
+msgstr "kilder"
+
+msgid "entries"
+msgstr "opslagsord"
+
+msgid "senses"
+msgstr "betydninger"
+
+msgid "relations"
+msgstr "relationer"
+
+msgid "Search the dictionary"
+msgstr "Søg i ordbogen"
+
+msgid "Type a word to look it up."
+msgstr "Skriv et ord for at slå det op."
+
+msgid "The page failed to load."
+msgstr "Siden kunne ikke indlæses."
+
+msgid "Go to the front page."
+msgstr "Gå til forsiden."
+
+msgid "About {title}"
+msgstr "Om {title}"
