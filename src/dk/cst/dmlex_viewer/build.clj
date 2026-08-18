@@ -270,6 +270,7 @@
                                   :when sense-id]
                               [sense-id (compact {:headword  headword
                                                   :file      (->file id)
+                                                  :sense     sense-id
                                                   :indicator indicator})]))
         entry-home (into {} (for [{:keys [id headword]} entries]
                               [id {:headword headword

@@ -182,23 +182,54 @@
                                         (or (:title manifest)
                                             fallback-title)])))))
 
+(defn mark-current-sense
+  "Mark the sense of `entry` whose id is `sense` as :current?, which the
+  sense view renders as aria-current. A nil `sense` marks nothing."
+  [entry sense]
+  (cond-> entry
+    sense (update :senses (partial mapv #(cond-> %
+                                           (= sense (:id %))
+                                           (assoc :current? true))))))
+
+(defn reveal-target!
+  "Scroll to and focus the navigation target within the shown `entry`:
+  its sense of the id `sense` when one is named, else the headword.
+
+  The navigation scrolls smoothly to the sense — except to the first
+  sense of another entry (`same-entry?` false), which shows the entry
+  from the top with the sense merely marked. The focus never scrolls on
+  its own, so it cannot cut the smooth scroll short."
+  [entry sense same-entry?]
+  (if-let [el (some-> sense (js/document.getElementById))]
+    (let [first-sense? (= sense (:id (first (:senses entry))))]
+      (if (and first-sense? (not same-entry?))
+        (.scrollTo js/window 0 0)
+        (.scrollIntoView el #js {:behavior "smooth"}))
+      (.focus el #js {:preventScroll true}))
+    (do (.scrollTo js/window 0 0)
+        (some-> (js/document.querySelector "h1.headword") (.focus)))))
+
 (defn route!
   "Load the entry of the current URL fragment, or return to the front page.
+  A second fragment segment names a sense of the entry, marked for the
+  sense view by `mark-current-sense` and shown by `reveal-target!`.
 
-  Focus follows the navigation — to the headword or the search field — so
-  that keyboard and screen-reader users land on the new content instead of
-  on an element the re-render removed."
+  Focus follows the navigation — to the sense, the headword or the search
+  field — so that keyboard and screen-reader users land on the new content
+  instead of on an element the re-render removed."
   []
-  (if-let [[_ file] (re-find #"^#/entry/(.+)$" (.-hash js/location))]
-    (fetch-json! (str "data/entries/" file ".json")
-                 (fn [entry]
-                   (swap! state assoc :entry entry :error nil)
-                   (update-title!)
-                   (.scrollTo js/window 0 0)
-                   (some-> (js/document.querySelector "h1.headword") (.focus)))
-                 (fn [e]
-                   (swap! state assoc :entry nil :error (.-message e))
-                   (update-title!)))
+  (if-let [[_ file sense] (re-find #"^#/entry/([^/]+)(?:/(.+))?$"
+                                   (.-hash js/location))]
+    (let [same-entry? (= file (:file (:entry @state)))]
+      (fetch-json! (str "data/entries/" file ".json")
+                   (fn [entry]
+                     (swap! state assoc :error nil
+                            :entry (mark-current-sense entry sense))
+                     (update-title!)
+                     (reveal-target! entry sense same-entry?))
+                   (fn [e]
+                     (swap! state assoc :entry nil :error (.-message e))
+                     (update-title!))))
     (do (swap! state assoc :entry nil :error nil)
         (update-title!)
         (some-> (js/document.getElementById "search") (.focus)))))
@@ -264,9 +295,12 @@
             (partition-by :type labels)))))
 
 (defn member-link
-  "The link to the home entry of one relation member."
-  [{:keys [headword file indicator]}]
-  [:a {:href (str "#/entry/" file) :title indicator} headword])
+  "The link to the home entry of one relation member, targeting its home
+  sense when the member is one."
+  [{:keys [headword file sense indicator]}]
+  [:a {:href  (str "#/entry/" file (when sense (str "/" sense)))
+       :title indicator}
+   headword])
 
 (defn members-dd
   "The `members` of one relation row, folded behind a details disclosure when
@@ -367,10 +401,16 @@
 (defn sense-view
   "The sense at index `i` as a numbered list item: the indicator, the
   definitions, the examples, the labels, the translations and the
-  relations."
+  relations.
+
+  The sense id becomes the DOM id that sense-targeted navigation scrolls
+  to and focuses, and the sense such a navigation targeted carries
+  aria-current, which the stylesheet turns into the margin mark."
   [i {:keys [id indicator labels definitions translations examples
-             relations relation-groups]}]
-  [:li.sense {:replicant/key (or id i)}
+             relations relation-groups current?]}]
+  [:li.sense (cond-> {:replicant/key (or id i)}
+               id (assoc :id id :tabindex -1)
+               current? (assoc :aria-current "location"))
    [:p.meaning
     (when indicator [:span.indicator indicator])
     (into [:span.definitions]

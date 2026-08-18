@@ -238,7 +238,41 @@ p.pos { margin: 0 0 0.4rem; }
 
 .senses { list-style: none; counter-reset: sense; margin: 2.5rem 0 0; padding: 0; }
 
-.sense { position: relative; padding-left: 2.2rem; margin: 0 0 3rem; }
+.sense { position: relative; padding-left: 2.2rem; margin: 0 0 3rem; scroll-margin-top: 1.5rem; }
+
+/* A sense-targeted navigation marks its sense with aria-current and
+   moves programmatic focus there; the accent bar beside the meaning
+   line shows the reader which sense the link meant, like a margin mark
+   in print. */
+.sense:focus { outline: none; }
+.sense[aria-current] .meaning { position: relative; }
+
+/* The bar hangs 0.85rem left of the sense box, which the numberless
+   single-sense layout starts 2.2rem further left. Both offsets stay
+   within the narrowest page padding. */
+.sense[aria-current] .meaning::before {
+  content: "";
+  position: absolute;
+  left: -3.6rem;
+  top: 0;
+  bottom: 0;
+  width: 0.55rem;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: sense-mark 1.2s ease-out;
+}
+
+.senses.single .sense[aria-current] .meaning::before { left: -1.4rem; }
+
+/* The mark holds back while the smooth scroll is still moving, then
+   fades in at the destination. */
+@keyframes sense-mark {
+  0%, 35% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sense[aria-current] .meaning::before { animation: none; }
+}
 
 .sense::before {
   counter-increment: sense;

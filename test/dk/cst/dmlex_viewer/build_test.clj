@@ -432,6 +432,7 @@
                :uri         "https://example.com/syn"
                :members     [{:headword  "køter"
                               :file      (build/->file "køter")
+                              :sense     "s2"
                               :indicator "nedsættende"}]}]
              (:relations (first (:senses entry))))))
     (testing "an entry without relations of its own has no :relations key"
