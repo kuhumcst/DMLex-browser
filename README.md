@@ -181,10 +181,11 @@ With `"listing"` (the default) the members of a relation row keep the
 listing order of the dataset. `"collation"` sorts them by the
 `obverseListingOrder` of each member first, then by the headword in
 the collation of the resource language. A member without an order
-sorts after every member with one. The web viewer always has a
-checkbox that switches between the two orders, and `memberOrder` sets
-its initial state. The browser remembers the choice per dataset. The
-Apple dictionary has no checkbox, so there the setting decides alone. DanNet, for example, derives the member order
+sorts after every member with one. The web viewer also has a checkbox
+that forces a strictly alphabetical order, whatever `memberOrder`
+says. The checkbox starts unchecked, and the browser remembers the
+choice per dataset. The Apple dictionary has no checkbox, so there
+the setting decides alone. DanNet, for example, derives the member order
 from how many relations point at each synset. With `"collation"` the
 most central words then come first.
 

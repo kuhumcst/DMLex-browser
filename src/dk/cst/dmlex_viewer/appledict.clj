@@ -179,7 +179,12 @@
                :title      description
                :data-label title} ""])
        (relations-dl ui relations)])
-    (relations-dl ui relations)))
+    (when (seq relations)
+      [:div {:class "relation-section titled" :d/priority "2"}
+       [:h2 {:class      "relation-group"
+             :lang       (shared/en ui "related")
+             :data-label (shared/tr ui "related")} ""]
+       (relations-dl ui relations)])))
 
 (defn translations-view
   "The headword `translations` of one sense as a definition list grouped
@@ -411,7 +416,8 @@
         ui      (get config "ui")
         collate (when (= "collation" (get config "memberOrder"))
                   (let [collator (build/->collator (:langCode resource))]
-                    (fn [a b] (.compare collator a b))))
+                    (shared/member-order
+                      (fn [a b] (.compare collator a b)))))
         present (fn [entry]
                   (cond->> (presentation/present-entry config entry)
                     collate (presentation/collate-members collate)))]

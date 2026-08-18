@@ -3,7 +3,8 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [dk.cst.dmlex-viewer.build :as build]
-            [dk.cst.dmlex-viewer.presentation :as presentation])
+            [dk.cst.dmlex-viewer.presentation :as presentation]
+            [dk.cst.dmlex-viewer.shared :as shared])
   (:import [java.io File]
            [java.util.zip ZipEntry ZipOutputStream]))
 
@@ -146,16 +147,18 @@
                 (:members))))))
 
 (defn collated
-  "The `members` of one relation row, by headword, under the Danish
-  collation."
-  [members]
-  (let [collator (build/->collator "da")
-        compare* (fn [a b] (.compare collator a b))]
-    (->> (presentation/collate-members compare* {:relations [{:members members}]})
-         (:relations)
-         (first)
-         (:members)
-         (mapv :headword))))
+  "The `members` of one relation row under the Danish collation, sorted
+  by the member comparator that `->order` builds from it."
+  ([members] (collated shared/member-order members))
+  ([->order members]
+   (let [collator (build/->collator "da")
+         compare* (fn [a b] (.compare collator a b))]
+     (->> (presentation/collate-members (->order compare*)
+                                        {:relations [{:members members}]})
+          (:relations)
+          (first)
+          (:members)
+          (mapv :headword)))))
 
 (deftest collate-members-test
   (testing "members without an order sort by the collation of the language"
@@ -176,7 +179,13 @@
            (collated [{:headword "æble" :order 7}
                       {:headword "bær" :order 7}
                       {:headword "ål" :order 1}]))
-        "an equal order falls back to the collation")))
+        "an equal order falls back to the collation"))
+  (testing "the strictly alphabetical comparator ignores the order"
+    (is (= ["bær" "æble" "ål"]
+           (collated shared/alphabetical-order
+                     [{:headword "ål" :order 1}
+                      {:headword "æble" :order 2}
+                      {:headword "bær"}])))))
 
 (deftest index-rows-test
   (let [resource {:langCode "da"

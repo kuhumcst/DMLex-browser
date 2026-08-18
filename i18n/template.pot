@@ -3,11 +3,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #: src/dk/cst/dmlex_viewer/app.cljs
-msgid "related"
+msgid "language"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
-msgid "language"
+msgid "The dataset's own language."
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
@@ -15,11 +15,23 @@ msgid "interface"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
+msgid "The language of the interface."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
 msgid "alphabetical"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
+msgid "Strictly alphabetical, without the dataset's ranking."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
 msgid "custom"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "The dataset's own presentation."
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
@@ -92,6 +104,10 @@ msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
 msgid "{n} entries"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "related"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj

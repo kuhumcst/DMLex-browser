@@ -2,7 +2,8 @@
   "Tests of the presentation ops, run by both the JVM and the node test
   suites since the ops serve both display surfaces."
   (:require [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.presentation :as presentation]))
+            [dk.cst.dmlex-viewer.presentation :as presentation]
+            [dk.cst.dmlex-viewer.shared :as shared]))
 
 (def labels
   [{:tag "a1" :type "alpha"}
@@ -152,7 +153,7 @@
             :relation-groups [{:relations [{:members [{:headword "y"}
                                                       {:headword "z"}]}]}]}
            (presentation/collate-members
-             compare
+             (shared/member-order compare)
              {:relations       [{:members [{:headword "b"}
                                            {:headword "a" :order 1}]}]
               :senses          [{:relations [{:members [{:headword "c"}

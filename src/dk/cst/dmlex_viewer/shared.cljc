@@ -62,3 +62,11 @@
       (if (zero? c)
         (compare-headwords (:headword a) (:headword b))
         c))))
+
+(defn alphabetical-order
+  "A comparator for the members of one relation row: strictly the
+  `:headword` under the `compare-headwords` collation, with any member
+  `:order` of the dataset ignored."
+  [compare-headwords]
+  (fn [a b]
+    (compare-headwords (:headword a) (:headword b))))

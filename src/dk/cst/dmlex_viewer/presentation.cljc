@@ -135,18 +135,18 @@
 
 (defn collate-members
   "Sort the members of every relation row of the presented `entry` — on
-  the entry, its senses and any relation groups — with the member order
-  of the dataset first, then the headword under `compare-headwords`.
+  the entry, its senses and any relation groups — with the member
+  comparator `compare-members` (see dk.cst.dmlex-viewer.shared for the
+  ranked and the strictly alphabetical one).
 
   Without this the members keep the listing order of the dataset; the
-  \"memberOrder\" config value \"collation\" and the toggle of the web
-  viewer apply it."
-  [compare-headwords entry]
+  \"memberOrder\" config value \"collation\" and the checkbox of the
+  web viewer apply it."
+  [compare-members entry]
   (let [rows*   (fn [rows]
                   (mapv (fn [row]
                           (update row :members
-                                  #(vec (sort (shared/member-order compare-headwords)
-                                              %))))
+                                  #(vec (sort compare-members %))))
                         rows))
         groups* (fn [groups]
                   (mapv #(update % :relations rows*) groups))

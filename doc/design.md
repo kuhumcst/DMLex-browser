@@ -62,7 +62,9 @@ A missing config is the normal case, and the viewer then shows the
 data neutrally. It ignores unknown sections and unknown tags without
 complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
-fallback group unless the config hides them. A checkbox in the web
+fallback group unless the config hides them. Neutral relations render
+in the same titled box as configured groups, under the generic
+"related" heading. A checkbox in the web
 viewer turns the config off for an entry, to compare it with this
 neutral view. localStorage remembers the checkbox choices per
 dataset, like the UI language choice.
@@ -71,7 +73,8 @@ Member order is taste too. By default the members of a relation row
 keep the listing order of the dataset. The DMLex spec asks a
 conforming display to do exactly that. `"memberOrder": "collation"`
 instead sorts them by the `obverseListingOrder` of each member and
-then alphabetically, and the web viewer gives the reader a checkbox.
+then alphabetically. A checkbox in the web viewer forces a strictly
+alphabetical order, whatever the config prefers.
 This use of `obverseListingOrder` is more liberal than the spec,
 which reserves the field for the order of relations on a member's own
 page. Here the `order` and `groups` of the config already do that

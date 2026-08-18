@@ -17,6 +17,18 @@ msgstr "grænseflade"
 msgid "language"
 msgstr "sprog"
 
+msgid "The dataset's own language."
+msgstr "Datasættets eget sprog."
+
+msgid "The dataset's own presentation."
+msgstr "Datasættets egen præsentation."
+
+msgid "The language of the interface."
+msgstr "Grænsefladens sprog."
+
+msgid "Strictly alphabetical, without the dataset's ranking."
+msgstr "Strengt alfabetisk, uden datasættets rangorden."
+
 msgid "form"
 msgstr "form"
 

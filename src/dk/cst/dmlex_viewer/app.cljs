@@ -20,7 +20,7 @@
          :active       nil
          :entry        nil
          :error        nil
-         :collate?     nil
+         :alpha?       nil
          :presentation? nil
          :lang         nil}))
 
@@ -313,7 +313,10 @@
        relation-groups)]
 
     (seq relations)
-    [:nav {:aria-label (tr "related")} (relations-dl relations)]))
+    [:nav {:aria-label (tr "related")}
+     [:section.titled
+      [:h2.relation-group {:lang (en "related")} (tr "related")]
+      (relations-dl relations)]]))
 
 (defn translations-view
   "The headword `translations` of one sense as a definition list grouped
@@ -499,7 +502,9 @@
   own lang attribute."
   [{:keys [langCode]}]
   (when langCode
-    [:span.dictionary-language {:lang (en "language")}
+    [:span.dictionary-language
+     {:lang  (en "language")
+      :title (tr "The dataset's own language.")}
      (tr "language") ": "
      [:strong {:lang langCode} (language-name langCode)]]))
 
@@ -510,7 +515,9 @@
   [lang manifest]
   (let [value (or lang (:langCode manifest))
         value (if (some #{value} ui-languages) value "en")]
-    [:label.ui-language {:lang (en "interface")}
+    [:label.ui-language
+     {:lang  (en "interface")
+      :title (tr "The language of the interface.")}
      (tr "interface") " "
      (into [:select
             {:on {:change (fn [e]
@@ -519,15 +526,17 @@
              [:option {:value code :selected (= code value)}
               (language-name code)]))]))
 
-(defn collate-toggle
-  "The checkbox switching relation members between the listing order of
-  the dataset and the alphabetical collation."
-  [collate?]
-  [:label.member-order {:lang (en "alphabetical")}
+(defn alpha-toggle
+  "The checkbox forcing a strictly alphabetical order on the members of
+  every relation row, over whatever order the dataset prefers."
+  [alpha?]
+  [:label.member-order
+   {:lang  (en "alphabetical")
+    :title (tr "Strictly alphabetical, without the dataset's ranking.")}
    [:input {:type    "checkbox"
-            :checked collate?
+            :checked alpha?
             :on      {:change (fn [e]
-                                (set-pref! :collate? "collate"
+                                (set-pref! :alpha? "alpha"
                                            (.. e -target -checked)))}}]
    " " (tr "alphabetical")])
 
@@ -535,7 +544,9 @@
   "The checkbox switching the presentation config of the dataset on and
   off, to compare an entry with the neutral default view."
   [presentation?]
-  [:label.custom-view {:lang (en "custom")}
+  [:label.custom-view
+   {:lang  (en "custom")
+    :title (tr "The dataset's own presentation.")}
    [:input {:type    "checkbox"
             :checked presentation?
             :on      {:change (fn [e]
@@ -649,25 +660,26 @@
   combobox: focus stays in the field while aria-activedescendant
   points at the active option."
   [{:keys [manifest presentation index index-error query active entry
-           error collate? presentation? lang]}]
+           error alpha? presentation? lang]}]
   (if-not (or manifest error)
     [:div.container]
     (let [rows      (when (and index (seq query)) (matches index query))
           presentation? (if (some? presentation?) presentation? true)
           config    (when presentation? presentation)
-          collate?  (if (some? collate?)
-                      collate?
-                      (= "collation" (get config "memberOrder")))
+          alpha?    (boolean alpha?)
+          order     (let [compare* (headword-collation (:langCode manifest))]
+                      (cond
+                        alpha? (shared/alphabetical-order compare*)
+                        (= "collation" (get config "memberOrder"))
+                        (shared/member-order compare*)))
           presented (when entry
                       (cond->> (presentation/present-entry config entry)
-                        collate? (presentation/collate-members
-                                   (headword-collation
-                                     (:langCode manifest)))))
+                        order (presentation/collate-members order)))
           controls  [:div.controls
                      (or (dictionary-language manifest) [:span])
                      [:span.toggles
                       (when (and presented (related? presented))
-                        (collate-toggle collate?))
+                        (alpha-toggle alpha?))
                       (when (and presented
                                  (seq (dissoc presentation "ui")))
                         (presentation-toggle presentation?))]
@@ -725,7 +737,7 @@
                (fn [{:keys [langCode] :as manifest}]
                  (swap! state assoc :manifest manifest)
                  (doseq [[k pref parse] [[:lang "lang" identity]
-                                         [:collate? "collate" #(= % "true")]
+                                         [:alpha? "alpha" #(= % "true")]
                                          [:presentation? "custom" #(= % "true")]]]
                    (when-let [stored (read-pref pref manifest)]
                      (swap! state assoc k (parse stored))))
