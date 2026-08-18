@@ -127,9 +127,19 @@
         (map label-dd group)])]))
 
 (defn member-link
-  "The x-dictionary link to the home entry of one relation member."
-  [{:keys [headword file indicator]}]
-  [:a {:href (str "x-dictionary:r:" file) :title indicator} headword])
+  "The x-dictionary link to the home entry of one relation member,
+  targeting its home sense when the member is one.
+
+  A sense link separates the #fragment from the entry id with an empty
+  dictionary-id segment (r:<entry>:#<sense>): the Dictionary Development
+  Kit indexes referred entries by splitting the reference at the first
+  colon, and a bare #fragment would keep the entry out of the reference
+  index, leaving the link dead. Dictionary.app drops the fragment before
+  resolving the entry and scrolls to it afterwards."
+  [{:keys [headword file sense indicator]}]
+  [:a {:href  (str "x-dictionary:r:" file (when sense (str ":#" sense)))
+       :title indicator}
+   headword])
 
 (defn members-dd
   "The `members` of one relation row, with `ui` translating the chrome.
@@ -228,10 +238,14 @@
 
 (defn sense-view
   "One sense as a list item: the indicator, the definitions, the
-  examples, the labels, the translations and the relations."
-  [ui {:keys [indicator definitions translations examples labels relations
+  examples, the labels, the translations and the relations.
+
+  The sense id becomes the anchor that sense-targeted member links
+  scroll to."
+  [ui {:keys [id indicator definitions translations examples labels relations
               relation-groups]}]
-  [:li {:class "sense"}
+  [:li (cond-> {:class "sense"}
+         id (assoc :id id))
    [:p {:class "meaning"}
     (when indicator [:span {:class "indicator"} indicator])
     [:span {:class "definitions"}
@@ -411,6 +425,27 @@
          "</d:entry>")
     (hiccup->xml (front-matter ui info))))
 
+(defn drop-first-sense-anchors
+  "Match the web viewer's arrival rule in the resolved display `entry`:
+  a cross-entry member link to the first sense of its target opens the
+  entry from the top, headword in view, so its anchor is dropped; a
+  same-entry link keeps its anchor and scrolls. `first-sense?` answers
+  whether a sense id names the first sense of its home entry."
+  [first-sense? {:keys [file] :as entry}]
+  (let [member* (fn [{:keys [sense] :as m}]
+                  (cond-> m
+                    (and sense
+                         (not= (:file m) file)
+                         (first-sense? sense))
+                    (dissoc :sense)))
+        rows*   (fn [rows]
+                  (mapv #(update % :members (partial mapv member*)) rows))
+        sense*  (fn [s]
+                  (cond-> s (:relations s) (update :relations rows*)))]
+    (cond-> entry
+      (:relations entry) (update :relations rows*)
+      (:senses entry)    (update :senses (partial mapv sense*)))))
+
 (defn write-xml!
   "Stream the d:dictionary XML of the DMLex `resource` to `file`, with
   the presentation `config` applied to every entry.
@@ -418,22 +453,30 @@
   The stream opens with the front matter of the bundle `info` — the
   dataset's own `front` fragment when it ships one."
   [file info config front resource]
-  (let [env     (build/->env resource)
-        ui      (get config "ui")
-        collate (when (= "collation" (get config "memberOrder"))
-                  (let [collator (build/->collator (:langCode resource))]
-                    (shared/member-order
-                      (fn [a b] (.compare collator a b)))))
-        present (fn [entry]
-                  (cond->> (presentation/present-entry config entry)
-                    collate (presentation/collate-members collate)))]
+  (let [env          (build/->env resource)
+        ui           (get config "ui")
+        first-sense? (into #{}
+                           (keep (comp :id first :senses))
+                           (:entries resource))
+        collate      (when (= "collation" (get config "memberOrder"))
+                       (let [collator (build/->collator (:langCode resource))]
+                         (shared/member-order
+                           (fn [a b] (.compare collator a b)))))
+        present      (fn [entry]
+                       (cond->> (presentation/present-entry config entry)
+                         collate (presentation/collate-members collate)))
+        entry-xml    (fn [entry]
+                       (->> (build/->entry-file env entry)
+                            (drop-first-sense-anchors first-sense?)
+                            (present)
+                            (->entry ui)
+                            (hiccup->xml)))]
     (with-open [w (io/writer file)]
       (.write w xml-preamble)
       (.write w (front-matter-xml ui info front))
       (.write w "\n")
       (doseq [entry (:entries resource)]
-        (.write w (hiccup->xml
-                    (->entry ui (present (build/->entry-file env entry)))))
+        (.write w (entry-xml entry))
         (.write w "\n"))
       (.write w "</d:dictionary>\n"))))
 
