@@ -16,8 +16,10 @@
   --accent:  #901a1e;
   --visited: #8f5f63;
   --key-col: 10.5rem;
-  --serif:   'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052,
-             serif;
+  /* The Transitional stack of modernfontstacks.com. Charter is in
+     Firefox's base font-visibility list, so even strict tracking
+     protection renders it rather than a fallback. */
+  --serif:   Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif;
   --sans:    -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica,
              Arial, sans-serif;
 }

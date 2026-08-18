@@ -299,6 +299,8 @@
           {:keys [dmlex-file content-of]} (build/->input (str f))]
       (is (= "dict.json" dmlex-file))
       (is (= "{\"dc:title\": \"T\"}" (content-of "metadata.json")))))
+  (testing "a missing input throws instead of failing downstream"
+    (is (thrown? clojure.lang.ExceptionInfo (build/->input "no-such.json"))))
   (testing "a plain JSON file reads its neighbours from its directory"
     (let [dir (doto (io/file (System/getProperty "java.io.tmpdir")
                              (str "dmlex-test-" (System/nanoTime)))

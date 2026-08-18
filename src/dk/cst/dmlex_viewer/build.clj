@@ -312,8 +312,11 @@
   :content-of, which returns the content of a named file sitting next
   to it (in the same directory, or in the same folder of the zip), or
   nil when the file is absent. In a zip, the DMLex file is the first
-  .json entry that is neither a companion nor a hidden file."
+  .json entry that is neither a companion nor a hidden file. A missing
+  `in` throws."
   [in]
+  (when-not (.exists (io/file in))
+    (throw (ex-info (str "No such input file: " in) {:in in})))
   (if (str/ends-with? in ".zip")
     (let [names  (with-open [zip (ZipFile. (io/file in))]
                    (->> (enumeration-seq (.entries zip))

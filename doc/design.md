@@ -113,9 +113,11 @@ Production headers are listed in the README.
 Flat and typography-first: plain solid colours, hairline rules drawn
 in a single shared colour, and one crimson accent used sparingly, for
 the binding band, the headword, the sense numerals and the group
-legends. An Old Style serif carries everything, including the
-small-caps metadata voice; the page sits as a white sheet on a grey
-desk.
+legends. A Transitional serif (Charter first) carries everything,
+including the small-caps metadata voice; the page sits as a white
+sheet on a grey desk. Charter is also in Firefox's base
+font-visibility list, so strict tracking protection renders it rather
+than a fallback.
 
 The palette and font stacks live in one shared tokens file consumed by
 both surfaces. The structural rules are duplicated per surface on
