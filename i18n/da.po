@@ -11,11 +11,11 @@ msgstr "{n} ord"
 msgid "related"
 msgstr "relaterede ord"
 
-msgid "UI language"
-msgstr "brugergrænseflade"
+msgid "interface"
+msgstr "grænseflade"
 
-msgid "dictionary language"
-msgstr "ordbogens sprog"
+msgid "language"
+msgstr "sprog"
 
 msgid "form"
 msgstr "form"
@@ -23,8 +23,11 @@ msgstr "form"
 msgid "all forms"
 msgstr "alle former"
 
-msgid "sort alphabetically"
-msgstr "sortér alfabetisk"
+msgid "alphabetical"
+msgstr "alfabetisk"
+
+msgid "custom"
+msgstr "tilpasset"
 
 msgid "No matches"
 msgstr "Ingen resultater"

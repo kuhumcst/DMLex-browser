@@ -7,15 +7,19 @@ msgid "related"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
-msgid "dictionary language"
+msgid "language"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
-msgid "UI language"
+msgid "interface"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs
-msgid "sort alphabetically"
+msgid "alphabetical"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
+msgid "custom"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/app.cljs

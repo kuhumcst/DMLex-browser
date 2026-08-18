@@ -319,14 +319,16 @@ nav > section .relations {
 .member-list { margin: 0.25rem 0 0; }
 
 /* The controls row under the search bar: the dictionary language on
-   the left, the member-order checkbox in the centre when the entry has
-   relations, and the UI language dropdown on the right. Three fixed
-   grid slots, so a missing checkbox never shifts the others. */
+   the left, the checkboxes in the centre when the entry has them, and
+   the UI language dropdown on the right. Three fixed grid slots, so a
+   missing checkbox never shifts the others. */
 .controls {
   display: grid;
-  /* Side tracks never drop below their content, so the row keeps one
-     line and one height whether or not the checkbox is present. */
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  /* minmax(0, 1fr) side tracks split the free space equally in every
+     engine (a bare 1fr has a min-content floor, which skews the row
+     in Firefox), so the checkboxes stay centred whether or not a side
+     has content, and the row keeps one line and one height. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem 2rem;
   margin-top: 0.9rem;
@@ -338,7 +340,12 @@ nav > section .relations {
   color: var(--grey);
 }
 
+/* Shrink the side items to their content instead of the grid default
+   stretch, so no span carries invisible trailing width. */
+.controls > :first-child { justify-self: start; }
 .controls > :last-child { justify-self: end; }
+
+.toggles { display: inline-flex; gap: 1.5rem; }
 
 @media (max-width: 40rem) {
   .controls { grid-template-columns: 1fr auto; }

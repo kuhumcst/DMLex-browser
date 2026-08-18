@@ -96,7 +96,9 @@ operations and never has to know what a tag means. Without the file,
 the viewer shows the dataset's own names and order. It ignores unknown
 sections and unknown tags. The data build carries the file into
 `public/data/`, and the Apple dictionary export reads it next to its
-input file.
+input file. On an entry page, the web viewer has a checkbox that
+turns the config off, to show the neutral default view. The browser
+remembers the choice per dataset.
 
 ```jsonc
 {
@@ -181,8 +183,8 @@ listing order of the dataset. `"collation"` sorts them by the
 the collation of the resource language. A member without an order
 sorts after every member with one. The web viewer always has a
 checkbox that switches between the two orders, and `memberOrder` sets
-its initial state. The Apple dictionary has no checkbox, so there the
-setting decides alone. DanNet, for example, derives the member order
+its initial state. The browser remembers the choice per dataset. The
+Apple dictionary has no checkbox, so there the setting decides alone. DanNet, for example, derives the member order
 from how many relations point at each synset. With `"collation"` the
 most central words then come first.
 

@@ -62,7 +62,10 @@ A missing config is the normal case, and the viewer then shows the
 data neutrally. It ignores unknown sections and unknown tags without
 complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
-fallback group unless the config hides them.
+fallback group unless the config hides them. A checkbox in the web
+viewer turns the config off for an entry, to compare it with this
+neutral view. localStorage remembers the checkbox choices per
+dataset, like the UI language choice.
 
 Member order is taste too. By default the members of a relation row
 keep the listing order of the dataset. The DMLex spec asks a

@@ -21,6 +21,7 @@
          :entry        nil
          :error        nil
          :collate?     nil
+         :presentation? nil
          :lang         nil}))
 
 (defn fetch-json!
@@ -460,18 +461,27 @@
   (boolean (or relations relation-groups
                (some #(or (:relations %) (:relation-groups %)) senses))))
 
-(defn lang-key
-  "The localStorage key of the UI language choice for the dataset of
+(defn pref-key
+  "The localStorage key of the preference `pref` for the dataset of
   `manifest`."
-  [manifest]
-  (str "dmlex-viewer:lang:" (or (:uri manifest) (:title manifest) "default")))
+  [pref manifest]
+  (str "dmlex-viewer:" pref ":" (or (:uri manifest) (:title manifest) "default")))
 
-(defn set-lang!
-  "Set the UI language to `code` and remember it for this dataset."
-  [code]
-  (swap! state assoc :lang code)
+(defn read-pref
+  "The stored value of the preference `pref` for the dataset of
+  `manifest`, or nil when none is stored."
+  [pref manifest]
   (try
-    (js/localStorage.setItem (lang-key (:manifest @state)) code)
+    (js/localStorage.getItem (pref-key pref manifest))
+    (catch :default _ nil)))
+
+(defn set-pref!
+  "Set the state key `k` to `v` and remember it as the preference
+  `pref` for the current dataset."
+  [k pref v]
+  (swap! state assoc k v)
+  (try
+    (js/localStorage.setItem (pref-key pref (:manifest @state)) (str v))
     (catch :default _ nil)))
 
 (defn language-name
@@ -489,8 +499,8 @@
   own lang attribute."
   [{:keys [langCode]}]
   (when langCode
-    [:span.dictionary-language {:lang (en "dictionary language")}
-     (tr "dictionary language") ": "
+    [:span.dictionary-language {:lang (en "language")}
+     (tr "language") ": "
      [:strong {:lang langCode} (language-name langCode)]]))
 
 (defn language-select
@@ -500,11 +510,11 @@
   [lang manifest]
   (let [value (or lang (:langCode manifest))
         value (if (some #{value} ui-languages) value "en")]
-    [:label.ui-language {:lang (en "UI language")}
-     (tr "UI language") " "
+    [:label.ui-language {:lang (en "interface")}
+     (tr "interface") " "
      (into [:select
             {:on {:change (fn [e]
-                            (set-lang! (.. e -target -value)))}}]
+                            (set-pref! :lang "lang" (.. e -target -value)))}}]
            (for [code ui-languages]
              [:option {:value code :selected (= code value)}
               (language-name code)]))]))
@@ -513,13 +523,25 @@
   "The checkbox switching relation members between the listing order of
   the dataset and the alphabetical collation."
   [collate?]
-  [:label.member-order {:lang (en "sort alphabetically")}
+  [:label.member-order {:lang (en "alphabetical")}
    [:input {:type    "checkbox"
             :checked collate?
             :on      {:change (fn [e]
-                                (swap! state assoc :collate?
-                                       (.. e -target -checked)))}}]
-   " " (tr "sort alphabetically")])
+                                (set-pref! :collate? "collate"
+                                           (.. e -target -checked)))}}]
+   " " (tr "alphabetical")])
+
+(defn presentation-toggle
+  "The checkbox switching the presentation config of the dataset on and
+  off, to compare an entry with the neutral default view."
+  [presentation?]
+  [:label.custom-view {:lang (en "custom")}
+   [:input {:type    "checkbox"
+            :checked presentation?
+            :on      {:change (fn [e]
+                                (set-pref! :presentation? "custom"
+                                           (.. e -target -checked)))}}]
+   " " (tr "custom")])
 
 (defn result-headword
   "The `headword` of one search result, with the matched `query` prefix
@@ -627,23 +649,28 @@
   combobox: focus stays in the field while aria-activedescendant
   points at the active option."
   [{:keys [manifest presentation index index-error query active entry
-           error collate? lang]}]
+           error collate? presentation? lang]}]
   (if-not (or manifest error)
     [:div.container]
     (let [rows      (when (and index (seq query)) (matches index query))
+          presentation? (if (some? presentation?) presentation? true)
+          config    (when presentation? presentation)
           collate?  (if (some? collate?)
                       collate?
-                      (= "collation" (get presentation "memberOrder")))
+                      (= "collation" (get config "memberOrder")))
           presented (when entry
-                      (cond->> (presentation/present-entry presentation entry)
+                      (cond->> (presentation/present-entry config entry)
                         collate? (presentation/collate-members
                                    (headword-collation
                                      (:langCode manifest)))))
           controls  [:div.controls
                      (or (dictionary-language manifest) [:span])
-                     (if (and presented (related? presented))
-                       (collate-toggle collate?)
-                       [:span])
+                     [:span.toggles
+                      (when (and presented (related? presented))
+                        (collate-toggle collate?))
+                      (when (and presented
+                                 (seq (dissoc presentation "ui")))
+                        (presentation-toggle presentation?))]
                      (language-select lang manifest)]]
       [:div.container
        [:search
@@ -697,10 +724,11 @@
   (fetch-json! "data/manifest.json"
                (fn [{:keys [langCode] :as manifest}]
                  (swap! state assoc :manifest manifest)
-                 (when-let [stored (try
-                                     (js/localStorage.getItem (lang-key manifest))
-                                     (catch :default _ nil))]
-                   (swap! state assoc :lang stored))
+                 (doseq [[k pref parse] [[:lang "lang" identity]
+                                         [:collate? "collate" #(= % "true")]
+                                         [:presentation? "custom" #(= % "true")]]]
+                   (when-let [stored (read-pref pref manifest)]
+                     (swap! state assoc k (parse stored))))
                  (when langCode
                    (set! (.-lang js/document.documentElement) langCode))
                  (update-title!)))
