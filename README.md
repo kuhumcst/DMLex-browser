@@ -118,7 +118,8 @@ time, including the strings its stylesheet renders as CSS content.
 The viewer bundles a Danish translation ([i18n/da.po](i18n/da.po)) and
 picks it by the `langCode` of the resource; adding a language is one
 more po file in [i18n/](i18n/) and its entry in
-`dk.cst.dmlex-viewer.translations`. A dataset can override or extend
+`dk.cst.dmlex-viewer.translations`. The web viewer adds a dropdown for
+switching the UI language, remembered per dataset in the browser. A dataset can override or extend
 the bundled table with its own `ui` section, or ship the translations
 as a gettext `ui.po` next to its DMLex file — the format translation
 tools like Poedit produce — which the builds merge over the section.
@@ -135,9 +136,10 @@ into titled sections with `groups`. A `linkResolver` reroutes every
 `sameAs` link through the dataset's own resource browser — vocabulary
 URIs usually serve raw RDF files — while links already on the
 resolver's host stay direct. The
-data build copies the file into `public/data/`, and the Apple
-dictionary export reads it next to its input file. The design
-decisions behind the config are in [doc/design.md](doc/design.md).
+data build carries the file into `public/data/` (merging any `ui.po`
+translations), and the Apple dictionary export reads it next to its
+input file. The design decisions behind the config are in
+[doc/design.md](doc/design.md).
 
 ## Build the frontend
 

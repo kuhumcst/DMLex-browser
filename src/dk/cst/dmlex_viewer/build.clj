@@ -383,11 +383,11 @@
   [url]
   (let [[_ path version] (re-find #"creativecommons\.org/(licenses/[a-z-]+|publicdomain/zero)/([0-9.]+)"
                                   (str url))]
-    (cond
-      (nil? path)                  nil
-      (= path "publicdomain/zero") (str "CC0 " version)
-      :else (str "CC " (str/upper-case (subs path (count "licenses/")))
-                 " " version))))
+    (when path
+      (if (= path "publicdomain/zero")
+        (str "CC0 " version)
+        (str "CC " (str/upper-case (subs path (count "licenses/")))
+             " " version)))))
 
 (defn ->source
   "The display map of one Dublin Core `source` of the metadata.

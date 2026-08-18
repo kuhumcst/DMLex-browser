@@ -158,7 +158,11 @@ whole table is just a map from English to the target language. The
 viewer ships a Danish table as `i18n/da.po` and uses it when the
 manifest says the resource is Danish; a dataset can add or override
 translations with a `ui` section in its presentation config or a
-`ui.po` file next to its data. The po format was chosen because
+`ui.po` file next to its data. The web viewer also has a dropdown for
+choosing among the bundled languages, stored per dataset in
+localStorage; the dataset's own `ui` table only applies while the
+chosen language is the resource's, since its strings are written in
+that language. The po format was chosen because
 translation tools (Poedit, Weblate) edit it directly. The pottery
 library that parses it runs only on the JVM at build and export time;
 the web app gets the tables baked in during compilation.

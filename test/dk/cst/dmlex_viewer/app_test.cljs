@@ -118,6 +118,25 @@
   (testing "a manifest without metadata renders nothing"
     (is (nil? (app/front-matter-view {:title "Test" :entries 5})))))
 
+(deftest app-loading-test
+  (testing "only the empty sheet renders until the manifest arrives"
+    (is (= [:div.container] (app/app {:query ""}))))
+  (testing "the full page renders once the manifest is in"
+    (is (str/includes? (pr-str (app/app {:manifest {:title "T"} :query ""}))
+                       ":search"))))
+
+(deftest language-select-test
+  (testing "the bundled languages and English are offered"
+    (let [rendered (pr-str (app/language-select nil {:langCode "da"}))]
+      (is (str/includes? rendered ":value \"da\""))
+      (is (str/includes? rendered ":value \"en\""))))
+  (testing "the resource language is the default when bundled"
+    (is (str/includes? (pr-str (app/language-select nil {:langCode "da"}))
+                       ":selected true")))
+  (testing "an unbundled resource language falls back to English"
+    (let [rendered (pr-str (app/language-select nil {:langCode "sv"}))]
+      (is (not (str/includes? rendered ":value \"sv\""))))))
+
 (deftest next-active-test
   (testing "Down enters the list at the top and stops at the bottom"
     (is (= 0 (app/next-active "ArrowDown" nil 3)))

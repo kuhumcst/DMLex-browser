@@ -20,7 +20,8 @@
          :active       nil
          :entry        nil
          :error        nil
-         :collate?     nil}))
+         :collate?     nil
+         :lang         nil}))
 
 (defn fetch-json!
   "Fetch the JSON file at `path` and call `callback` with its parsed
@@ -79,12 +80,26 @@
   "The bundled UI tables by language code, inlined from i18n/*.po."
   (inline-tables))
 
+(def ui-languages
+  "The offered UI languages: the bundled tables plus English."
+  (sort (conj (set (keys translations)) "en")))
+
+(def fallback-title
+  "The viewer's own name, shown when the manifest supplies no title."
+  "DMLex viewer")
+
 (defn ui-table
-  "The active UI table: the bundled table of the resource language,
-  under any \"ui\" table of the presentation config."
+  "The active UI table: the bundled table of the chosen language, or of
+  the resource language by default.
+
+  The dataset's own \"ui\" table merges on top, but only while the
+  choice is the resource's language, since its strings are in that
+  language."
   []
-  (merge (get translations (:langCode (:manifest @state)))
-         (get (:presentation @state) "ui")))
+  (let [{:keys [manifest presentation lang]} @state]
+    (merge (get translations (or lang (:langCode manifest)))
+           (when (or (nil? lang) (= lang (:langCode manifest)))
+             (get presentation "ui")))))
 
 (defn tr
   "The UI string `s`, with the count `n` in its {n} placeholder,
@@ -164,7 +179,7 @@
     (set! (.-title js/document)
           (str/join " – " (remove nil? [(:headword entry)
                                         (or (:title manifest)
-                                            "DMLex viewer")])))))
+                                            fallback-title)])))))
 
 (defn route!
   "Load the entry of the current URL fragment, or return to the front page.
@@ -445,6 +460,55 @@
   (boolean (or relations relation-groups
                (some #(or (:relations %) (:relation-groups %)) senses))))
 
+(defn lang-key
+  "The localStorage key of the UI language choice for the dataset of
+  `manifest`."
+  [manifest]
+  (str "dmlex-viewer:lang:" (or (:uri manifest) (:title manifest) "default")))
+
+(defn set-lang!
+  "Set the UI language to `code` and remember it for this dataset."
+  [code]
+  (swap! state assoc :lang code)
+  (try
+    (js/localStorage.setItem (lang-key (:manifest @state)) code)
+    (catch :default _ nil)))
+
+(defn language-name
+  "The name of the language `code` in that language, via the browser."
+  [code]
+  (try
+    (.of (js/Intl.DisplayNames. #js [code] #js {:type "language"}) code)
+    (catch :default _ code)))
+
+(defn dictionary-language
+  "The registered language of the dictionary content of `manifest`.
+
+  Shown beside the UI language control, so the choice clearly affects
+  only the interface. The language name is an autonym and carries its
+  own lang attribute."
+  [{:keys [langCode]}]
+  (when langCode
+    [:span.dictionary-language {:lang (en "dictionary language")}
+     (tr "dictionary language") ": "
+     [:strong {:lang langCode} (language-name langCode)]]))
+
+(defn language-select
+  "The dropdown switching the UI language `lang` between the bundled
+  languages and English, defaulting to the resource language of the
+  `manifest` when a table for it exists."
+  [lang manifest]
+  (let [value (or lang (:langCode manifest))
+        value (if (some #{value} ui-languages) value "en")]
+    [:label.ui-language {:lang (en "UI language")}
+     (tr "UI language") " "
+     (into [:select
+            {:on {:change (fn [e]
+                            (set-lang! (.. e -target -value)))}}]
+           (for [code ui-languages]
+             [:option {:value code :selected (= code value)}
+              (language-name code)]))]))
+
 (defn collate-toggle
   "The checkbox switching relation members between the listing order of
   the dataset and the alphabetical collation."
@@ -557,61 +621,69 @@
 (defn app
   "The root view over one value of the app state.
 
-  The search field and the result list form an ARIA combobox: focus
-  stays in the field while aria-activedescendant points at the active
-  option."
+  Until the manifest or its error arrives, only the empty page sheet
+  renders, so the English defaults never flash before the dataset's
+  own front page. The search field and the result list form an ARIA
+  combobox: focus stays in the field while aria-activedescendant
+  points at the active option."
   [{:keys [manifest presentation index index-error query active entry
-           error collate?]}]
-  (let [rows     (when (and index (seq query)) (matches index query))
-        collate? (if (some? collate?)
-                   collate?
-                   (= "collation" (get presentation "memberOrder")))]
-    [:div.container
-     [:search
-      [:label.visually-hidden {:for  "search"
-                               :lang (en "Search the dictionary")}
-       (tr "Search the dictionary")]
-      [:input {:id                    "search"
-               :type                  "search"
-               :placeholder           (tr "Type a word to look it up.")
-               :value                 query
-               :autofocus             true
-               :enterkeyhint          "go"
-               :autocapitalize        "none"
-               :role                  "combobox"
-               :aria-autocomplete     "list"
-               :aria-expanded         (str (boolean (seq rows)))
-               :aria-controls         (when (seq rows) "search-results")
-               :aria-activedescendant (when (and active (seq rows))
-                                        (str "result-" active))
-               :on                    {:input   (fn [e]
-                                                  (swap! state assoc
-                                                         :query (.. e -target -value)
-                                                         :active nil))
-                                       :keydown (fn [e]
-                                                  (search-keydown! rows query
-                                                                   active e))}}]]
-     [:main
-      (when (or (seq query) (not entry))
-        [:h1 {:id    "resource-title"
-              :class (if (seq query) "visually-hidden" "resource-title")}
-         (or (:title manifest) "DMLex viewer")])
-      (cond
-        (seq query) (search-view rows index-error query active)
-        entry       (let [presented (cond->> (presentation/present-entry
-                                               presentation entry)
-                                      collate?
-                                      (presentation/collate-members
-                                        (headword-collation
-                                          (:langCode manifest))))]
-                      (list (entry-view presented)
-                            (when (related? presented)
-                              (collate-toggle collate?))))
-        error       [:p.error {:lang (en "The page failed to load.")}
-                     (tr "The page failed to load.") " "
-                     [:a {:href "#/"} (tr "Go to the front page.")]]
-        :else       (front-matter-view manifest))]
-     (footer-view manifest)]))
+           error collate? lang]}]
+  (if-not (or manifest error)
+    [:div.container]
+    (let [rows      (when (and index (seq query)) (matches index query))
+          collate?  (if (some? collate?)
+                      collate?
+                      (= "collation" (get presentation "memberOrder")))
+          presented (when entry
+                      (cond->> (presentation/present-entry presentation entry)
+                        collate? (presentation/collate-members
+                                   (headword-collation
+                                     (:langCode manifest)))))
+          controls  [:div.controls
+                     (or (dictionary-language manifest) [:span])
+                     (if (and presented (related? presented))
+                       (collate-toggle collate?)
+                       [:span])
+                     (language-select lang manifest)]]
+      [:div.container
+       [:search
+        [:label.visually-hidden {:for  "search"
+                                 :lang (en "Search the dictionary")}
+         (tr "Search the dictionary")]
+        [:input {:id                    "search"
+                 :type                  "search"
+                 :placeholder           (tr "Type a word to look it up.")
+                 :value                 query
+                 :autofocus             true
+                 :enterkeyhint          "go"
+                 :autocapitalize        "none"
+                 :role                  "combobox"
+                 :aria-autocomplete     "list"
+                 :aria-expanded         (str (boolean (seq rows)))
+                 :aria-controls         (when (seq rows) "search-results")
+                 :aria-activedescendant (when (and active (seq rows))
+                                          (str "result-" active))
+                 :on                    {:input   (fn [e]
+                                                    (swap! state assoc
+                                                           :query (.. e -target -value)
+                                                           :active nil))
+                                         :keydown (fn [e]
+                                                    (search-keydown! rows query
+                                                                     active e))}}]]
+       controls
+       [:main
+        (when (or (seq query) (not entry))
+          [:h1 {:id    "resource-title"
+                :class (if (seq query) "visually-hidden" "resource-title")}
+           (or (:title manifest) fallback-title)])
+        (cond
+          (seq query) (search-view rows index-error query active)
+          entry       (entry-view presented)
+          error       [:p.error {:lang (en "The page failed to load.")}
+                       (tr "The page failed to load.") " "
+                       [:a {:href "#/"} (tr "Go to the front page.")]]
+          :else       (front-matter-view manifest))]
+       (footer-view manifest)])))
 
 (defn render!
   "Render the app into the page from the current state."
@@ -625,6 +697,10 @@
   (fetch-json! "data/manifest.json"
                (fn [{:keys [langCode] :as manifest}]
                  (swap! state assoc :manifest manifest)
+                 (when-let [stored (try
+                                     (js/localStorage.getItem (lang-key manifest))
+                                     (catch :default _ nil))]
+                   (swap! state assoc :lang stored))
                  (when langCode
                    (set! (.-lang js/document.documentElement) langCode))
                  (update-title!)))

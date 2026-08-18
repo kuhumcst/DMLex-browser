@@ -11,6 +11,12 @@ msgstr "{n} ord"
 msgid "related"
 msgstr "relaterede ord"
 
+msgid "UI language"
+msgstr "brugergrænseflade"
+
+msgid "dictionary language"
+msgstr "ordbogens sprog"
+
 msgid "form"
 msgstr "form"
 

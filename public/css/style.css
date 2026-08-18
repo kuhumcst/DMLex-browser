@@ -146,7 +146,10 @@ search input:focus {
 
 /* Entry header */
 
-.headword {
+/* The resource title of the front page shares the headword metrics,
+   so the title block sits at the same height on every page. */
+.headword,
+.resource-title {
   font-size: 2.6rem;
   font-weight: 700;
   line-height: 1.15;
@@ -196,10 +199,8 @@ p.pos { margin: 0 0 0.4rem; }
   position: relative;
   margin-left: calc(var(--key-col) + 0.85rem);
   padding: 0.2rem 0 0.2rem 0.85rem;
+  border-left: 1px solid var(--rule);
 }
-
-.labels div,
-.relations div { border-left: 1px solid var(--rule); }
 
 .labels dt,
 .relations dt {
@@ -234,7 +235,7 @@ p.pos { margin: 0 0 0.4rem; }
 
 .senses { list-style: none; counter-reset: sense; margin: 2.5rem 0 0; padding: 0; }
 
-.sense { position: relative; padding-left: 2.2rem; margin: 0 0 2.25rem; }
+.sense { position: relative; padding-left: 2.2rem; margin: 0 0 3rem; }
 
 .sense::before {
   counter-increment: sense;
@@ -317,12 +318,39 @@ nav > section .relations {
 .relations details { display: block; }
 .member-list { margin: 0.25rem 0 0; }
 
-.member-order {
-  display: block;
-  margin-top: 2rem;
+/* The controls row under the search bar: the dictionary language on
+   the left, the member-order checkbox in the centre when the entry has
+   relations, and the UI language dropdown on the right. Three fixed
+   grid slots, so a missing checkbox never shifts the others. */
+.controls {
+  display: grid;
+  /* Side tracks never drop below their content, so the row keeps one
+     line and one height whether or not the checkbox is present. */
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  gap: 0.75rem 2rem;
+  margin-top: 0.9rem;
+  padding-bottom: 0.9rem;
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--rule);
   font-family: var(--sans);
   font-size: 0.85rem;
   color: var(--grey);
+}
+
+.controls > :last-child { justify-self: end; }
+
+@media (max-width: 40rem) {
+  .controls { grid-template-columns: 1fr auto; }
+  .controls > :nth-child(2) { order: 3; }
+}
+
+.controls select { font: inherit; color: inherit; }
+
+.dictionary-language strong {
+  color: var(--dark);
+  text-decoration: underline;
+  text-underline-offset: 2.5px;
 }
 
 /* Colophon */
@@ -347,15 +375,7 @@ nav > section .relations {
    the headword style, the description reads as a serif lead, and the
    facts sit in the aligned key/value list of the entry labels. */
 
-.resource-title {
-  font-size: 2.2rem;
-  font-weight: 700;
-  line-height: 1.15;
-  color: var(--accent);
-  margin: 2.5rem 0 0;
-}
-
-.front-matter { margin-top: 0.5rem; }
+.front-matter { margin-top: 0; }
 
 .front-matter .description {
   color: var(--dark);
