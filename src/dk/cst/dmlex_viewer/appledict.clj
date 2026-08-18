@@ -77,10 +77,10 @@
 ;; Entry rendering, mirroring the views of dk.cst.dmlex-viewer.app
 
 (defn tagged
-  "The `tag` as an abbr when the dataset supplies a `description` for it."
+  "The `tag` as a span with the `description` of the dataset as its tooltip."
   [tag description]
   (if description
-    [:abbr {:title description} tag]
+    [:span {:title description} tag]
     tag))
 
 (defn linked
@@ -200,24 +200,31 @@
                               translations))]])]))
 
 (defn example-view
-  "One example as a quotation with its labels and its source citation."
+  "One example as a paragraph, or as a cited quotation when it carries a
+  source.
+
+  The labels and the citation sit outside the quoted text, which is all
+  a blockquote may contain."
   [{:keys [text runs labels source sourceDescription sourceUri
            sourceElaboration]}]
-  [:blockquote {:class "example" :d/priority "2"}
-   [:p (runs-view text runs)
-    (when (seq labels)
-      [:span {:class "example-labels"} " ("
-       (interpose ", " (map (fn [{:keys [tag description uri]}]
-                              (linked uri (tagged tag description)))
-                            labels))
-       ")"])]
-   (when source
-     [:footer
-      [:cite (linked sourceUri
-                     (tagged source
-                             (not-empty
-                               (str/join " " (remove nil? [sourceDescription
-                                                           sourceElaboration])))))]])])
+  (let [example (runs-view text runs)
+        labels' (when (seq labels)
+                  [:span {:class "example-labels"} " ("
+                   (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                          (linked uri (tagged tag description)))
+                                        labels))
+                   ")"])]
+    (if source
+      [:figure {:class "example" :d/priority "2"}
+       [:blockquote [:p example]]
+       labels'
+       [:figcaption
+        [:cite (linked sourceUri
+                       (tagged source
+                               (not-empty
+                                 (str/join " " (remove nil? [sourceDescription
+                                                             sourceElaboration])))))]]]
+      [:p {:class "example" :d/priority "2"} example labels'])))
 
 (defn sense-view
   "One sense as a list item: the indicator, the definitions, the
@@ -226,8 +233,7 @@
               relation-groups]}]
   [:li {:class "sense"}
    [:p {:class "meaning"}
-    (when indicator
-      (list [:i {:class "indicator"} indicator] [:span {:class "sep"} "|"]))
+    (when indicator [:span {:class "indicator"} indicator])
     [:span {:class "definitions"}
      (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
                             [:span {:class     "definition"

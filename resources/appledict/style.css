@@ -29,7 +29,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-dl, dd, blockquote, p, h1, ul { margin: 0; padding: 0; }
+dl, dd, blockquote, figure, p, h1, ul { margin: 0; padding: 0; }
 
 a {
   color: inherit;
@@ -39,8 +39,10 @@ a {
 }
 
 a:hover { text-decoration-color: var(--accent); }
-abbr[title] { text-decoration: none; cursor: help; }
-.collocate[title] { cursor: help; }
+/* Wherever extra information hides behind a title attribute, the help
+   cursor says so. Links keep their pointer. */
+[title]:not(a) { cursor: help; }
+
 dfn { font-style: normal; }
 
 summary {
@@ -154,12 +156,20 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .senses.single .sense { padding-left: 0; }
 .senses.single .sense::before { content: none; }
 
-.indicator { color: var(--grey); font-style: normal; font-weight: 700; }
-.sep { color: var(--rule); margin: 0 0.45em; }
+.indicator { color: var(--grey); font-weight: 700; }
+
+/* The indicator's divider lives in CSS, so assistive tech never
+   announces it. */
+.indicator::after {
+  content: "|";
+  color: var(--rule);
+  font-weight: 400;
+  margin: 0 0.45em;
+}
 
 .example { color: var(--dark); font-style: italic; margin: 0.35rem 0 0; }
-.example p { display: inline; }
-.example footer { display: inline; margin-left: 0.45rem; }
+.example blockquote, .example p { display: inline; }
+.example figcaption { display: inline; margin-left: 0.45rem; }
 .example cite { font-style: normal; font-size: 0.75rem; }
 .example-labels { font-style: normal; font-size: 0.75rem; }
 

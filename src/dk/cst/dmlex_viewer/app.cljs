@@ -207,13 +207,13 @@
 ;; Views
 
 (defn tagged
-  "The `tag` as an abbr when the dataset supplies a `description` for it.
+  "The `tag` as a span with the `description` of the dataset as its tooltip.
 
-  A tag from a controlled inventory is a short form with a known
-  expansion."
+  Whether a tag abbreviates anything is the dataset's own business, so
+  the markup stays a neutral span rather than an abbr."
   [tag description]
   (if description
-    [:abbr {:title description} tag]
+    [:span {:title description} tag]
     tag))
 
 (defn linked
@@ -297,26 +297,32 @@
 
 (defn relations-view
   "The `relations` rows — or the titled `relation-groups` of the
-  presentation config — as one navigation landmark.
+  presentation config — as the children of the hiccup `wrapper`.
 
-  Each group renders as a section under its headline, with the group's
-  description as the headline's tooltip."
-  [relations relation-groups]
+  The entry passes a nav landmark and each sense a plain div, so a
+  many-sensed entry does not repeat identically named landmarks. A
+  titled group renders as a section under its headline, with the
+  group's description as the headline's tooltip; an untitled group is
+  a bare div of rows."
+  [wrapper relations relation-groups]
   (cond
     (seq relation-groups)
-    [:nav {:aria-label (tr "related")}
-     (map-indexed
-       (fn [i {:keys [title description relations]}]
-         [:section {:replicant/key i :class (when title "titled")}
-          (when title [:h2.relation-group {:title description} title])
-          (relations-dl relations)])
-       relation-groups)]
+    (into wrapper
+          (map-indexed
+            (fn [i {:keys [title description relations]}]
+              (if title
+                [:section.titled {:replicant/key i}
+                 [:h2.relation-group {:title description} title]
+                 (relations-dl relations)]
+                [:div {:replicant/key i}
+                 (relations-dl relations)]))
+            relation-groups))
 
     (seq relations)
-    [:nav {:aria-label (tr "related")}
-     [:section.titled
-      [:h2.relation-group {:lang (en "related")} (tr "related")]
-      (relations-dl relations)]]))
+    (conj wrapper
+          [:section.titled
+           [:h2.relation-group {:lang (en "related")} (tr "related")]
+           (relations-dl relations)])))
 
 (defn translations-view
   "The headword `translations` of one sense as a definition list grouped
@@ -332,24 +338,31 @@
                                    translations))]]))))
 
 (defn example-view
-  "One example as a quotation with its labels and its source citation."
+  "One example as a paragraph, or as a cited quotation when it carries a
+  source.
+
+  The labels and the citation sit outside the quoted text, which is all
+  a blockquote may contain."
   [{:keys [text runs labels source sourceDescription sourceUri
            sourceElaboration]}]
-  [:blockquote.example
-   [:p (runs-view text runs)
-    (when (seq labels)
-      [:span.example-labels " ("
-       (interpose ", " (map (fn [{:keys [tag description uri]}]
-                              (linked uri (tagged tag description)))
-                            labels))
-       ")"])]
-   (when source
-     [:footer
-      [:cite (linked sourceUri
-                     (tagged source
-                             (not-empty
-                               (str/join " " (remove nil? [sourceDescription
-                                                           sourceElaboration])))))]])])
+  (let [example (runs-view text runs)
+        labels' (when (seq labels)
+                  [:span.example-labels " ("
+                   (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                          (linked uri (tagged tag description)))
+                                        labels))
+                   ")"])]
+    (if source
+      [:figure.example
+       [:blockquote [:p example]]
+       labels'
+       [:figcaption
+        [:cite (linked sourceUri
+                       (tagged source
+                               (not-empty
+                                 (str/join " " (remove nil? [sourceDescription
+                                                             sourceElaboration])))))]]]
+      [:p.example example labels'])))
 
 (defn sense-view
   "The sense at index `i` as a numbered list item: the indicator, the
@@ -359,7 +372,7 @@
              relations relation-groups]}]
   [:li.sense {:replicant/key (or id i)}
    [:p.meaning
-    (when indicator (list [:i.indicator indicator] [:span.sep "|"]))
+    (when indicator [:span.indicator indicator])
     (into [:span.definitions]
           (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
                                  [:span.definition {:data-type type
@@ -369,7 +382,7 @@
    (map example-view examples)
    (labels-view "sense-labels" labels)
    (translations-view translations)
-   (relations-view relations relation-groups)])
+   (relations-view [:div.related] relations relation-groups)])
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list.
@@ -449,7 +462,8 @@
     (labels-view "entry-labels" labels)]
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
          (map-indexed sense-view senses))
-   (relations-view relations relation-groups)])
+   (relations-view [:nav.related {:aria-label (tr "related")}]
+                   relations relation-groups)])
 
 (defn headword-collation
   "The headword comparator of `lang-code`, using the collator of the
@@ -506,7 +520,7 @@
      {:lang  (en "language")
       :title (tr "The dataset's own language.")}
      (tr "language") ": "
-     [:strong {:lang langCode} (language-name langCode)]]))
+     [:b {:lang langCode} (language-name langCode)]]))
 
 (defn language-select
   "The dropdown switching the UI language `lang` between the bundled
