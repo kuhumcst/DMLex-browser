@@ -139,8 +139,44 @@ back to the search field, because re-rendering removes the element
 that held focus. Each view has one `h1`, a status line announces
 result counts, and information shown in hover tooltips also reaches
 assistive technology through visually hidden markup. The document
-language comes from the dataset's manifest at run time; the English UI
-strings are marked `lang="en"`.
+language comes from the dataset's manifest at run time; UI strings
+that remain English are marked `lang="en"`.
+
+## UI translations
+
+Most of what the viewer shows is dataset text and is already in the
+resource's language. The views also prefer the dataset's descriptions
+over technical tags where both exist, so a Danish resource shows
+"substantiv" with "noun" in the tooltip. That leaves the viewer's own
+strings, about two dozen in total, written in English in the source:
+the search placeholder, the front-matter keys, error messages and so
+on.
+
+These are translated with a plain gettext setup. The English string is
+the lookup key and the fallback, `{n}` stands in for a count, and the
+whole table is just a map from English to the target language. The
+viewer ships a Danish table as `i18n/da.po` and uses it when the
+manifest says the resource is Danish; a dataset can add or override
+translations with a `ui` section in its presentation config or a
+`ui.po` file next to its data. The po format was chosen because
+translation tools (Poedit, Weblate) edit it directly. The pottery
+library that parses it runs only on the JVM at build and export time;
+the web app gets the tables baked in during compilation.
+
+The list of translatable strings is written to `i18n/template.pot` by
+`clojure -M:i18n`, which extracts them from the source. Tests fail if
+the template or the bundled Danish file no longer matches what the
+code uses, so neither can silently go stale. The extraction only sees
+string literals (or a let-bound conditional over literals) in tr/en
+calls, which is why the views sometimes repeat a string instead of
+abstracting it away.
+
+DMLex 1.0 has a single description field per inventory tag, so one
+export cannot be bilingual. A resource is instead exported once per
+language, and the `langCode` of each export decides the rest: the
+dataset text, the UI language, and the Apple bundle's chrome (the
+export generates CSS overrides for the two strings its stylesheet
+renders as content).
 
 ## Display over cleverness
 
