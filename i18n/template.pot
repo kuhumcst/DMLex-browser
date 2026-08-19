@@ -118,6 +118,10 @@ msgstr ""
 msgid "all forms"
 msgstr ""
 
+#: src/dk/cst/dmlex_viewer/app.cljs src/dk/cst/dmlex_viewer/appledict.clj
+msgid "about the word"
+msgstr ""
+
 #: src/dk/cst/dmlex_viewer/appledict.clj
 msgid "About {title}"
 msgstr ""

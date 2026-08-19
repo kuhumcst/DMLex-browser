@@ -76,6 +76,9 @@
     (testing "labels resolve with description and URI"
       (is (str/includes? xml "href=\"https://example.com/zoo\""))
       (is (str/includes? xml "title=\"subject domain\"")))
+    (testing "entry labels sit in a titled box under the generic heading"
+      (is (str/includes? xml "<div class=\"labels-section titled\""))
+      (is (str/includes? xml "data-label=\"about the word\"")))
     (testing "the pos tag and the example source link by their sameAs URI"
       (is (str/includes? xml "href=\"https://example.com/sb\""))
       (is (str/includes? xml "href=\"https://ordnet.dk/ddo\"")))
@@ -115,7 +118,17 @@
           (appledict/hiccup->xml
             (appledict/label-dd {:tag "Neutral" :type "sentiment"
                                  :qualifier "0"}))
-          "Neutral (0)"))))
+          "Neutral (0)"))
+    (is (= (str "<span class=\"inline-label\">"
+                "<span class=\"visually-hidden\">valør: </span>"
+                "<span title=\"valør: Positive\">positiv</span>"
+                " (1)</span>")
+           (appledict/hiccup->xml
+             (appledict/inline-label-view {:tag         "positiv"
+                                           :type        "sentiment"
+                                           :display     "valør"
+                                           :description "Positive"
+                                           :qualifier   "1"}))))))
 
 (deftest chrome-css-test
   (testing "nothing without translated chrome strings"

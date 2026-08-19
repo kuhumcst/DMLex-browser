@@ -170,6 +170,11 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .pos { font-style: italic; color: var(--dark); }
 p.pos { margin: 0 0 0.4rem; }
 
+/* Inline labels sit upright on the pos line; their dot separator
+   lives here, so assistive tech never announces it. */
+.pos .inline-label { font-style: normal; }
+.pos * + .inline-label::before { content: " · "; }
+
 .inflections { color: var(--dark); line-height: 1.7; margin: 0.6rem 0 0; }
 .inflections div, .inflections dd { display: inline; }
 .inflections div + div::before { content: ", "; }
@@ -219,7 +224,7 @@ p.pos { margin: 0 0 0.4rem; }
 .labels dd { display: inline; }
 .labels dd + dd::before { content: ", "; }
 
-.entry-labels, .sense-labels, .translations { margin-top: 0.95rem; }
+.sense-labels, .translations { margin-top: 0.95rem; }
 .labels + .translations { margin-top: 0; }
 
 @media (max-width: 40rem) {
@@ -311,13 +316,12 @@ p.pos { margin: 0 0 0.4rem; }
   line-height: 1.6;
 }
 
-/* A titled group is a quiet fieldset: a bordered box with no fill and
-   the headline sitting on the border like a legend, the page's white
-   behind it. An untitled group renders as bare rows. */
+/* A titled section is a quiet fieldset: a bordered box with no fill
+   and the headline sitting on the border like a legend, the page's
+   white behind it. An untitled group renders as bare rows. */
 .related > * { margin-top: 1.5rem; }
 
-.related > .titled,
-.front-matter section.titled {
+section.titled {
   position: relative;
   border: 1px solid var(--rule);
   border-radius: 2px;
@@ -329,8 +333,7 @@ p.pos { margin: 0 0 0.4rem; }
    no specificity, so source order decides. With the key column
    collapsed, the box needs its own left padding. */
 @media (max-width: 40rem) {
-  .related > .titled,
-  .front-matter section.titled { padding: 1rem 1.1rem 0.9rem; }
+  section.titled { padding: 1rem 1.1rem 0.9rem; }
 }
 
 .relation-group {

@@ -38,11 +38,11 @@ config never requires a rebuild of the data.
 
 The config is a set of generic operations over the dataset's own
 tags. The operations reorder, hide, rename, combine a type with its
-qualifier type, select the field that a label shows, and gather
-relation rows into groups. The keys stay strings throughout, because
-a tag is not always a valid keyword. The same operations run on both
-surfaces from one shared namespace. That is why the namespace is
-cljc.
+qualifier type, select the field that a label shows, move label
+types onto the part-of-speech line, and gather relation rows into
+groups. The keys stay strings throughout, because a tag is not
+always a valid keyword. The same operations run on both surfaces
+from one shared namespace. That is why the namespace is cljc.
 
 Two boundaries limit the config:
 
@@ -64,10 +64,12 @@ complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
 fallback group unless the config hides them. Neutral relations render
 in the same titled box as configured groups, under the generic
-"related" heading. A checkbox in the web
-viewer turns the config off for an entry, to compare it with this
-neutral view. localStorage remembers the checkbox choices per
-dataset, like the UI language choice.
+"related" heading, and entry-level labels sit in the same box under
+the generic "about the word" heading, unless the config moves them
+all onto the part-of-speech line, in which case the box disappears.
+A checkbox in the web viewer turns the config off for an entry, to
+compare it with this neutral view. localStorage remembers the
+checkbox choices per dataset, like the UI language choice.
 
 Member order is taste too. By default the members of a relation row
 keep the listing order of the dataset. The DMLex spec asks a

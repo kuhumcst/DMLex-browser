@@ -98,6 +98,11 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 
 .pos { font-style: italic; color: var(--dark); margin: 0 0 0.3rem; }
 
+/* Inline labels sit upright on the pos line; their dot separator
+   lives here, so assistive tech never announces it. */
+.pos .inline-label { font-style: normal; }
+.pos * + .inline-label::before { content: " · "; }
+
 .inflections {
   color: var(--dark);
   font-size: 0.95rem;
@@ -175,18 +180,21 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 
 /* Relations */
 
-/* A titled group is a quiet fieldset: a bordered box with no fill and
-   the headline on the border like a legend; an untitled group renders
-   as bare rows. Canvas matches the page in light and dark mode. */
+/* A titled section is a quiet fieldset: a bordered box with no fill
+   and the headline on the border like a legend; an untitled group
+   renders as bare rows. Canvas matches the page in light and dark
+   mode. */
 .relation-section { margin-top: 0.9rem; }
 
-.relation-section.titled {
+.titled {
   position: relative;
   border: 1px solid var(--rule);
   border-radius: 2px;
   margin-top: 1.2rem;
   padding: 0.9rem 0.9rem 0.7rem;
 }
+
+.labels-section .labels { margin-top: 0; }
 
 .relation-group {
   position: absolute;

@@ -5,6 +5,9 @@ msgstr ""
 msgid "label"
 msgstr "etiket"
 
+msgid "about the word"
+msgstr "om ordet"
+
 msgid "{n} entries"
 msgstr "{n} ord"
 

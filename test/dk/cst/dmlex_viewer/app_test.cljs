@@ -73,6 +73,31 @@
                             "hund" [{:tag "111" :text "hunden" :short "-en"}
                                     {:tag "111" :text "hund-en"}])))))))
 
+(deftest entry-view-test
+  (let [rendered (pr-str (app/entry-view
+                           {:headword      "fest"
+                            :partsOfSpeech [{:tag "noun" :description "sb."}]
+                            :inline-labels [{:tag       "positiv"
+                                             :type      "sentiment"
+                                             :display   "valør"
+                                             :qualifier "1"}]
+                            :labels        [{:tag "zoo" :type "domain"}]
+                            :senses        []}))]
+    (testing "inline labels join the part-of-speech line"
+      (is (str/includes? rendered ":span.inline-label"))
+      (is (str/includes? rendered "\"valør: \"")
+          "the display name stays in the markup for assistive tech")
+      (is (str/includes? rendered ":title \"valør\"")
+          "the tooltip names the attribute by its display name")
+      (is (str/includes? rendered "\" (1)\"")
+          "the combined qualifier trails in parentheses"))
+    (testing "the remaining entry labels sit in a titled box"
+      (is (str/includes? rendered ":section.titled"))
+      (is (str/includes? rendered "\"about the word\""))))
+  (testing "an entry without labels renders no box"
+    (is (not (str/includes? (pr-str (app/entry-view {:headword "x" :senses []}))
+                            ":section.titled")))))
+
 (deftest search-view-test
   (testing "results render once the index is loaded"
     (is (some? (app/search-view (app/matches index "abe") nil "abe" nil))))

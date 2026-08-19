@@ -72,6 +72,39 @@
                                           "combine"  {"pol" "val"}}}
                            {:labels sentiments})))))))
 
+(deftest inline-labels-test
+  (testing "listed types move to :inline-labels in the listed order"
+    (is (= {:inline-labels [{:tag "b1" :type "beta"}
+                            {:tag "a1" :type "alpha"}
+                            {:tag "a2" :type "alpha"}]
+            :labels        [{:tag "c1" :type "gamma"}]}
+           (presentation/inline-labels ["beta" "alpha"] {:labels labels}))))
+  (testing "an entry whose labels all inline drops :labels"
+    (is (= {:inline-labels [{:tag "c1" :type "gamma"}]}
+           (presentation/inline-labels
+             ["gamma"] {:labels [{:tag "c1" :type "gamma"}]}))))
+  (testing "without a matching type the entry passes through"
+    (is (= {:labels labels}
+           (presentation/inline-labels nil {:labels labels}))))
+  (testing "present-entry inlines only the entry's labels, after the ops"
+    (let [e (presentation/present-entry
+              {"labelTypes" {"inline"  ["pol"]
+                             "combine" {"pol" "val"}}}
+              {:labels sentiments
+               :senses [{:labels sentiments}]})]
+      (is (= [{:tag "Neutral" :type "pol" :qualifier "0"}]
+             (:inline-labels e))
+          "the combined qualifier carries over")
+      (is (= [{:tag "b1" :type "beta"}] (:labels e))
+          "other labels stay in the block")
+      (is (nil? (get-in e [:senses 0 :inline-labels]))
+          "a sense has no part-of-speech line to inline onto")))
+  (testing "hide beats inline"
+    (is (nil? (:inline-labels
+                (presentation/present-entry
+                  {"labelTypes" {"inline" ["pol"] "hide" ["pol"]}}
+                  {:labels sentiments}))))))
+
 (def rel-rows
   [{:type "hypernym" :members []}
    {:type "similar" :members []}

@@ -49,7 +49,7 @@
            (mapv (fn [{:keys [type] :as label}]
                    (if-let [qs (seq (of-type (get combine type)))]
                      (assoc label :qualifier
-                            (str/join ", " (map :tag qs)))
+                                  (str/join ", " (map :tag qs)))
                      label)))))))
 
 (defn present
@@ -66,13 +66,13 @@
         pos     (into {} (map-indexed (fn [i t] [t i]) order))
         after   (count order)]
     (cond->> xs
-      :always             (remove (comp hidden? k))
+      :always (remove (comp hidden? k))
       (= unlisted "hide") (filter (comp pos k))
-      :always             (sort-by #(pos (k %) after))
-      rename              (map #(if-let [d (get rename (k %))]
-                                  (assoc % :display d)
-                                  %))
-      :always             (vec))))
+      :always (sort-by #(pos (k %) after))
+      rename (map #(if-let [d (get rename (k %))]
+                     (assoc % :display d)
+                     %))
+      :always (vec))))
 
 (defn group-relations
   "Partition the presented relation `rows` into the `groups` of the
@@ -98,12 +98,30 @@
                                unclaimed)]
                       (when (seq rs)
                         (cond-> {:relations rs}
-                          title       (assoc :title title)
+                          title (assoc :title title)
                           description (assoc :description description)))))]
     (-> (into [] (keep section) groups)
         (cond-> (and (seq unclaimed) (not fallback?) (not= unlisted "hide"))
-          (conj {:relations unclaimed}))
+                (conj {:relations unclaimed}))
         (not-empty))))
+
+(defn inline-labels
+  "Move the labels whose type the `inline` vector lists from the
+  :labels of the presented `entry` to :inline-labels, in the vector's
+  order.
+
+  The views render them run-in on the part-of-speech line. Only the
+  entry moves labels — a sense has no such line — and the ordinary
+  label ops run first, so hide beats inline and renames carry over."
+  [inline {:keys [labels] :as entry}]
+  (let [pos (into {} (map-indexed (fn [i t] [t i]) inline))
+        [in out] ((juxt filter remove) (comp pos :type) labels)]
+    (if (empty? in)
+      entry
+      (cond-> (-> entry
+                  (dissoc :labels)
+                  (assoc :inline-labels (vec (sort-by (comp pos :type) in))))
+        (seq out) (assoc :labels (vec out))))))
 
 (defn resolve-links
   "Rewrite every sameAs-derived URI of the presented `entry` — :uri,
@@ -164,8 +182,10 @@
   Label types and relation types are ordered, hidden and renamed via
   :display; relation roles are renamed via :display-role — on the entry
   and on each of its senses. Combined label types merge first, so a
-  qualifier needs no place of its own in the order. When the config
-  declares relation \"groups\", :relations becomes :relation-groups.
+  qualifier needs no place of its own in the order. Label types listed
+  as \"inline\" move to the entry's :inline-labels for the
+  part-of-speech line. When the config declares relation \"groups\",
+  :relations becomes :relation-groups.
   A \"linkResolver\" reroutes every sameAs-derived URI through the
   dataset's resource browser. An empty `config` returns `entry`
   unchanged."
@@ -173,6 +193,7 @@
   (if (empty? config)
     entry
     (let [label-ops (get config "labelTypes")
+          inline    (get label-ops "inline")
           rel-ops   (get config "relationTypes")
           groups    (get rel-ops "groups")
           role-of   (get-in config ["roles" "rename"])
@@ -199,13 +220,14 @@
                                                     (:relations m))))))
           sense*    (fn [sense]
                       (-> (cond-> sense
-                            (:labels sense)    (update :labels labels*)
+                            (:labels sense) (update :labels labels*)
                             (:relations sense) (update :relations rels*))
                           (section*)))]
-      (cond->> (-> (cond-> entry
-                     (:labels entry)    (update :labels labels*)
-                     (:relations entry) (update :relations rels*)
-                     (:senses entry)    (update :senses #(mapv sense* %)))
-                   (section*))
+      (cond->> (inline-labels inline
+                              (-> (cond-> entry
+                                    (:labels entry) (update :labels labels*)
+                                    (:relations entry) (update :relations rels*)
+                                    (:senses entry) (update :senses #(mapv sense* %)))
+                                  (section*)))
         (get config "linkResolver")
         (resolve-links (get config "linkResolver"))))))

@@ -108,7 +108,8 @@ remembers the choice per dataset.
     "unlisted": "hide",              // or "after" (the default)
     "rename":   {"domain": "emne"},
     "combine":  {"sentiment": "sentimentValue"},
-    "show":     {"synset": "description"}
+    "show":     {"synset": "description"},
+    "inline":   ["sentiment"]
   },
   "relationTypes": {
     "order":  ["synonym"],
@@ -151,7 +152,7 @@ Both sections take the same four operations over their tags:
 - `rename` maps a tag to its displayed name. Only the displayed name
   changes. The tag stays the key everywhere else.
 
-Label types take two more:
+Label types take three more:
 
 - `combine` maps a host type to a qualifier type. The values of the
   qualifier show on the host label as "value (qualifier)", and the
@@ -160,6 +161,12 @@ Label types take two more:
 - `show` maps a type to `"description"`: the labels of that type show
   their description, and the technical tag moves into the tooltip.
   A label without a description keeps its tag.
+- `inline` lists the label types that move out of the entry's labels
+  box and onto the part-of-speech line, in this order, each after a
+  dot separator. The other operations run first, so a hidden type
+  stays hidden and renames carry over. Senses keep these types in
+  their own label lists. When every entry label moves, the labels box
+  disappears.
 
 Relation types take one more:
 

@@ -275,6 +275,22 @@
   [:dd (linked uri (tagged tag description))
    (when qualifier (str " (" qualifier ")"))])
 
+(defn inline-label-view
+  "One of the `labels` the config moves onto the part-of-speech line:
+  its tag, linked and with any combined `:qualifier` in parentheses.
+
+  Off the labels block the value loses its key column, so the tooltip
+  opens with the type's display name, which the rename already puts in
+  the export's language; assistive tech hears the same name. The dot
+  separator lives in CSS, so it is never announced."
+  [{:keys [tag description uri qualifier type display]}]
+  (let [attr  (or display type)
+        title (not-empty (str/join ": " (remove nil? [attr description])))]
+    [:span.inline-label
+     (when attr [:span.visually-hidden (str attr ": ")])
+     (linked uri (tagged tag title))
+     (when qualifier (str " (" qualifier ")"))]))
+
 (defn labels-view
   "The `labels` as a definition list grouped by label type, with the
   extra `class` on the list.
@@ -483,23 +499,29 @@
               (partition-by #(or (:description %) (:tag %)) forms)))]]))
 
 (defn entry-view
-  "One entry as an article: the header, the senses and the entry-level
-  relations."
-  [{:keys [headword homographNumber partsOfSpeech labels inflectedForms
-           senses relations relation-groups]}]
+  "One entry as an article: the header, the entry-level labels in their
+  titled box, the senses and the entry-level relations."
+  [{:keys [headword homographNumber partsOfSpeech labels inline-labels
+           inflectedForms senses relations relation-groups]}]
   [:article.entry
    [:header
     [:h1.headword {:tabindex -1} [:dfn headword]
      (when homographNumber [:sup.hom homographNumber])]
-    (when (seq partsOfSpeech)
-      (into [:p.pos]
-            (interpose ", " (map (fn [{:keys [tag description uri]}]
-                                   (linked uri (tagged (or description tag)
-                                                       (when description tag))))
-                                 partsOfSpeech))))
+    (when (or (seq partsOfSpeech) (seq inline-labels))
+      [:p.pos
+       (when (seq partsOfSpeech)
+         (into [:span.pos-list]
+               (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                      (linked uri (tagged (or description tag)
+                                                          (when description tag))))
+                                    partsOfSpeech))))
+       (map inline-label-view inline-labels)])
     (inflections-view headword inflectedForms)
-    (paradigm-view inflectedForms)
-    (labels-view "entry-labels" labels)]
+    (paradigm-view inflectedForms)]
+   (when (seq labels)
+     [:section.titled
+      [:h2.relation-group {:lang (en "about the word")} (tr "about the word")]
+      (labels-view "entry-labels" labels)])
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
          (map-indexed sense-view senses))
    (relations-view [:nav.related {:aria-label (tr "related")}]
