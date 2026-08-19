@@ -436,7 +436,28 @@
                               :indicator "nedsættende"}]}]
              (:relations (first (:senses entry))))))
     (testing "an entry without relations of its own has no :relations key"
-      (is (not (contains? entry :relations))))))
+      (is (not (contains? entry :relations))))
+    (testing "an entry with a unique headword has no :homographs key"
+      (is (not (contains? entry :homographs))))))
+
+(deftest homographs-test
+  (let [env (build/->env {:entries [{:id "sti-1" :headword "sti"
+                                     :partsOfSpeech ["noun"]}
+                                    {:id "sti-2" :headword "sti"
+                                     :partsOfSpeech ["noun"]}
+                                    {:id "sti-3" :headword "sti"
+                                     :partsOfSpeech ["verb"]}]})]
+    (testing "homographs carry the ordered files of the whole group"
+      (is (= ["sti-1" "sti-2"]
+             (:homographs (build/->entry-file
+                            env {:id            "sti-2"
+                                 :headword      "sti"
+                                 :partsOfSpeech ["noun"]})))))
+    (testing "a different part of speech is a different group"
+      (is (nil? (:homographs (build/->entry-file
+                               env {:id            "sti-3"
+                                    :headword      "sti"
+                                    :partsOfSpeech ["verb"]})))))))
 
 (deftest text-runs-test
   (testing "text without markers has no runs"

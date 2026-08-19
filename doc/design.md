@@ -133,6 +133,20 @@ The site has no cookies, no analytics and no third-party requests,
 and therefore needs no consent machinery. The README lists the
 production headers.
 
+## One page per homograph group
+
+A dataset can split one headword into many entries with homograph
+numbers. The web viewer shows the entries that share a headword and
+a part of speech as one page, divided by hairline rules. Each entry
+keeps its own number and its own stable URL. A URL that names a
+later entry of the group scrolls down to it, like sense navigation.
+The search field offers one suggestion for the whole group, without
+numbers.
+
+The build resolves each group up front, and the entry files carry
+it. Dictionary.app already stacks the entries that share a headword,
+so the Apple export does not change.
+
 ## The visual language
 
 The visual language is flat and typography-first: plain solid colours,

@@ -64,6 +64,9 @@ The build resolves the display data before the frontend runs:
   into one row. The tooltip of a row prefers the description of its
   relation instance, then of its role's memberType, then of its
   relation type. A member whose memberType hints `"none"` stays out.
+- Entries that share a headword and a part of speech carry the files
+  of the whole group as `homographs`. The web viewer merges the group
+  into one page and offers one search suggestion for it.
 
 ## Describe the data
 

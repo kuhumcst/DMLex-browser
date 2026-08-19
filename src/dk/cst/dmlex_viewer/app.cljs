@@ -19,10 +19,21 @@
          :query        ""
          :active       nil
          :entry        nil
+         :entries      nil
          :error        nil
          :alpha?       nil
          :presentation? nil
          :lang         nil}))
+
+(defn fetch-json
+  "The parsed content of the JSON file at `path`, as a js/Promise."
+  [path]
+  (-> (js/fetch path)
+      (.then (fn [res]
+               (if (.-ok res)
+                 (.json res)
+                 (throw (js/Error. (str path ": " (.-status res)))))))
+      (.then #(js->clj % :keywordize-keys true))))
 
 (defn fetch-json!
   "Fetch the JSON file at `path` and call `callback` with its parsed
@@ -34,18 +45,30 @@
    (fetch-json! path callback
                 (fn [e] (swap! state assoc :error (.-message e)))))
   ([path callback on-error]
-   (-> (js/fetch path)
-       (.then (fn [res]
-                (if (.-ok res)
-                  (.json res)
-                  (throw (js/Error. (str path ": " (.-status res)))))))
-       (.then (fn [data] (callback (js->clj data :keywordize-keys true))))
+   (-> (fetch-json path)
+       (.then callback)
        (.catch (fn [e]
                  (js/console.error e)
                  (on-error e))))))
 
+(defn fetch-entry
+  "The entry of the file basename `file`, as a js/Promise of the parsed
+  map."
+  [file]
+  (fetch-json (str "data/entries/" file ".json")))
+
+(defn collapse-homographs
+  "One search row per headword and part of speech over the index
+  `rows`, keeping the first row of each group.
+
+  The merged entry pages make the other group members reachable, so
+  the suggestions need no numbering."
+  [rows]
+  (shared/distinct-by (juxt :headword :pos) rows))
+
 (defn load-index!
-  "Fetch the search index and cache a lowercase headword on every row.
+  "Fetch the search index, collapse its homograph groups and cache a
+  lowercase headword on every row.
 
   A failure lands in :index-error rather than :error, so the search view
   can surface it even while an entry is on screen."
@@ -53,13 +76,13 @@
   (fetch-json! "data/index.json"
                (fn [rows]
                  (swap! state assoc :index
-                        (mapv (fn [[headword file pos hom]]
-                                {:headword headword
-                                 :lower    (str/lower-case headword)
-                                 :file     file
-                                 :pos      pos
-                                 :hom      hom})
-                              rows)))
+                        (->> rows
+                             (mapv (fn [[headword file pos]]
+                                     {:headword headword
+                                      :lower    (str/lower-case headword)
+                                      :file     file
+                                      :pos      pos}))
+                             (collapse-homographs))))
                (fn [e]
                  (swap! state assoc :index-error (.-message e)))))
 
@@ -192,27 +215,37 @@
                                            (assoc :current? true))))))
 
 (defn reveal-target!
-  "Scroll to and focus the navigation target within the shown `entry`:
-  its sense of the id `sense` when one is named, else the headword.
+  "Scroll to and focus the navigation target within the shown group of
+  `entries`: the sense of the id `sense` within the target `entry` when
+  one is named, else the entry itself.
 
-  The navigation scrolls smoothly to the sense — except to the first
-  sense of another entry (`same-entry?` false), which shows the entry
-  from the top with the sense merely marked. The focus never scrolls on
-  its own, so it cannot cut the smooth scroll short."
-  [entry sense same-entry?]
-  (if-let [el (some-> sense (js/document.getElementById))]
-    (let [first-sense? (= sense (:id (first (:senses entry))))]
-      (if (and first-sense? (not same-entry?))
-        (.scrollTo js/window 0 0)
-        (.scrollIntoView el #js {:behavior "smooth"}))
-      (.focus el #js {:preventScroll true}))
-    (do (.scrollTo js/window 0 0)
-        (some-> (js/document.querySelector "h1.headword") (.focus)))))
+  The navigation scrolls smoothly, like sense navigation — except that
+  the first entry of the group shows from the page top, and a link to
+  the first sense of another entry (`same-entry?` false) reveals the
+  entry with the sense merely marked. The focus never scrolls on its
+  own, so it cannot cut the smooth scroll short."
+  [entries {:keys [file senses] :as entry} sense same-entry?]
+  (let [article   (js/document.getElementById file)
+        to-entry! (fn []
+                    (if (= file (:file (first entries)))
+                      (.scrollTo js/window 0 0)
+                      (some-> article
+                              (.scrollIntoView #js {:behavior "smooth"}))))]
+    (if-let [el (some-> sense (js/document.getElementById))]
+      (do (if (and (= sense (:id (first senses))) (not same-entry?))
+            (to-entry!)
+            (.scrollIntoView el #js {:behavior "smooth"}))
+          (.focus el #js {:preventScroll true}))
+      (do (to-entry!)
+          (some-> article
+                  (.querySelector "h1.headword")
+                  (.focus #js {:preventScroll true}))))))
 
 (defn route!
-  "Load the entry of the current URL fragment, or return to the front page.
-  A second fragment segment names a sense of the entry, marked for the
-  sense view by `mark-current-sense` and shown by `reveal-target!`.
+  "Load the homograph group of the entry of the current URL fragment, or
+  return to the front page. A second fragment segment names a sense of
+  the entry, marked for the sense view by `mark-current-sense` and shown
+  by `reveal-target!`.
 
   Focus follows the navigation — to the sense, the headword or the search
   field — so that keyboard and screen-reader users land on the new content
@@ -221,16 +254,31 @@
   (if-let [[_ file sense] (re-find #"^#/entry/([^/]+)(?:/(.+))?$"
                                    (.-hash js/location))]
     (let [same-entry? (= file (:file (:entry @state)))]
-      (fetch-json! (str "data/entries/" file ".json")
-                   (fn [entry]
+      (-> (fetch-entry file)
+          (.then (fn [entry]
+                   (js/Promise.all
+                     (into-array
+                       (for [f (or (:homographs entry) [file])]
+                         (if (= f file)
+                           (js/Promise.resolve entry)
+                           (fetch-entry f)))))))
+          (.then (fn [entries]
+                   (let [entries (mapv (fn [e]
+                                         (cond-> e
+                                           (= file (:file e))
+                                           (mark-current-sense sense)))
+                                       (array-seq entries))
+                         entry   (first (filter #(= file (:file %)) entries))]
                      (swap! state assoc :error nil
-                            :entry (mark-current-sense entry sense))
+                            :entry entry :entries entries)
                      (update-title!)
-                     (reveal-target! entry sense same-entry?))
-                   (fn [e]
-                     (swap! state assoc :entry nil :error (.-message e))
-                     (update-title!))))
-    (do (swap! state assoc :entry nil :error nil)
+                     (reveal-target! entries entry sense same-entry?))))
+          (.catch (fn [e]
+                    (js/console.error e)
+                    (swap! state assoc :entry nil :entries nil
+                           :error (.-message e))
+                    (update-title!)))))
+    (do (swap! state assoc :entry nil :entries nil :error nil)
         (update-title!)
         (some-> (js/document.getElementById "search") (.focus)))))
 
@@ -488,10 +536,13 @@
 
 (defn entry-view
   "One entry as an article: the header, the entry-level labels in their
-  titled box, the senses and the entry-level relations."
-  [{:keys [headword homographNumber partsOfSpeech labels inline-labels
+  titled box, the senses and the entry-level relations.
+
+  The entry file becomes the DOM id that entry-targeted navigation
+  scrolls to within a merged homograph group."
+  [{:keys [file headword homographNumber partsOfSpeech labels inline-labels
            inflectedForms senses relations relation-groups]}]
-  [:article.entry
+  [:article.entry {:id file :replicant/key file}
    [:header
     [:h1.headword {:tabindex -1} [:dfn headword]
      (when homographNumber [:sup.hom homographNumber])]
@@ -514,6 +565,12 @@
          (map-indexed sense-view senses))
    (relations-view [:nav.related {:aria-label (tr "related")}]
                    relations relation-groups)])
+
+(defn entries-view
+  "The homograph group `entries` as successive articles divided by
+  horizontal rules."
+  [entries]
+  (interpose [:hr.homograph] (map entry-view entries)))
 
 (defn headword-collation
   "The headword comparator of `lang-code`, using the collator of the
@@ -643,7 +700,7 @@
       [:ol.results {:id "search-results" :role "listbox"
                     :aria-label (tr "Search results")}
        (map-indexed
-         (fn [i {:keys [headword file pos hom]}]
+         (fn [i {:keys [headword file pos]}]
            [:li {:replicant/key file :role "none"}
             [:a {:id            (str "result-" i)
                  :role          "option"
@@ -652,7 +709,6 @@
                  :on            {:click (fn [_] (swap! state assoc
                                                        :query "" :active nil))}}
              (result-headword headword query)
-             (when hom [:sup.hom hom])
              (when (seq pos) [:i.pos pos])]])
          rows)])))
 
@@ -723,7 +779,7 @@
   own front page. The search field and the result list form an ARIA
   combobox: focus stays in the field while aria-activedescendant
   points at the active option."
-  [{:keys [manifest presentation index index-error query active entry
+  [{:keys [manifest presentation index index-error query active entry entries
            error alpha? presentation? lang]}]
   (if-not (or manifest error)
     [:div.container]
@@ -737,12 +793,13 @@
                         (= "collation" (get config "memberOrder"))
                         (shared/member-order compare*)))
           presented (when entry
-                      (cond->> (presentation/present-entry config entry)
-                        order (presentation/collate-members order)))
+                      (mapv #(cond->> (presentation/present-entry config %)
+                               order (presentation/collate-members order))
+                            entries))
           controls  [:div.controls
                      (or (dictionary-language manifest) [:span])
                      [:span.toggles
-                      (when (and presented (related? presented))
+                      (when (some related? presented)
                         (alpha-toggle alpha?))
                       (when (and presented
                                  (seq (dissoc presentation "ui")))
@@ -781,7 +838,7 @@
            (or (:title manifest) fallback-title)])
         (cond
           (seq query) (search-view rows index-error query active)
-          entry       (entry-view presented)
+          entry       (entries-view presented)
           error       [:p.error {:lang (en "The page failed to load.")}
                        (tr "The page failed to load.") " "
                        [:a {:href "#/"} (tr "Go to the front page.")]]

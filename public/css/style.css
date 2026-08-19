@@ -137,8 +137,7 @@ search input:focus {
 .results a:hover { text-decoration: underline; }
 
 .results a[aria-selected="true"] { background: var(--accent); color: #fff; }
-.results a[aria-selected="true"] .pos,
-.results a[aria-selected="true"] .hom { color: #fff; }
+.results a[aria-selected="true"] .pos { color: #fff; }
 .results .pos { margin-left: 0.65rem; color: var(--grey); }
 
 .result-count {
@@ -238,6 +237,16 @@ p.pos { margin: 0 0 0.4rem; }
     display: block;
   }
 }
+
+/* A merged homograph group divides its entries with a hairline rule.
+   The article is a scroll target, like a sense. */
+hr.homograph {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 3.5rem 0 0;
+}
+
+.entry { scroll-margin-top: 1.5rem; }
 
 /* Senses */
 

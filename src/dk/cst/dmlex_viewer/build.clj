@@ -218,8 +218,11 @@
 
   Every tag is expanded through the inventory indices, and every
   relation the entry or one of its senses is a member of appears as
-  pre-resolved rows."
-  [{:keys [label-of label-type-of deftype-of form-tag-of pos-of source-of]
+  pre-resolved rows. An entry that shares its headword and part of
+  speech with others carries the ordered files of the whole group as
+  :homographs, which the web viewer merges into one page."
+  [{:keys [label-of label-type-of deftype-of form-tag-of pos-of source-of
+           homographs-of]
     :as   env}
    {:keys [id headword homographNumber partsOfSpeech labels inflectedForms
            senses]}]
@@ -248,6 +251,9 @@
               :file            (->file id)
               :headword        headword
               :homographNumber homographNumber
+              :homographs      (let [group (homographs-of
+                                             [headword partsOfSpeech])]
+                                 (when (next group) group))
               :partsOfSpeech   (mapv (fn [tag]
                                        (let [{:keys [description sameAs]} (pos-of tag)]
                                          (compact {:tag         tag
@@ -275,7 +281,11 @@
         entry-home (into {} (for [{:keys [id headword]} entries]
                               [id {:headword headword
                                    :file     (->file id)}]))]
-    {:label-of      (index-by :tag labelTags)
+    {:homographs-of (reduce (fn [m {:keys [id headword partsOfSpeech]}]
+                              (update m [headword partsOfSpeech]
+                                      (fnil conj []) (->file id)))
+                            {} entries)
+     :label-of      (index-by :tag labelTags)
      :label-type-of (index-by :tag labelTypeTags)
      :deftype-of    (index-by :tag definitionTypeTags)
      :pos-of        (index-by :tag partOfSpeechTags)

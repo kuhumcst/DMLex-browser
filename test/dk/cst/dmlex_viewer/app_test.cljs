@@ -73,6 +73,28 @@
                             "hund" [{:tag "111" :text "hunden" :short "-en"}
                                     {:tag "111" :text "hund-en"}])))))))
 
+(deftest collapse-homographs-test
+  (testing "rows sharing headword and pos collapse to their first row"
+    (is (= [{:headword "sti" :pos "sb." :file "sti-1"}
+            {:headword "sti" :pos "vb." :file "sti-3"}
+            {:headword "vej" :pos "sb." :file "vej"}]
+           (app/collapse-homographs
+             [{:headword "sti" :pos "sb." :file "sti-1"}
+              {:headword "sti" :pos "sb." :file "sti-2"}
+              {:headword "sti" :pos "vb." :file "sti-3"}
+              {:headword "vej" :pos "sb." :file "vej"}])))))
+
+(deftest entries-view-test
+  (testing "a homograph group renders as articles divided by rules"
+    (let [rendered (pr-str (app/entries-view [{:file "a" :senses []}
+                                              {:file "b" :senses []}]))]
+      (is (= 1 (count (re-seq #":hr.homograph" rendered))))
+      (is (str/includes? rendered ":id \"a\""))
+      (is (str/includes? rendered ":id \"b\""))))
+  (testing "a single entry renders without a rule"
+    (is (not (str/includes? (pr-str (app/entries-view [{:file "a" :senses []}]))
+                            ":hr.homograph")))))
+
 (deftest entry-view-test
   (let [rendered (pr-str (app/entry-view
                            {:headword      "fest"
