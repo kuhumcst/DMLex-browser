@@ -17,8 +17,7 @@
 
   Usage (from the project root, which anchors the stylesheet paths):
   clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]"
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [dk.cst.dmlex-viewer.build :as build]
             [dk.cst.dmlex-viewer.presentation :as presentation]
@@ -326,26 +325,32 @@
                                group))]])]]]))
 
 (defn sense-index
-  "The sense index of one entry, as a disclosure at the top of the
-  entry: the `senses` of `file` as links that scroll to them.
+  "The sense index of one entry: the `senses` of `file` as links that
+  scroll to them, as a panel beside the entry with a floated
+  disclosure as the fallback.
 
-  Dictionary.app runs no scripts, so the sticky panel and the
-  scroll-spy of the web viewer stay web-only; the disclosure is the
-  narrow-viewport variant. Nothing renders for at most one sense.
+  The stylesheet shows the panel when the view has room beside the
+  entry column, else the disclosure. Dictionary.app runs no scripts
+  and no sticky positioning, so the panel scrolls with its entry and
+  the marking of the web viewer stays web-only. Nothing renders for
+  at most one sense.
 
   The summary text lives in CSS content so that Dictionary.app cannot
   look it up on click."
   [file senses]
   (when (next senses)
-    [:details {:class "sense-index-inline" :d/priority "2"}
-     [:summary {:class "contents"} ""]
-     [:nav
-      [:ol {:class "index-senses"}
-       (for [{:keys [id] :as sense} senses]
-         [:li (if id
-                [:a {:href (str "x-dictionary:r:" file ":#" id)}
-                 (shared/sense-label sense)]
-                (shared/sense-label sense))])]]]))
+    (let [items [:ol {:class "index-senses"}
+                 (for [{:keys [id] :as sense} senses]
+                   [:li (if id
+                          [:a {:href (str "x-dictionary:r:" file ":#" id)}
+                           (shared/sense-label sense)]
+                          (shared/sense-label sense))])]]
+      (list
+        [:div {:class "sense-index-anchor" :d/priority "2"}
+         [:nav {:class "sense-index"} items]]
+        [:details {:class "sense-index-inline" :d/priority "2"}
+         [:summary {:class "contents"} ""]
+         [:nav items]]))))
 
 (defn ->index
   "The d:index terms of one entry: the `headword` plus every distinct full
@@ -643,7 +648,7 @@
   [in out ddk-dir]
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (build/->input in)
-        resource (json/read-str (content-of dmlex-file) :key-fn keyword)
+        resource (build/read-resource content-of dmlex-file)
         config   (build/read-config content-of)
         ui       (merge (get (translations/tables) (:langCode resource))
                         (get config "ui"))

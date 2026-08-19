@@ -156,8 +156,10 @@ up to its headword and inflected forms.
 On a wide viewport the index sits beside the page, scrolls
 along, and pins to the top of the viewport.
 On a narrow viewport it folds into a disclosure that the entry
-content wraps around. Dictionary.app runs no scripts, so it gets
-only the disclosure, without the marking below.
+content wraps around. Dictionary.app gets the same pair, switched
+by the width of its view, though its panel scrolls with the entry
+instead of pinning; it runs no scripts, so the marking below stays
+web-only there.
 
 While the reader scrolls down, the index and the crimson margin
 mark move to each sense at the reading line. That line sits a

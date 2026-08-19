@@ -302,6 +302,17 @@
               [#{} []]
               entries))))
 
+(defn read-resource
+  "Read the DMLex JSON `dmlex-file` through `content-of` and normalize
+  it: the parsed resource with duplicated sense ids renamed, warning
+  when any were."
+  [content-of dmlex-file]
+  (let [resource (json/read-str (content-of dmlex-file) :key-fn keyword)
+        dups     (duplicated-sense-ids (:entries resource))]
+    (when (seq dups)
+      (println "Warning:" (count dups) "duplicated sense ids renamed"))
+    (update resource :entries uniquify-sense-ids)))
+
 (defn ->env
   "The lookup environment of `resource`: the inventory indices, the relation
   attachment map and the member ref resolver."
@@ -501,14 +512,10 @@
   [in out]
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (->input in)
-        resource (json/read-str (content-of dmlex-file) :key-fn keyword)
-        dups     (duplicated-sense-ids (:entries resource))
-        resource (update resource :entries uniquify-sense-ids)
+        resource (read-resource content-of dmlex-file)
         metadata (read-companion content-of "metadata.json")
         env      (->env resource)
         entries  (:entries resource)]
-    (when (seq dups)
-      (println "Warning:" (count dups) "duplicated sense ids renamed"))
     (println "Writing" (count entries) "entries into" out)
     (doseq [entry entries
             :let [{:keys [file] :as m} (->entry-file env entry)]]

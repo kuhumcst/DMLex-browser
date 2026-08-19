@@ -85,16 +85,56 @@ summary.contents::after { content: "contents"; }
   border: 0;
 }
 
-/* The sense index at the top right of the entry. Dictionary.app runs
-   no scripts, so only the disclosure variant of the web viewer's
-   index exists here. */
+/* The sense index: the web viewer's panel when the view has room
+   beside the entry column, else a floated disclosure at the top
+   right of the entry. Dictionary.app runs no scripts and does not
+   honour sticky positioning, so the panel scrolls with its entry
+   and the scroll-spy marking stays web-only. */
 details.sense-index-inline {
   float: right;
   max-width: 45%;
   margin: 0.75rem 0 0.5rem 1rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
   font-size: 0.8rem;
   color: var(--grey);
 }
+
+.sense-index-anchor { display: none; }
+
+/* The zero-height anchor is the entry's first block, so the panel
+   hangs level with the top of its entry. The capped body width
+   frees the space the panel hangs into. */
+@media (min-width: 56rem) {
+  body { max-width: 36rem; }
+
+  .sense-index-anchor {
+    display: block;
+    position: relative;
+    height: 0;
+  }
+
+  .sense-index {
+    position: absolute;
+    left: calc(100% + 1.5rem);
+    top: 0.75rem;
+    width: 12rem;
+    padding: 0.7rem 1rem;
+    background: Canvas;
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    font-size: 0.85rem;
+    color: var(--dark);
+  }
+
+  details.sense-index-inline { display: none; }
+}
+
+.sense-index a,
+.sense-index-inline a { text-decoration: none; }
+.sense-index a:hover,
+.sense-index-inline a:hover { text-decoration: underline; }
 
 .index-senses {
   list-style: none;

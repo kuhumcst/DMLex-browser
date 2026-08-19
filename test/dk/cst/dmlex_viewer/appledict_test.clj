@@ -132,16 +132,19 @@
 
 (deftest sense-index-test
   (testing "senses link by x-dictionary ref, labelled by indicator"
-    (is (= (str "<details class=\"sense-index-inline\" d:priority=\"2\">"
-                "<summary class=\"contents\"></summary>"
-                "<nav><ol class=\"index-senses\">"
-                "<li><a href=\"x-dictionary:r:a:#s1\">sti 1§1</a></li>"
-                "<li>en smal vej</li>"
-                "</ol></nav></details>")
-           (appledict/hiccup->xml
-             (appledict/sense-index
-               "a" [{:id "s1" :indicator "sti 1§1"}
-                    {:definitions [{:text "en smal vej"}]}])))))
+    (let [items (str "<ol class=\"index-senses\">"
+                     "<li><a href=\"x-dictionary:r:a:#s1\">sti 1§1</a></li>"
+                     "<li>en smal vej</li>"
+                     "</ol>")]
+      (is (= (str "<div class=\"sense-index-anchor\" d:priority=\"2\">"
+                  "<nav class=\"sense-index\">" items "</nav></div>"
+                  "<details class=\"sense-index-inline\" d:priority=\"2\">"
+                  "<summary class=\"contents\"></summary>"
+                  "<nav>" items "</nav></details>")
+             (appledict/hiccup->xml
+               (appledict/sense-index
+                 "a" [{:id "s1" :indicator "sti 1§1"}
+                      {:definitions [{:text "en smal vej"}]}]))))))
   (testing "a single sense needs no index"
     (is (nil? (appledict/sense-index "a" [{:id "s1"}])))))
 
