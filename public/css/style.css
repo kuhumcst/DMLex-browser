@@ -238,6 +238,145 @@ p.pos { margin: 0 0 0.4rem; }
   }
 }
 
+/* Sense index */
+
+/* The index of the page's senses: a small sheet on the desk beside
+   the page, in the page's own voice, when the viewport has room for
+   both on either side of the centre line — else a bordered disclosure
+   that the entry content wraps around. */
+.sense-index-anchor { display: none; }
+
+/* The zero-height anchor is the sheet's first block and carries the
+   sticky, because Firefox does not pin floats. The offsets cancel
+   the sheet's 3.25rem top padding and 3px band, so the panel spawns
+   level with the sheet's top edge, travels its 3rem desk margin with
+   the page, and then pins to the viewport top. Horizontally it hangs
+   past the 3rem page padding and a 1.5rem gap. */
+@media (min-width: 79rem) {
+  .sense-index-anchor {
+    display: block;
+    position: sticky;
+    top: calc(3.25rem + 3px);
+    height: 0;
+  }
+
+  .sense-index {
+    position: absolute;
+    left: calc(100% + 4rem);
+    top: calc(-3.25rem - 3px);
+    width: 16rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    padding: 1.1rem 1.25rem;
+    background: #fff;
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--dark);
+  }
+
+  .sense-index-inline { display: none; }
+}
+
+.sense-index a,
+.sense-index-inline a { text-decoration: none; }
+.sense-index a:hover,
+.sense-index-inline a:hover { text-decoration: underline; }
+
+.index-entry {
+  display: block;
+  margin-top: 0.6rem;
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  font-size: 1rem;
+  color: var(--grey);
+}
+
+.sense-index > div:first-child .index-entry { margin-top: 0; }
+
+/* The home entry of the marked sense is marked with it, in the voice
+   of the group legends. */
+.index-entry.current { color: var(--accent); font-weight: 600; }
+
+.index-senses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: index-sense;
+}
+
+.index-senses li {
+  position: relative;
+  counter-increment: index-sense;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.index-senses li::before {
+  content: counter(index-sense);
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 0.5em;
+}
+
+/* The row of the sense on screen echoes the margin mark: an accent
+   bar bleeding into the box's left padding, and a bold accent label. */
+.index-senses li.current a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.index-senses li.current::after {
+  content: "";
+  position: absolute;
+  left: -1.25rem;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  width: 0.3rem;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: sense-mark 1s ease-out;
+}
+
+/* On a multi-entry page the sense lists indent under their entry
+   headers, and the group divider recurs between them. The accent bar
+   reaches back across the indent to the box's edge. */
+.index-entry + .index-senses { padding-left: 0.85rem; }
+.index-entry + .index-senses li.current::after { left: -2.1rem; }
+
+.sense-index hr.homograph,
+.sense-index-inline hr.homograph { margin: 0.75rem 0; }
+
+/* The disclosure floats right inside the page, the entry content
+   wrapping around it, in the same hairline box as the panel but
+   without the crimson band. A phone-sized viewport unfloats it. */
+.sense-index-inline {
+  float: right;
+  max-width: 55%;
+  margin: 1.25rem 0 1rem 1.5rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.sense-index-inline nav {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--dark);
+}
+
+@media (max-width: 30rem) {
+  .sense-index-inline {
+    float: none;
+    max-width: none;
+    margin: 1.25rem 0 0;
+  }
+}
+
 /* A merged homograph group divides its entries with a hairline rule.
    The article is a scroll target, like a sense. */
 hr.homograph {
@@ -254,17 +393,17 @@ hr.homograph {
 
 .sense { position: relative; padding-left: 2.2rem; margin: 0 0 3rem; scroll-margin-top: 1.5rem; }
 
-/* A sense-targeted navigation marks its sense with aria-current and
-   moves programmatic focus there; the accent bar beside the meaning
-   line shows the reader which sense the link meant, like a margin mark
-   in print. */
+/* Navigation moves programmatic focus to its target sense, which also
+   carries aria-current for assistive tech; the accent bar beside the
+   meaning line instead follows the sense on screen while the reader
+   scrolls, like a finger down the page. */
 .sense:focus { outline: none; }
-.sense[aria-current] .meaning { position: relative; }
+.sense .meaning { position: relative; }
 
 /* The bar hangs 0.85rem left of the sense box, which the numberless
    single-sense layout starts 2.2rem further left. Both offsets stay
    within the narrowest page padding. */
-.sense[aria-current] .meaning::before {
+.sense.on-screen .meaning::before {
   content: "";
   position: absolute;
   left: -3.6rem;
@@ -273,19 +412,19 @@ hr.homograph {
   width: 0.55rem;
   border-radius: 2px;
   background: var(--accent);
-  animation: sense-mark 1.2s ease-out;
+  animation: sense-mark 1s ease-out;
 }
 
-.senses.single .sense[aria-current] .meaning::before { left: -1.4rem; }
+.senses.single .sense.on-screen .meaning::before { left: -1.4rem; }
 
-/* The mark holds back while the smooth scroll is still moving, then
-   fades in at the destination. */
+/* The marks fade in slowly as they move from sense to sense. */
 @keyframes sense-mark {
-  0%, 35% { opacity: 0; }
+  from { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sense[aria-current] .meaning::before { animation: none; }
+  .sense.on-screen .meaning::before,
+  .index-senses li.current::after { animation: none; }
 }
 
 .sense::before {

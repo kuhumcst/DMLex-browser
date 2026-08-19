@@ -3,6 +3,10 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #: src/dk/cst/dmlex_viewer/app.cljs
+msgid "contents"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/app.cljs
 msgid "language"
 msgstr ""
 

@@ -95,6 +95,87 @@
     (is (not (str/includes? (pr-str (app/entries-view [{:file "a" :senses []}]))
                             ":hr.homograph")))))
 
+(deftest current-sense-test
+  (testing "scrolling down, the last sense past the reading line wins"
+    (is (= "s2" (app/current-sense [["s1" -500] ["s2" 100] ["s3" 900]]
+                                   1000 "s1" false false))))
+  (testing "scrolling up, the meaning nearest the viewport top wins"
+    (is (= "s3" (app/current-sense [["s2" -300] ["s3" 20] ["s4" 700]]
+                                   1000 "s4" false true))
+        "a sense takes the mark back when its meaning returns to view")
+    (is (= "s2" (app/current-sense [["s2" -1200] ["s3" 900]]
+                                   1000 "s3" false true))
+        "inside a sense too tall to show its meaning, it holds the mark")
+    (is (= "s2" (app/current-sense [["s2" -200] ["s3" 600]]
+                                   1000 "s2" false true))
+        "the mark never moves down the page on the way up"))
+  (testing "a stale spy far down the page yields to the reading line"
+    (is (= "s2" (app/current-sense [["s2" -100] ["s3" 400] ["s4" 800]]
+                                   1000 "s4" false false))
+        "e.g. after a viewport resize, without an up-scroll"))
+  (testing "at the end of the page the last sense takes the mark"
+    (is (= "s4" (app/current-sense [["s3" -100] ["s4" 500]] 1000 "s3" true
+                                   false))
+        "the reading line cannot reach a short final sense"))
+  (testing "at the page top the first sense in reach carries the mark"
+    (is (= "s1" (app/current-sense [["s1" 400] ["s2" 900]] 1000 nil false
+                                   false))))
+  (testing "without senses there is no mark"
+    (is (nil? (app/current-sense [] 1000 nil false false)))
+    (is (nil? (app/current-sense [] 1000 nil true true)))))
+
+(deftest present-entries-test
+  (testing "the presentation of a group is cached between renders"
+    (let [entries [{:headword "x" :senses [{:id "s1"}]}]
+          a       (app/present-entries nil nil "da" entries)
+          b       (app/present-entries nil nil "da" entries)]
+      (is (identical? a b)))))
+
+(deftest sense-index-test
+  (let [entries  [{:file            "a"
+                   :headword        "sti"
+                   :homographNumber "1"
+                   :senses          [{:id "s1" :indicator "sti 1§1"}
+                                     {:id "s2"
+                                      :definitions [{:text "en smal vej"}]}]}
+                  {:file     "b"
+                   :headword "sti"
+                   :senses   [{:id "s3" :indicator "sti 2§1"}]}]
+        rendered (pr-str (list (app/index-panel "s2" entries)
+                               (app/index-disclosure "s2" entries)))]
+    (testing "senses link through the existing sense routes"
+      (is (str/includes? rendered "#/entry/a/s1"))
+      (is (str/includes? rendered "#/entry/b/s3")))
+    (testing "the label is the indicator, or the first definition"
+      (is (str/includes? rendered "sti 1§1"))
+      (is (str/includes? rendered "en smal vej")))
+    (testing "the spied sense is marked as current"
+      (is (str/includes? rendered ":class \"current\"")))
+    (testing "the entries of a group head their sense lists"
+      (is (str/includes? rendered ":a.index-entry")))
+    (testing "the home entry of the marked sense is marked with it"
+      (is (str/includes? rendered ":href \"#/entry/a\", :class \"current\""))
+      (is (not (str/includes? rendered ":href \"#/entry/b\", :class"))))
+    (testing "the group divider recurs between the entries of the index"
+      (is (str/includes? rendered ":hr.homograph")))
+    (testing "both placements render: the panel and the disclosure"
+      (is (str/includes? rendered ":nav.sense-index"))
+      (is (str/includes? rendered ":details.sense-index-inline"))))
+  (testing "a single sense needs no index"
+    (is (nil? (app/index-panel nil [{:file   "a"
+                                     :senses [{:id "s1"}]}])))
+    (is (nil? (app/index-disclosure nil [{:file   "a"
+                                          :senses [{:id "s1"}]}]))))
+  (testing "a lone entry heads its list too, marked, without a divider"
+    (let [rendered (pr-str (app/index-panel "s1" [{:file     "a"
+                                                   :headword "abe"
+                                                   :senses   [{:id "s1"}
+                                                              {:id "s2"}]}]))]
+      (is (str/includes? rendered
+                         ":a.index-entry {:href \"#/entry/a\", :class \"current\"}")
+          "the way back to the entry's top, marked with its sense")
+      (is (not (str/includes? rendered ":hr.homograph"))))))
+
 (deftest entry-view-test
   (let [rendered (pr-str (app/entry-view
                            {:headword      "fest"
@@ -118,7 +199,12 @@
       (is (str/includes? rendered "\"about the word\""))))
   (testing "an entry without labels renders no box"
     (is (not (str/includes? (pr-str (app/entry-view {:headword "x" :senses []}))
-                            ":section.titled")))))
+                            ":section.titled"))))
+  (testing "the sense on screen carries the on-screen class"
+    (is (str/includes?
+          (pr-str (app/entry-view {:file   "x"
+                                   :senses [{:id "s1" :spy? true}]}))
+          "on-screen"))))
 
 (deftest search-view-test
   (testing "results render once the index is loaded"

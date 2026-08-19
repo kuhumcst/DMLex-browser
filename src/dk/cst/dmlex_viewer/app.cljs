@@ -20,6 +20,7 @@
          :active       nil
          :entry        nil
          :entries      nil
+         :spy-sense    nil
          :error        nil
          :alpha?       nil
          :presentation? nil
@@ -205,14 +206,16 @@
                                         (or (:title manifest)
                                             fallback-title)])))))
 
-(defn mark-current-sense
-  "Mark the sense of `entry` whose id is `sense` as :current?, which the
-  sense view renders as aria-current. A nil `sense` marks nothing."
-  [entry sense]
+(defn mark-sense
+  "Mark the sense of `entry` whose id is `sense-id` with the flag `k`:
+  :current? for the navigation target, :spy? for the sense on screen —
+  see the sense view for what each renders as. A nil `sense-id` marks
+  nothing."
+  [entry sense-id k]
   (cond-> entry
-    sense (update :senses (partial mapv #(cond-> %
-                                           (= sense (:id %))
-                                           (assoc :current? true))))))
+    sense-id (update :senses (partial mapv #(cond-> %
+                                              (= sense-id (:id %))
+                                              (assoc k true))))))
 
 (defn reveal-target!
   "Scroll to and focus the navigation target within the shown group of
@@ -220,14 +223,17 @@
   one is named, else the entry itself.
 
   The navigation scrolls smoothly, like sense navigation — except that
-  the first entry of the group shows from the page top, and a link to
-  the first sense of another entry (`same-entry?` false) reveals the
+  on arrival from another page (`same-group?` false) the first entry
+  of the group shows from the page top. Within the page — the sense
+  index — every entry scrolls to its own headword. A link to the
+  first sense of another entry (`same-entry?` false) reveals the
   entry with the sense merely marked. The focus never scrolls on its
   own, so it cannot cut the smooth scroll short."
-  [entries {:keys [file senses] :as entry} sense same-entry?]
+  [entries {:keys [file senses] :as entry} sense same-entry? same-group?]
   (let [article   (js/document.getElementById file)
         to-entry! (fn []
-                    (if (= file (:file (first entries)))
+                    (if (and (= file (:file (first entries)))
+                             (not same-group?))
                       (.scrollTo js/window 0 0)
                       (some-> article
                               (.scrollIntoView #js {:behavior "smooth"}))))]
@@ -241,11 +247,116 @@
                   (.querySelector "h1.headword")
                   (.focus #js {:preventScroll true}))))))
 
+(defonce sense-watch
+  (atom nil))
+
+(defonce settle-timer
+  (atom nil))
+
+(defn settle-scroll!
+  "Quiet the sense watch through a navigation scroll, so the mark
+  stays on the navigated sense instead of chasing the senses that
+  stream past. Ticks resume once the scrolling has stayed idle for
+  200 ms."
+  []
+  (some-> @settle-timer (js/clearTimeout))
+  (reset! settle-timer (js/setTimeout #(reset! settle-timer nil) 200)))
+
+(defn current-sense
+  "The sense the reader is on, from the ordered [id top] pairs `tops`
+  of the sense elements, the viewport height `vh`, the current `spy`,
+  whether the page is scrolled to its very `end?` and whether the
+  reader scrolls `up?`.
+
+  Scrolling down, the last sense whose top passed the reading line —
+  a quarter down the viewport, where the reader's eyes rest — carries
+  the mark. Scrolling up, the mark instead follows the meaning line
+  nearest the viewport top: a sense takes the mark back when its
+  meaning returns to view, and inside a sense too tall to show its
+  meaning, that sense holds it. The mark never moves down the page
+  on the way up. At the end of the page the last sense takes the
+  mark, since the reading line cannot reach it."
+  [tops vh spy end? up?]
+  (let [down-line (* 0.25 vh)
+        up-line   (* 0.75 vh)
+        idx       (into {} (map-indexed (fn [i [id _]] [id i]) tops))
+        top-of    (into {} tops)
+        cand      (last (for [[id top] tops :when (<= top down-line)] id))
+        spy-top   (top-of spy)]
+    (cond
+      (and end? (seq tops))
+      (first (peek tops))
+
+      up?
+      (or (first (for [[id top] tops
+                       :when (and (<= 0 top up-line)
+                                  (or (nil? (idx spy))
+                                      (<= (idx id) (idx spy))))]
+                   id))
+          (last (for [[id top] tops :when (neg? top)] id))
+          spy)
+
+      (and spy-top
+           (<= spy-top up-line)
+           (or (nil? cand) (> (idx spy) (idx cand))))
+      spy
+
+      cand cand
+
+      :else (first (for [[id top] tops :when (<= top up-line)] id)))))
+
+(defn unwatch-senses!
+  "Remove the scroll watch of the senses, if one is active."
+  []
+  (when-let [stop! @sense-watch]
+    (stop!)
+    (reset! sense-watch nil)))
+
+(defn watch-senses!
+  "Follow the scroll with :spy-sense, the sense of `current-sense` over
+  the sense elements of the shown entries, which the sense index and
+  the margin mark render as the one on screen.
+
+  While a navigation scroll settles (`settle-scroll!`), the watch
+  stays quiet and the navigated sense keeps the mark."
+  []
+  (unwatch-senses!)
+  (let [last-y    (atom js/window.scrollY)
+        tick      (fn []
+                    (let [y    js/window.scrollY
+                          up?  (< y @last-y)
+                          tops (mapv (fn [el]
+                                       [(.-id el)
+                                        (.-top (.getBoundingClientRect el))])
+                                     (array-seq (js/document.querySelectorAll
+                                                  ".sense[id]")))
+                          end? (>= (+ y js/window.innerHeight)
+                                   (- (.. js/document -documentElement
+                                          -scrollHeight)
+                                      2))
+                          spy  (current-sense tops js/window.innerHeight
+                                              (:spy-sense @state) end? up?)]
+                      (reset! last-y y)
+                      (when (and spy (not= spy (:spy-sense @state)))
+                        (swap! state assoc :spy-sense spy))))
+        on-scroll (fn []
+                    (if @settle-timer
+                      (settle-scroll!)
+                      (tick)))]
+    (js/window.addEventListener "scroll" on-scroll #js {:passive true})
+    (js/window.addEventListener "resize" on-scroll)
+    (reset! sense-watch (fn []
+                          (js/window.removeEventListener "scroll" on-scroll)
+                          (js/window.removeEventListener "resize" on-scroll)))
+    (when-not @settle-timer (tick))))
+
 (defn route!
   "Load the homograph group of the entry of the current URL fragment, or
   return to the front page. A second fragment segment names a sense of
-  the entry, marked for the sense view by `mark-current-sense` and shown
-  by `reveal-target!`.
+  the entry, marked for the sense view by `mark-sense` and shown by
+  `reveal-target!`. The navigated sense — or the first sense of the
+  target entry — takes the on-screen mark at once, through the settling
+  of the scroll.
 
   Focus follows the navigation — to the sense, the headword or the search
   field — so that keyboard and screen-reader users land on the new content
@@ -253,7 +364,8 @@
   []
   (if-let [[_ file sense] (re-find #"^#/entry/([^/]+)(?:/(.+))?$"
                                    (.-hash js/location))]
-    (let [same-entry? (= file (:file (:entry @state)))]
+    (let [same-entry? (= file (:file (:entry @state)))
+          same-group? (boolean (some #(= file (:file %)) (:entries @state)))]
       (-> (fetch-entry file)
           (.then (fn [entry]
                    (js/Promise.all
@@ -266,19 +378,25 @@
                    (let [entries (mapv (fn [e]
                                          (cond-> e
                                            (= file (:file e))
-                                           (mark-current-sense sense)))
+                                           (mark-sense sense :current?)))
                                        (array-seq entries))
                          entry   (first (filter #(= file (:file %)) entries))]
                      (swap! state assoc :error nil
-                            :entry entry :entries entries)
+                            :entry entry :entries entries
+                            :spy-sense (or sense
+                                           (:id (first (:senses entry)))))
                      (update-title!)
-                     (reveal-target! entries entry sense same-entry?))))
+                     (settle-scroll!)
+                     (reveal-target! entries entry sense same-entry?
+                                     same-group?)
+                     (watch-senses!))))
           (.catch (fn [e]
                     (js/console.error e)
                     (swap! state assoc :entry nil :entries nil
                            :error (.-message e))
                     (update-title!)))))
-    (do (swap! state assoc :entry nil :entries nil :error nil)
+    (do (unwatch-senses!)
+        (swap! state assoc :entry nil :entries nil :spy-sense nil :error nil)
         (update-title!)
         (some-> (js/document.getElementById "search") (.focus)))))
 
@@ -453,7 +571,8 @@
        [:blockquote [:p example]]
        labels'
        [:figcaption
-        [:cite (linked sourceUri
+        [:cite (linked (or (shared/elaboration-url sourceElaboration)
+                           sourceUri)
                        (tagged source (shared/source-title
                                         sourceDescription
                                         sourceElaboration)))]]]
@@ -465,13 +584,15 @@
   relations.
 
   The sense id becomes the DOM id that sense-targeted navigation scrolls
-  to and focuses, and the sense such a navigation targeted carries
-  aria-current, which the stylesheet turns into the margin mark."
+  to and focuses; the sense such a navigation targeted carries
+  aria-current, and the sense on screen carries the margin mark via the
+  on-screen class."
   [i {:keys [id indicator labels definitions translations examples
-             relations relation-groups current?]}]
+             relations relation-groups current? spy?]}]
   [:li.sense (cond-> {:replicant/key (or id i)}
                id (assoc :id id :tabindex -1)
-               current? (assoc :aria-current "location"))
+               current? (assoc :aria-current "location")
+               spy? (assoc :class "on-screen"))
    [:p.meaning
     (when indicator [:span.indicator indicator])
     (into [:span.definitions]
@@ -572,6 +693,67 @@
   [entries]
   (interpose [:hr.homograph] (map entry-view entries)))
 
+(defn index-items
+  "The linked contents of the sense index over `entries`, with the
+  sense of the id `spy` marked as the one on screen.
+
+  Every entry heads its own numbered list of senses — the way back up
+  to its headword and inflected forms — and the numbers match the
+  sense numerals of the page. The entries of a homograph group divide
+  by rules like the page, and the home entry of the marked sense is
+  marked with it."
+  [spy entries]
+  (->> (for [{:keys [file headword homographNumber senses]} entries]
+         [:div {:replicant/key file}
+          [:a.index-entry
+           (cond-> {:href (str "#/entry/" file)}
+             (and spy (some (comp #{spy} :id) senses))
+             (assoc :class "current"))
+           headword (when homographNumber [:sup.hom homographNumber])]
+          (into [:ol.index-senses]
+                (map-indexed
+                  (fn [i {:keys [id] :as sense}]
+                    [:li (cond-> {:replicant/key (or id i)}
+                           (= id spy) (assoc :class "current"))
+                     (if id
+                       [:a {:href (str "#/entry/" file "/" id)}
+                        (shared/sense-label sense)]
+                       (shared/sense-label sense))]))
+                senses)])
+       (interpose [:hr.homograph])))
+
+(defn indexable?
+  "Does the group of `entries` have more than one sense to index?"
+  [entries]
+  (boolean (next (mapcat :senses entries))))
+
+(defn index-panel
+  "The sense index of the homograph group `entries` as a panel on the
+  desk: a zero-height sticky anchor at the top of the sheet that the
+  panel hangs from, so it spawns level with the sheet and pins to the
+  viewport top. The stylesheet shows it only when the viewport has
+  room beside the page.
+
+  Nothing renders when the group is not `indexable?`."
+  [spy entries]
+  (when (indexable? entries)
+    [:div.sense-index-anchor
+     [:nav.sense-index {:aria-label (tr "contents")}
+      (index-items spy entries)]]))
+
+(defn index-disclosure
+  "The sense index of the homograph group `entries` as a bordered
+  disclosure that the entry content wraps around, for viewports
+  without room for the panel.
+
+  Nothing renders when the group is not `indexable?`."
+  [spy entries]
+  (when (indexable? entries)
+    [:details.sense-index-inline
+     [:summary {:lang (en "contents")} (tr "contents")]
+     [:nav {:aria-label (tr "contents")}
+      (index-items spy entries)]]))
+
 (defn headword-collation
   "The headword comparator of `lang-code`, using the collator of the
   browser."
@@ -584,6 +766,33 @@
   [{:keys [relations relation-groups senses]}]
   (boolean (or relations relation-groups
                (some #(or (:relations %) (:relation-groups %)) senses))))
+
+(defonce presented-cache
+  (atom nil))
+
+(defn present-entries
+  "The homograph group `entries` presented under `config`, with the
+  members of every relation row collated per `order-mode` (:alpha,
+  :collation or nil) in the collation of `lang-code`.
+
+  Cached on the inputs: a render happens on every keystroke and every
+  scroll tick, and presenting walks and sorts the whole group — far
+  too much work to repeat when only the search query or the on-screen
+  sense changed."
+  [config order-mode lang-code entries]
+  (let [k [config order-mode lang-code entries]]
+    (or (when-let [{:keys [key val]} @presented-cache]
+          (when (= key k) val))
+        (let [compare* (when order-mode (headword-collation lang-code))
+              order    (case order-mode
+                         :alpha     (shared/alphabetical-order compare*)
+                         :collation (shared/member-order compare*)
+                         nil)
+              val      (mapv #(cond->> (presentation/present-entry config %)
+                                order (presentation/collate-members order))
+                             entries)]
+          (reset! presented-cache {:key k :val val})
+          val))))
 
 (defn pref-key
   "The localStorage key of the preference `pref` for the dataset of
@@ -780,22 +989,20 @@
   combobox: focus stays in the field while aria-activedescendant
   points at the active option."
   [{:keys [manifest presentation index index-error query active entry entries
-           error alpha? presentation? lang]}]
+           spy-sense error alpha? presentation? lang]}]
   (if-not (or manifest error)
     [:div.container]
     (let [rows      (when (and index (seq query)) (matches index query))
           presentation? (if (some? presentation?) presentation? true)
           config    (when presentation? presentation)
           alpha?    (boolean alpha?)
-          order     (let [compare* (headword-collation (:langCode manifest))]
-                      (cond
-                        alpha? (shared/alphabetical-order compare*)
-                        (= "collation" (get config "memberOrder"))
-                        (shared/member-order compare*)))
+          order-mode (cond
+                       alpha? :alpha
+                       (= "collation" (get config "memberOrder")) :collation)
           presented (when entry
-                      (mapv #(cond->> (presentation/present-entry config %)
-                               order (presentation/collate-members order))
-                            entries))
+                      (cond->> (present-entries config order-mode
+                                                (:langCode manifest) entries)
+                        spy-sense (mapv #(mark-sense % spy-sense :spy?))))
           controls  [:div.controls
                      (or (dictionary-language manifest) [:span])
                      [:span.toggles
@@ -806,6 +1013,7 @@
                         (presentation-toggle presentation?))]
                      (language-select lang manifest)]]
       [:div.container
+       (index-panel spy-sense presented)
        [:search
         [:label.visually-hidden {:for  "search"
                                  :lang (en "Search the dictionary")}
@@ -838,7 +1046,8 @@
            (or (:title manifest) fallback-title)])
         (cond
           (seq query) (search-view rows index-error query active)
-          entry       (entries-view presented)
+          entry       (list (index-disclosure spy-sense presented)
+                            (entries-view presented))
           error       [:p.error {:lang (en "The page failed to load.")}
                        (tr "The page failed to load.") " "
                        [:a {:href "#/"} (tr "Go to the front page.")]]

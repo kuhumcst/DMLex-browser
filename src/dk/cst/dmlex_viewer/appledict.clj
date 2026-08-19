@@ -247,7 +247,8 @@
        [:blockquote [:p example]]
        labels'
        [:figcaption
-        [:cite (linked sourceUri
+        [:cite (linked (or (shared/elaboration-url sourceElaboration)
+                           sourceUri)
                        (tagged source (shared/source-title
                                         sourceDescription
                                         sourceElaboration)))]]]
@@ -324,6 +325,28 @@
                                           (str " (" (str/join ", " (map :tag labels)) ")")])))
                                group))]])]]]))
 
+(defn sense-index
+  "The sense index of one entry, as a disclosure at the top of the
+  entry: the `senses` of `file` as links that scroll to them.
+
+  Dictionary.app runs no scripts, so the sticky panel and the
+  scroll-spy of the web viewer stay web-only; the disclosure is the
+  narrow-viewport variant. Nothing renders for at most one sense.
+
+  The summary text lives in CSS content so that Dictionary.app cannot
+  look it up on click."
+  [file senses]
+  (when (next senses)
+    [:details {:class "sense-index-inline" :d/priority "2"}
+     [:summary {:class "contents"} ""]
+     [:nav
+      [:ol {:class "index-senses"}
+       (for [{:keys [id] :as sense} senses]
+         [:li (if id
+                [:a {:href (str "x-dictionary:r:" file ":#" id)}
+                 (shared/sense-label sense)]
+                (shared/sense-label sense))])]]]))
+
 (defn ->index
   "The d:index terms of one entry: the `headword` plus every distinct full
   inflected form in `forms`.
@@ -345,6 +368,7 @@
               inflectedForms senses relations relation-groups]}]
   [:d/entry {:id file :d/title headword}
    (->index headword inflectedForms)
+   (sense-index file senses)
    [:h1 {:class "headword"} [:dfn headword]
     (when homographNumber [:sup {:class "hom"} homographNumber])]
    (when (or (seq partsOfSpeech) (seq inline-labels))
@@ -576,6 +600,9 @@
         rules   (remove nil?
                         [(when-let [s (get ui "all forms")]
                            (str "summary.all-forms::after { content: \""
+                                s "\"; }"))
+                         (when-let [s (get ui "contents")]
+                           (str "summary.contents::after { content: \""
                                 s "\"; }"))
                          (when (and entries (str/starts-with? entries "{n}"))
                            (str ".relations summary::after"

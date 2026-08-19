@@ -147,6 +147,26 @@ The build resolves each group up front, and the entry files carry
 it. Dictionary.app already stacks the entries that share a headword,
 so the Apple export does not change.
 
+## The sense index
+
+A long entry hides its later senses below the fold. When a page has
+more than one sense, the viewer adds an index of links that scroll
+to them. Each entry heads its own list in the index, as the way back
+up to its headword and inflected forms.
+On a wide viewport the index sits beside the page, scrolls
+along, and pins to the top of the viewport.
+On a narrow viewport it folds into a disclosure that the entry
+content wraps around. Dictionary.app runs no scripts, so it gets
+only the disclosure, without the marking below.
+
+While the reader scrolls down, the index and the crimson margin
+mark move to each sense at the reading line. That line sits a
+quarter down the viewport, where the reader's eyes rest. On the way
+back up, the mark follows the meaning line nearest the viewport
+top: a sense takes the mark back when its meaning returns to view.
+At the end of the page, the last sense takes the mark. A click in
+the index instead moves the mark to its target at once.
+
 ## The visual language
 
 The visual language is flat and typography-first: plain solid colours,

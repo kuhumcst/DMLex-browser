@@ -74,6 +74,12 @@
        (distinct-by #(or (:short %) (:text %)))
        (not-empty)))
 
+(defn sense-label
+  "The index label of `sense`: its indicator, or the text of its first
+  definition."
+  [{:keys [indicator definitions]}]
+  (or indicator (:text (first definitions))))
+
 (defn label-title
   "The tooltip of a `label` shown away from the labels block: the
   display name of its type, then its own description.
@@ -83,11 +89,24 @@
   [{:keys [type display description]}]
   (not-empty (str/join ": " (remove nil? [(or display type) description]))))
 
+(defn elaboration-url
+  "The source `elaboration` of an example when it is a URL, else nil.
+
+  A URL-shaped elaboration is the deep link of the citation — e.g. the
+  DDO definition behind a DanNet sense — so it becomes the link target
+  and `source-title` omits it from the tooltip."
+  [elaboration]
+  (when (and elaboration (str/starts-with? elaboration "http"))
+    elaboration))
+
 (defn source-title
   "The tooltip of an example's cited source: the `description` of the
-  source and its `elaboration`, joined."
+  source and its `elaboration`, joined. A URL-shaped elaboration is a
+  link target, not tooltip text, and stays out."
   [description elaboration]
-  (not-empty (str/join " " (remove nil? [description elaboration]))))
+  (not-empty (str/join " " (remove nil? [description
+                                         (when-not (elaboration-url elaboration)
+                                           elaboration)]))))
 
 (defn member-order
   "A comparator for the members of one relation row: the member `:order`

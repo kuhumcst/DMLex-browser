@@ -8,6 +8,9 @@ msgstr "etiket"
 msgid "about the word"
 msgstr "om ordet"
 
+msgid "contents"
+msgstr "indhold"
+
 msgid "{n} entries"
 msgstr "{n} ord"
 

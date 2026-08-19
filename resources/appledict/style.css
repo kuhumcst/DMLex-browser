@@ -57,6 +57,7 @@ summary {
    document text so that Dictionary.app cannot look the words up on
    click. */
 summary.all-forms::after { content: "all forms"; }
+summary.contents::after { content: "contents"; }
 .relations summary::after { content: attr(data-count) " entries"; }
 .relation-group::after { content: attr(data-label); }
 .paradigm th::after { content: attr(data-label); }
@@ -82,6 +83,38 @@ summary.all-forms::after { content: "all forms"; }
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* The sense index at the top right of the entry. Dictionary.app runs
+   no scripts, so only the disclosure variant of the web viewer's
+   index exists here. */
+details.sense-index-inline {
+  float: right;
+  max-width: 45%;
+  margin: 0.75rem 0 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: var(--grey);
+}
+
+.index-senses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: index-sense;
+}
+
+.index-senses li {
+  counter-increment: index-sense;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.index-senses li::before {
+  content: counter(index-sense);
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 0.5em;
 }
 
 /* Entry header */

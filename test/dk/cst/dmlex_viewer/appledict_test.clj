@@ -130,14 +130,31 @@
                                            :description "Positive"
                                            :qualifier   "1"}))))))
 
+(deftest sense-index-test
+  (testing "senses link by x-dictionary ref, labelled by indicator"
+    (is (= (str "<details class=\"sense-index-inline\" d:priority=\"2\">"
+                "<summary class=\"contents\"></summary>"
+                "<nav><ol class=\"index-senses\">"
+                "<li><a href=\"x-dictionary:r:a:#s1\">sti 1§1</a></li>"
+                "<li>en smal vej</li>"
+                "</ol></nav></details>")
+           (appledict/hiccup->xml
+             (appledict/sense-index
+               "a" [{:id "s1" :indicator "sti 1§1"}
+                    {:definitions [{:text "en smal vej"}]}])))))
+  (testing "a single sense needs no index"
+    (is (nil? (appledict/sense-index "a" [{:id "s1"}])))))
+
 (deftest chrome-css-test
   (testing "nothing without translated chrome strings"
     (is (nil? (appledict/chrome-css nil))))
   (testing "translated strings override the content rules of the base CSS"
     (is (= (str "summary.all-forms::after { content: \"alle former\"; }\n"
+                "summary.contents::after { content: \"indhold\"; }\n"
                 ".relations summary::after"
                 " { content: attr(data-count) \" ord\"; }")
            (appledict/chrome-css {"all forms"   "alle former"
+                                  "contents"    "indhold"
                                   "{n} entries" "{n} ord"})))))
 
 (deftest front-matter-translation-test
