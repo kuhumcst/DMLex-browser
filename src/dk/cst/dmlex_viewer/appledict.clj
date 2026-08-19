@@ -74,7 +74,10 @@
     :else (escape x)))
 
 ;; -----------------------------------------------------------------------------
-;; Entry rendering, mirroring the views of dk.cst.dmlex-viewer.app
+;; Entry rendering, mirroring the views of dk.cst.dmlex-viewer.app.
+;; Known differences: x-dictionary links without target, d:priority on
+;; secondary content, chrome text in CSS content so that Look Up cannot
+;; search it, and none of the web viewer's ARIA or focus wiring.
 
 (defn tagged
   "The `tag` as a span with the `description` of the dataset as its tooltip."
@@ -84,7 +87,9 @@
     tag))
 
 (defn linked
-  "The hiccup `x`, linked to `uri` when the dataset supplies one."
+  "The hiccup `x`, linked to `uri` when the dataset supplies one.
+
+  Unlike the web viewer's links, no target: Dictionary.app has no tabs."
   [uri x]
   (if uri
     [:a {:href uri} x]
@@ -115,16 +120,13 @@
   "One of the `labels` the config moves onto the part-of-speech line:
   its tag, linked and with any combined `:qualifier` in parentheses.
 
-  Off the labels block the value loses its key column, so the tooltip
-  opens with the type's display name, which the rename already puts in
-  the export's language; assistive tech hears the same name. The dot
-  separator lives in CSS, so it is never announced."
-  [{:keys [tag description uri qualifier type display]}]
-  (let [attr  (or display type)
-        title (not-empty (str/join ": " (remove nil? [attr description])))]
+  The display name of the type stays in the markup for assistive
+  tech; the dot separator lives in CSS, so it is never announced."
+  [{:keys [tag uri qualifier type display] :as label}]
+  (let [attr (or display type)]
     [:span {:class "inline-label"}
      (when attr [:span {:class "visually-hidden"} (str attr ": ")])
-     (linked uri (tagged tag title))
+     (linked uri (tagged tag (shared/label-title label)))
      (when qualifier (str " (" qualifier ")"))]))
 
 (defn labels-view
@@ -246,10 +248,9 @@
        labels'
        [:figcaption
         [:cite (linked sourceUri
-                       (tagged source
-                               (not-empty
-                                 (str/join " " (remove nil? [sourceDescription
-                                                             sourceElaboration])))))]]]
+                       (tagged source (shared/source-title
+                                        sourceDescription
+                                        sourceElaboration)))]]]
       [:p {:class "example" :d/priority "2"} example labels'])))
 
 (defn sense-view
@@ -277,24 +278,15 @@
    (relations-view ui relations relation-groups)])
 
 (defn inflections-view
-  "The inflected `forms` of `headword` as one run-in definition list of
-  short forms, with the paradigm slot visually hidden and as a hover
-  title.
+  "The inflected `forms` of `headword` as one run-in definition list,
+  reduced to the representatives of shared/inflection-line.
 
-  One representative per paradigm slot — the form with a reduced short
-  when the slot has one — so variant spellings stay in the paradigm, as
-  does a form spelled like the headword."
+  The paradigm slot of each form is visually hidden and doubles as a
+  hover title."
   [ui headword forms]
-  (when-let [forms (->> (partition-by #(or (:description %) (:tag %) (:text %))
-                                      forms)
-                        (map (fn [group]
-                               (or (first (filter :short group))
-                                   (first group))))
-                        (remove #(= headword (:text %)))
-                        (seq))]
+  (when-let [forms (shared/inflection-line headword forms)]
     [:dl {:class "inflections" :d/priority "2"}
-     (for [{:keys [tag text short description labels]}
-           (shared/distinct-by #(or (:short %) (:text %)) forms)]
+     (for [{:keys [tag text short description labels]} forms]
        [:div
         [:dt {:class "visually-hidden"}
          (or description tag (shared/tr ui "form"))]
@@ -314,17 +306,16 @@
   One row per paradigm slot; forms that share the slot — variant
   spellings — join on the row."
   [ui forms]
-  (when (some #(or (:tag %) (:description %)) forms)
+  (when (some shared/paradigm-slot forms)
     [:details {:class "paradigm" :d/priority "2"}
      [:summary {:lang (shared/en ui "all forms") :class "all-forms"} ""]
      [:table
       [:caption {:class "visually-hidden" :lang (shared/en ui "all forms")}
        (shared/tr ui "all forms")]
       [:tbody
-       (for [group (partition-by #(or (:description %) (:tag %)) forms)
-             :let [{:keys [tag description]} (first group)]]
+       (for [group (partition-by shared/paradigm-slot forms)]
          [:tr
-          [:th {:scope "row" :data-label (or description tag)} ""]
+          [:th {:scope "row" :data-label (shared/paradigm-slot (first group))} ""]
           [:td (interpose ", "
                           (map (fn [{:keys [text labels]}]
                                  (list text

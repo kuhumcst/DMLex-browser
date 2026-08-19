@@ -37,12 +37,13 @@ the displays apply it at render or export time. A change to the
 config never requires a rebuild of the data.
 
 The config is a set of generic operations over the dataset's own
-tags. The operations reorder, hide, rename, combine a type with its
-qualifier type, select the field that a label shows, move label
-types onto the part-of-speech line, and gather relation rows into
-groups. The keys stay strings throughout, because a tag is not
-always a valid keyword. The same operations run on both surfaces
-from one shared namespace. That is why the namespace is cljc.
+tags. The operations reorder, hide and rename tags, combine a type
+with its qualifier type, and select the field that a label shows.
+They also move label types onto the part-of-speech line and gather
+relation rows into groups. The keys stay strings throughout, because
+a tag is not always a valid keyword. The same operations run on both
+surfaces from one shared namespace. That is why the namespace is
+cljc.
 
 Two boundaries limit the config:
 
@@ -64,9 +65,9 @@ complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
 fallback group unless the config hides them. Neutral relations render
 in the same titled box as configured groups, under the generic
-"related" heading, and entry-level labels sit in the same box under
-the generic "about the word" heading, unless the config moves them
-all onto the part-of-speech line, in which case the box disappears.
+"related" heading. Entry-level labels sit in the same kind of box
+under the generic "about the word" heading. When the config moves
+every entry label onto the part-of-speech line, the box disappears.
 A checkbox in the web viewer turns the config off for an entry, to
 compare it with this neutral view. localStorage remembers the
 checkbox choices per dataset, like the UI language choice.
@@ -97,10 +98,22 @@ already on the resolver's host stay direct.
 The web app is a ClojureScript SPA (Replicant, hash routing, a single
 state atom, pure view functions). The Apple export writes the same
 resolved entries as a Dictionary Development Kit source project. The
-view functions mirror each other name for name, and the duplication
-is a choice. The surfaces differ in link schemes, attribute
-conventions and layout, and a shared view abstraction couples them
-invisibly.
+rule between them: share decisions, duplicate markup. What to show
+is pure data logic: which form represents a paradigm slot, what a
+tooltip says. This logic lives in the shared namespace, where one
+fix reaches both surfaces. The view functions that emit the markup
+mirror each other name for name, and that duplication is a choice.
+The surfaces differ in link schemes, attribute conventions and
+layout, and a shared view abstraction couples them invisibly.
+
+This coupling has two danger zones, and short comments mark them in
+the code. The shared namespaces are the first zone. An edit there
+changes both surfaces, but no automated check renders the Apple
+bundle, so the change reaches Dictionary.app unseen. When one
+surface must show different content, it stops calling the shared
+function. A shared function never gets options for one surface. The
+mirrored view pairs are the second zone: the two files differ on
+purpose, so a verbatim copy of a view is never correct.
 
 Where the surfaces can differ, the presentation of the web viewer
 wins. Dictionary.app adapts the conventions, not the content. The
@@ -162,9 +175,9 @@ Most of what the viewer shows is dataset text, already in the
 language of the resource. The views also prefer the dataset's
 descriptions over technical tags where both exist, so a Danish
 resource shows "substantiv" with "noun" in the tooltip. That leaves
-the viewer's own strings, about two dozen in total, written in
-English in the source: the search placeholder, the front-matter keys,
-and the error messages.
+the viewer's own strings, about two dozen, written in English in the
+source: the search placeholder, the front-matter keys, and the error
+messages.
 
 A plain gettext setup translates them. The English string is the
 lookup key and the fallback. `{n}` carries a count. The whole table

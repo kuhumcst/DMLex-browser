@@ -1,5 +1,10 @@
 (ns dk.cst.dmlex-viewer.shared
-  "Pure helpers shared between the frontend and the JVM exports."
+  "Pure helpers shared between the frontend and the JVM exports.
+
+  Coupling zone: an edit here changes the content of both surfaces,
+  and no automated check renders the Apple bundle, so assume it also
+  changed Dictionary.app. A surface that must diverge stops calling
+  the helper; a helper never gets per-surface options."
   (:require [clojure.string :as str]))
 
 (defn tr
@@ -47,6 +52,42 @@
                      [(conj seen k) (conj out x)])))
                [#{} []])
        (second)))
+
+(defn paradigm-slot
+  "The paradigm slot of the inflected `form`: its description or tag."
+  [{:keys [description tag]}]
+  (or description tag))
+
+(defn inflection-line
+  "The inflected `forms` of `headword` that the run-in inflection line
+  shows: one representative per paradigm slot, or nil when none remain.
+
+  The representative is the form with a reduced short when its slot
+  has one; variant spellings and forms spelled like the headword stay
+  in the paradigm table and the search index."
+  [headword forms]
+  (->> (partition-by #(or (paradigm-slot %) (:text %)) forms)
+       (map (fn [slot]
+              (or (first (filter :short slot))
+                  (first slot))))
+       (remove #(= headword (:text %)))
+       (distinct-by #(or (:short %) (:text %)))
+       (not-empty)))
+
+(defn label-title
+  "The tooltip of a `label` shown away from the labels block: the
+  display name of its type, then its own description.
+
+  The display name comes from the config's rename, so it is already in
+  the language of the export."
+  [{:keys [type display description]}]
+  (not-empty (str/join ": " (remove nil? [(or display type) description]))))
+
+(defn source-title
+  "The tooltip of an example's cited source: the `description` of the
+  source and its `elaboration`, joined."
+  [description elaboration]
+  (not-empty (str/join " " (remove nil? [description elaboration]))))
 
 (defn member-order
   "A comparator for the members of one relation row: the member `:order`

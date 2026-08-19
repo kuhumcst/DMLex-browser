@@ -235,7 +235,8 @@
         (some-> (js/document.getElementById "search") (.focus)))))
 
 ;; -----------------------------------------------------------------------------
-;; Views
+;; Views, mirrored by hand in dk.cst.dmlex-viewer.appledict: carry
+;; markup edits over, minding the differences listed there.
 
 (defn tagged
   "The `tag` as a span with the `description` of the dataset as its tooltip.
@@ -279,16 +280,13 @@
   "One of the `labels` the config moves onto the part-of-speech line:
   its tag, linked and with any combined `:qualifier` in parentheses.
 
-  Off the labels block the value loses its key column, so the tooltip
-  opens with the type's display name, which the rename already puts in
-  the export's language; assistive tech hears the same name. The dot
-  separator lives in CSS, so it is never announced."
-  [{:keys [tag description uri qualifier type display]}]
-  (let [attr  (or display type)
-        title (not-empty (str/join ": " (remove nil? [attr description])))]
+  The display name of the type stays in the markup for assistive
+  tech; the dot separator lives in CSS, so it is never announced."
+  [{:keys [tag uri qualifier type display] :as label}]
+  (let [attr (or display type)]
     [:span.inline-label
      (when attr [:span.visually-hidden (str attr ": ")])
-     (linked uri (tagged tag title))
+     (linked uri (tagged tag (shared/label-title label)))
      (when qualifier (str " (" qualifier ")"))]))
 
 (defn labels-view
@@ -408,10 +406,9 @@
        labels'
        [:figcaption
         [:cite (linked sourceUri
-                       (tagged source
-                               (not-empty
-                                 (str/join " " (remove nil? [sourceDescription
-                                                             sourceElaboration])))))]]]
+                       (tagged source (shared/source-title
+                                        sourceDescription
+                                        sourceElaboration)))]]]
       [:p.example example labels'])))
 
 (defn sense-view
@@ -441,21 +438,13 @@
    (relations-view [:div.related] relations relation-groups)])
 
 (defn inflections-view
-  "The inflected `forms` of `headword` as one run-in definition list.
+  "The inflected `forms` of `headword` as one run-in definition list,
+  reduced to the representatives of shared/inflection-line.
 
-  One representative per paradigm slot — the form with a reduced short
-  when the slot has one — so variant spellings stay in the paradigm, as
-  does a form spelled like the headword. The paradigm slot of each form
-  stays in the markup for assistive tech; sighted readers get it as a
-  tooltip."
+  The paradigm slot of each form stays in the markup for assistive
+  tech; sighted readers get it as a tooltip."
   [headword forms]
-  (when-let [forms (->> (partition-by #(or (:description %) (:tag %) (:text %))
-                                      forms)
-                        (map (fn [group]
-                               (or (first (filter :short group))
-                                   (first group))))
-                        (remove #(= headword (:text %)))
-                        (seq))]
+  (when-let [forms (shared/inflection-line headword forms)]
     (into [:dl.inflections]
           (map-indexed
             (fn [i {:keys [tag text short description labels]}]
@@ -468,7 +457,7 @@
                 (or short text)
                 (when (seq labels)
                   [:span.form-label " (" (str/join ", " (map :tag labels)) ")"])]])
-            (shared/distinct-by #(or (:short %) (:text %)) forms)))))
+            forms))))
 
 (defn paradigm-view
   "The full paradigm of the inflected `forms` as a table behind a details
@@ -477,7 +466,7 @@
   One row per paradigm slot; forms that share the slot — variant
   spellings — join on the row."
   [forms]
-  (when (some #(or (:tag %) (:description %)) forms)
+  (when (some shared/paradigm-slot forms)
     [:details.paradigm
      [:summary {:lang (en "all forms")} (tr "all forms")]
      [:table
@@ -485,18 +474,17 @@
       (into [:tbody]
             (map-indexed
               (fn [i group]
-                (let [{:keys [tag description]} (first group)]
-                  [:tr {:replicant/key i}
-                   [:th {:scope "row"} (or description tag)]
-                   (into [:td]
-                         (interpose ", "
-                                    (map (fn [{:keys [text labels]}]
-                                           (list text
-                                                 (when (seq labels)
-                                                   [:span.form-label
-                                                    " (" (str/join ", " (map :tag labels)) ")"])))
-                                         group)))]))
-              (partition-by #(or (:description %) (:tag %)) forms)))]]))
+                [:tr {:replicant/key i}
+                 [:th {:scope "row"} (shared/paradigm-slot (first group))]
+                 (into [:td]
+                       (interpose ", "
+                                  (map (fn [{:keys [text labels]}]
+                                         (list text
+                                               (when (seq labels)
+                                                 [:span.form-label
+                                                  " (" (str/join ", " (map :tag labels)) ")"])))
+                                       group)))])
+              (partition-by shared/paradigm-slot forms)))]]))
 
 (defn entry-view
   "One entry as an article: the header, the entry-level labels in their

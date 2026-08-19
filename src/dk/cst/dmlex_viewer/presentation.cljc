@@ -8,7 +8,9 @@
   ops are generic (set membership, sort by list position, string
   substitution), so the viewer never learns what any tag means. The web
   viewer applies them at render time and the Apple Dictionary export at
-  export time, which is why this namespace is cljc."
+  export time, which is why this namespace is cljc — and why an edit
+  here also changes Dictionary.app, with no automated render to show
+  it."
   (:require [clojure.string :as str]
             [clojure.walk :as walk]
             [dk.cst.dmlex-viewer.shared :as shared]))
