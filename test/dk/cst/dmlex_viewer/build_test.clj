@@ -187,6 +187,33 @@
                       {:headword "æble" :order 2}
                       {:headword "bær"}])))))
 
+(deftest duplicated-sense-ids-test
+  (is (= ["s1"]
+         (build/duplicated-sense-ids
+           [{:senses [{:id "s1"} {:id "s1"} {:id "s2"}]}])))
+  (is (= ["s1"]
+         (build/duplicated-sense-ids
+           [{:senses [{:id "s1"}]} {:senses [{:id "s1"}]}]))
+      "duplicates count across entries"))
+
+(deftest uniquify-sense-ids-test
+  (testing "later occurrences of a duplicated id gain a numeric suffix"
+    (is (= [{:senses [{:id "s1"} {:id "s1-2"} {:id "s2"}]}]
+           (build/uniquify-sense-ids
+             [{:senses [{:id "s1"} {:id "s1"} {:id "s2"}]}]))))
+  (testing "ids stay unique across entries too"
+    (is (= [{:senses [{:id "s1"}]} {:senses [{:id "s1-2"}]}]
+           (build/uniquify-sense-ids
+             [{:senses [{:id "s1"}]} {:senses [{:id "s1"}]}]))))
+  (testing "the suffix skips ids the resource already uses"
+    (is (= [{:senses [{:id "s1"} {:id "s1-3"} {:id "s1-2"}]}]
+           (build/uniquify-sense-ids
+             [{:senses [{:id "s1"} {:id "s1"} {:id "s1-2"}]}]))))
+  (testing "senses without ids and entries without senses pass through"
+    (is (= [{:id "e"} {:senses [{:indicator "x"}]}]
+           (build/uniquify-sense-ids
+             [{:id "e"} {:senses [{:indicator "x"}]}])))))
+
 (deftest index-rows-test
   (let [resource {:langCode "da"
                   :entries  [{:id "åben" :headword "åben"}

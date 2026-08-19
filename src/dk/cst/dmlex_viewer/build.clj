@@ -266,6 +266,42 @@
               :senses          (mapv ->sense senses)
               :relations       (rows-of id)})))
 
+(defn duplicated-sense-ids
+  "The sense ids occurring more than once across `entries`."
+  [entries]
+  (->> (mapcat :senses entries)
+       (keep :id)
+       (frequencies)
+       (keep (fn [[id n]] (when (< 1 n) id)))))
+
+(defn uniquify-sense-ids
+  "Rename the later occurrences of duplicated sense ids in `entries`,
+  giving each the first free numeric suffix (-2, -3, ...).
+
+  DanNet repeats the id of a sense shared by two synsets; relation
+  references to a duplicated id keep resolving to its first occurrence."
+  [entries]
+  (let [ids   (set (for [{:keys [senses]} entries
+                         {:keys [id]} senses
+                         :when id]
+                     id))
+        fresh (fn [taken id]
+                (->> (iterate inc 2)
+                     (map #(str id "-" %))
+                     (remove (some-fn ids taken))
+                     (first)))
+        add   (fn [[taken senses] {:keys [id] :as sense}]
+                (let [id' (if (taken id) (fresh taken id) id)]
+                  [(cond-> taken id' (conj id'))
+                   (conj senses (cond-> sense id' (assoc :id id')))]))]
+    (second
+      (reduce (fn [[taken entries'] {:keys [senses] :as entry}]
+                (let [[taken' senses'] (reduce add [taken []] senses)]
+                  [taken' (conj entries' (cond-> entry
+                                           senses (assoc :senses senses')))]))
+              [#{} []]
+              entries))))
+
 (defn ->env
   "The lookup environment of `resource`: the inventory indices, the relation
   attachment map and the member ref resolver."
@@ -466,9 +502,13 @@
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (->input in)
         resource (json/read-str (content-of dmlex-file) :key-fn keyword)
+        dups     (duplicated-sense-ids (:entries resource))
+        resource (update resource :entries uniquify-sense-ids)
         metadata (read-companion content-of "metadata.json")
         env      (->env resource)
         entries  (:entries resource)]
+    (when (seq dups)
+      (println "Warning:" (count dups) "duplicated sense ids renamed"))
     (println "Writing" (count entries) "entries into" out)
     (doseq [entry entries
             :let [{:keys [file] :as m} (->entry-file env entry)]]
