@@ -587,13 +587,22 @@
   (io/make-parents f)
   (spit f html))
 
+(defn clear!
+  "Delete the directory `dir` and everything below it, if it is there."
+  [^java.io.File dir]
+  (when (.isDirectory dir)
+    (run! #(.delete ^java.io.File %) (reverse (file-seq dir)))))
+
 (defn build!
   "Read the DMLex JSON file (or zip export) `in` and write the static
   data files of the viewer into the directory `out`, and the
   pre-rendered pages into the site directory that holds it.
 
   The data directory sits at <site>/data, which is also how the app
-  reaches it from the browser, so the site is `out`'s parent."
+  reaches it from the browser, so the site is `out`'s parent. Both
+  generated trees, <out>/entries and <site>/entry, are cleared first,
+  so a build that fails partway leaves neither the old files nor a
+  complete set of new ones."
   [in out]
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (->input in)
@@ -612,6 +621,12 @@
         ->page    (fn [base file group]
                     (page base (->state ui languages manifest config
                                         file group)))]
+    ;; Overwriting a file costs several times what creating one does on a
+    ;; copy-on-write filesystem: on APFS, rewriting the DanNet output in
+    ;; place takes 11 minutes against 2 to clear it and write it afresh.
+    (println "Clearing the previous build")
+    (clear! (io/file out "entries"))
+    (clear! (io/file site "entry"))
     (println "Writing" (count entries) "entries into" out
              "and their pages into" (str (io/file site "entry")))
     (doseq [entry entries

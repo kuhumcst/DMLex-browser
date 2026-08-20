@@ -60,6 +60,12 @@ views that the browser renders:
 Both are generated, so neither is in the repository. Build the data
 before serving the site.
 
+The build clears `public/data/entries/` and `public/entry/` before it
+writes them, so no stale entry survives a rename. It is also much
+faster than rewriting them in place: on a copy-on-write filesystem,
+overwriting a file costs several times what creating one does, which
+for DanNet is the difference between two minutes and eleven.
+
 The build resolves the display data before the frontend runs:
 
 - Labels, label types, parts of speech, relation types, and example
