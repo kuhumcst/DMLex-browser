@@ -272,13 +272,16 @@
                   :headword "sti"
                   :senses   [{:id "s1"} {:id "s2"}]}]
         prefs   [:span.toggles "prefs"]
-        with    (html (views/desk-aside nil {} entries prefs))
-        without (html (views/desk-aside nil {} [] prefs))]
-    (testing "the column carries the index over the preferences"
+        colo    (views/footer-view {:title "T" :entries 1})
+        with    (html (views/desk-aside nil {} entries prefs colo))
+        without (html (views/desk-aside nil {} [] prefs colo))]
+    (testing "the column carries the index, the preferences and the colophon"
       (is (str/includes? with "class=\"sense-index\""))
       (is (str/includes? with "class=\"prefs\""))
+      (is (str/includes? with "class=\"colophon\""))
       (is (< (str/index-of with "sense-index")
-             (str/index-of with "class=\"prefs\""))))
+             (str/index-of with "class=\"prefs\"")
+             (str/index-of with "class=\"colophon\""))))
     (testing "a page without an index keeps its preferences"
       (is (not (str/includes? without "class=\"sense-index\"")))
       (is (str/includes? without "class=\"prefs\"")))

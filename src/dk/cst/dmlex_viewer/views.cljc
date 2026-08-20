@@ -376,7 +376,8 @@
   Nothing renders when the group is not `indexable?`."
   [ui nav entries]
   (when (indexable? entries)
-    [:nav.sense-index {:aria-label           (shared/tr ui "contents")
+    [:nav.sense-index {:replicant/key        :sense-index
+                       :aria-label           (shared/tr ui "contents")
                        :replicant/mounting   {:class "arriving"}
                        :replicant/unmounting {:class "leaving"}}
      (index-items nav entries)]))
@@ -396,19 +397,27 @@
 
 (defn desk-aside
   "The panels beside the page on the desk: the sense index of the
-  homograph group `entries`, and the `prefs` under it as a second
-  small sheet.
+  homograph group `entries`, the `prefs` under it as a second small
+  sheet, and the `colophon` at the foot of the column.
 
   A zero-height sticky anchor at the top of the sheet carries the
   column, so it spawns level with the sheet and pins to the viewport
   top. The stylesheet shows the column only when the viewport has room
   for it beside the page, and shows the row under the search field
-  instead when it does not."
-  [ui nav entries prefs]
+  instead when it does not.
+
+  Both panels carry a key. The index comes and goes while the prefs
+  stay, so without one Replicant matches the panels by position and
+  rebuilds the prefs as the index arrives, which spends the fade of
+  each on the other."
+  [ui nav entries prefs colophon]
   [:div.desk-anchor
    [:div.desk-panels
     (index-panel ui nav entries)
-    [:aside.prefs {:aria-label (shared/tr ui "preferences")} prefs]]])
+    [:aside.prefs {:replicant/key :prefs
+                   :aria-label    (shared/tr ui "preferences")}
+     prefs]
+    colophon]])
 
 (defn related?
   "Does the presented `entry` or one of its senses carry relation rows?"
@@ -548,24 +557,28 @@
               sources)])]))
 
 (defn footer-view
-  "The colophon at the foot of every view: the title, the URI, the
-  language and the counts of the resource.
+  "The colophon of the resource: the title, the URI, the language and
+  the counts.
 
   The language of the content sits here with the rest of the resource
   metadata rather than beside the interface language, because it is a
-  fact about the dataset and not a preference the reader can change."
+  fact about the dataset and not a preference the reader can change.
+
+  The title carries the link and the URI follows it as plain text, so
+  the narrow column can drop the URI and still reach the resource."
   [{:keys [title uri langCode entries senses relations] :as manifest}]
   (when manifest
-    [:footer.colophon
-     [:p.resource (or title "DMLex resource")
-      (when uri (list " · " [:a {:href uri} uri]))]
-     [:dl.stats
-      (when langCode
-        [:div [hiccup/tr {:hiccup/tag :dt} "language"]
-         [:dd {:lang langCode} (shared/language-name langCode)]])
-      [:div [hiccup/tr {:hiccup/tag :dt} "entries"] [:dd entries]]
-      [:div [hiccup/tr {:hiccup/tag :dt} "senses"] [:dd senses]]
-      [:div [hiccup/tr {:hiccup/tag :dt} "relations"] [:dd relations]]]]))
+    (let [heading (or title "DMLex resource")]
+      [:footer.colophon
+       [:p.resource (if uri [:a {:href uri} heading] heading)
+        (when uri [:span.uri uri])]
+       [:dl.stats
+        (when langCode
+          [:div [hiccup/tr {:hiccup/tag :dt} "language"]
+           [:dd {:lang langCode} (shared/language-name langCode)]])
+        [:div [hiccup/tr {:hiccup/tag :dt} "entries"] [:dd entries]]
+        [:div [hiccup/tr {:hiccup/tag :dt} "senses"] [:dd senses]]
+        [:div [hiccup/tr {:hiccup/tag :dt} "relations"] [:dd relations]]]])))
 
 (defn app
   "The root view over one value of the app state.
@@ -581,18 +594,19 @@
            error languages lang nav folded alpha? presentation?]}]
   (if-not (or manifest error)
     [:div.container]
-    (let [rows  (when (and index (seq query)) (matches index query))
-          nav   (assoc nav :folded folded)
-          prefs (list
-                  [:span.toggles
-                   (when (some related? entries)
-                     (alpha-toggle ui alpha?))
-                   (when (and (seq entries)
-                              (seq (dissoc presentation "ui")))
-                     (presentation-toggle ui presentation?))]
-                  (language-select ui lang manifest languages))]
+    (let [rows     (when (and index (seq query)) (matches index query))
+          nav      (assoc nav :folded folded)
+          prefs    (list
+                     [:span.toggles
+                      (when (some related? entries)
+                        (alpha-toggle ui alpha?))
+                      (when (and (seq entries)
+                                 (seq (dissoc presentation "ui")))
+                        (presentation-toggle ui presentation?))]
+                     (language-select ui lang manifest languages))
+          colophon (footer-view manifest)]
       [:div.container
-       (desk-aside ui nav entries prefs)
+       (desk-aside ui nav entries prefs colophon)
        [:search
         [:label.visually-hidden {:for  "search"
                                  :lang (shared/en ui "Search the dictionary")}
@@ -629,4 +643,4 @@
                          (shared/tr ui "The page failed to load.") " "
                          [hiccup/a {} (shared/tr ui "Go to the front page.")]]
           :else         (front-matter-view manifest))]
-       (footer-view manifest)])))
+       colophon])))

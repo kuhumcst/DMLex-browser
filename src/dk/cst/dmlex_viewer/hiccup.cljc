@@ -6,7 +6,12 @@
   view has to carry the UI table or the URL scheme as an argument. The
   render call supplies the table under :ui; see dk.cst.dmlex-viewer.app
   for the browser and dk.cst.dmlex-viewer.build for the pre-rendered
-  pages."
+  pages.
+
+  An alias runs only when its own hiccup changes: Replicant skips an
+  unchanged node before it resolves the alias. New alias data alone
+  never reaches one, so the app unmounts before it renders with
+  another table."
   (:require [dk.cst.dmlex-viewer.shared :as shared]
             [replicant.alias :refer [defalias]]))
 

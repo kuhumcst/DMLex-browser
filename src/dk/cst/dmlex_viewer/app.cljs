@@ -461,17 +461,33 @@
         :app/reveal     (reveal! node (first args))
         :search/keydown (search-keydown! dom-event)))))
 
+(defonce rendered-ui
+  ;; The table of the last render. The sentinel means "nothing rendered
+  ;; yet", which nil cannot: nil is the table of English.
+  (atom ::unrendered))
+
 (defn render!
   "Render the app into the page from the current state.
 
   Nothing renders before the first route and the manifest have
   arrived: the page already shows the pre-rendered version of this
-  view, and an early render would replace it with a half-loaded one."
+  view, and an early render would replace it with a half-loaded one.
+
+  A change of UI table unmounts first: Replicant skips unchanged nodes
+  before it resolves an alias, so hiccup/tr keeps its old string until
+  the tree is rebuilt. The table is recorded before the render, so a
+  life-cycle hook that writes to the state mid-render does not unmount
+  the tree being rendered."
   []
   (let [state @state]
     (when (and (:routed? state) (or (:manifest state) (:error state)))
-      (let [ui (shared/ui-table translations state)]
-        (r/render (js/document.getElementById "app")
+      (let [el       (js/document.getElementById "app")
+            ui       (shared/ui-table translations state)
+            previous @rendered-ui]
+        (when-not (or (= previous ::unrendered) (= previous ui))
+          (r/unmount el))
+        (reset! rendered-ui ui)
+        (r/render el
                   (views/app (assoc state :ui ui :languages ui-languages))
                   {:alias-data {:ui ui}})))))
 

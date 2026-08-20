@@ -264,9 +264,19 @@ pin with it. They take the same small sheet as the index, with the
 same band. On a narrow viewport they return to a row under the search
 field, at the width where the index folds into its disclosure.
 
+The sheet moves left when the desk column is on the page. The sheet
+and the column then centre together as one block. The sheet slides
+rather than jumps when the viewport crosses the width.
+
 They render in both places, and the stylesheet shows the one that the
 viewport has room for. The rule under the search field stays in both,
 because it separates the field from the entry under it.
+
+The colophon moves with them. On a wide viewport it sits at the foot
+of the desk column, under the preferences, and it takes no box there.
+On a narrow viewport it returns to the foot of the sheet. The index,
+the preferences and the colophon are the three parts that the column
+takes from the page.
 
 The language of the dictionary content is not one of them. No reader
 can change it, so it reads as a fact in the colophon, beside the
