@@ -221,8 +221,10 @@
   `current-sense` over the sense elements of the shown entries, which
   the sense index and the margin mark render as the one on screen.
 
-  While a navigation scroll settles (`settle-scroll!`), the watch
-  stays quiet and the navigated sense keeps the mark."
+  Folding a sense moves the ones below it, so the watch ticks on the
+  toggle of a details as well as on a scroll. While a navigation
+  scroll settles (`settle-scroll!`), the watch stays quiet and the
+  navigated sense keeps the mark."
   []
   (unwatch-senses!)
   (let [tick      (fn []
@@ -244,12 +246,18 @@
         on-scroll (fn []
                     (if @settle-timer
                       (settle-scroll!)
-                      (tick)))]
+                      (tick)))
+        ;; A toggle does not bubble, and the removal only matches a
+        ;; listener registered with the same flag.
+        capture   #js {:capture true}]
     (js/window.addEventListener "scroll" on-scroll #js {:passive true})
     (js/window.addEventListener "resize" on-scroll)
+    (js/document.addEventListener "toggle" on-scroll capture)
     (reset! sense-watch (fn []
                           (js/window.removeEventListener "scroll" on-scroll)
-                          (js/window.removeEventListener "resize" on-scroll)))
+                          (js/window.removeEventListener "resize" on-scroll)
+                          (js/document.removeEventListener "toggle" on-scroll
+                                                           capture)))
     (when-not @settle-timer (tick))))
 
 (defn reveal!

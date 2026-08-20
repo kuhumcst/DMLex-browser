@@ -164,6 +164,25 @@
           (html (views/entry-view nil {:spy "s1"} {:file   "x"
                                                    :senses [{:id "s1"}]}))
           "on-screen")))
+  (testing "a sense with more than a meaning line folds under it"
+    (let [rendered (html (views/entry-view
+                           nil {} {:file   "x"
+                                   :senses [{:id          "s1"
+                                             :definitions [{:text "at sejle"}]
+                                             :examples    [{:example "han sejler"}]}]}))]
+      (is (str/includes? rendered "<details open class=\"sense-body\">")
+          "the fold opens by default")
+      (is (str/includes? rendered "<summary class=\"meaning\"")
+          "the meaning line is the summary the fold leaves in view")
+      (is (str/includes? rendered "class=\"fold-mark\"")
+          "the meaning line carries the fold mark")))
+  (testing "a sense of nothing but a meaning line stays a paragraph"
+    (let [rendered (html (views/entry-view
+                           nil {} {:file   "x"
+                                   :senses [{:id          "s1"
+                                             :definitions [{:text "at sejle"}]}]}))]
+      (is (str/includes? rendered "<p class=\"meaning\""))
+      (is (not (str/includes? rendered "<details")))))
   (testing "the navigated sense is the current location"
     (is (str/includes?
           (html (views/entry-view nil {:current "s1"} {:file   "x"

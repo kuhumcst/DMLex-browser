@@ -429,6 +429,7 @@ hr.homograph {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fold-mark::before { transition: none; }
   .sense.on-screen .meaning::before,
   .index-senses li.current::after { animation: none; }
   .results, .sense-index { transition: none; }
@@ -448,6 +449,60 @@ hr.homograph {
 
 .senses.single .sense { padding-left: 0; }
 .senses.single .sense::before { content: none; }
+
+/* A sense that carries more than a meaning line folds under it. The
+   summary keeps the page's reading voice rather than the small sans
+   voice of the other disclosures, and reserves the column its fold
+   mark hangs in, so no definition runs under one. */
+summary.meaning {
+  display: block;
+  list-style: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding-right: 1.7em;
+}
+
+summary.meaning::-webkit-details-marker { display: none; }
+
+/* The mark is drawn rather than typed, so it keeps its size and weight
+   in every font the stack falls back to. It turns to point along the
+   fold, and the box around it gives the tooltip and the pointer a
+   target of a full line's height. */
+.fold-mark {
+  position: absolute;
+  top: 0.3em;
+  right: 0;
+  width: 1em;
+  height: 1em;
+}
+
+/* The global help cursor of [title] would otherwise win here, on a
+   mark that folds rather than explains. */
+summary.meaning .fold-mark { cursor: pointer; }
+
+.fold-mark::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 0.38em solid transparent;
+  border-top: 0.42em solid var(--grey);
+  border-bottom: 0;
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease-out;
+}
+
+.sense-body:not([open]) .fold-mark::before {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+summary.meaning:hover .fold-mark::before { border-top-color: var(--accent); }
+
+/* A folded sense has nothing under its meaning line, so the senses
+   stack closer as the reader puts them away. */
+.sense:has(> .sense-body:not([open])) { margin-bottom: 1.25rem; }
 
 .indicator { color: var(--grey); font-weight: 700; }
 

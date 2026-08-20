@@ -11,6 +11,9 @@ msgstr "om ordet"
 msgid "contents"
 msgstr "indhold"
 
+msgid "Show or hide the rest."
+msgstr "Vis eller skjul resten."
+
 msgid "{n} entries"
 msgstr "{n} ord"
 

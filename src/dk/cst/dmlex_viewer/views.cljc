@@ -185,38 +185,57 @@
                                         sourceElaboration)))]]]
       [:p.example example labels'])))
 
-(defn sense-view
-  "The sense at index `i` as a numbered list item: the indicator, the
-  definitions, the examples, the labels, the translations and the
-  relations.
+(defn meaning-view
+  "The meaning line of a sense in the element `tag`: the `indicator` and
+  the `definitions`, which run together divided by semicolons."
+  [tag indicator definitions]
+  [tag
+   (when indicator [:span.indicator indicator])
+   (into [:span.definitions]
+         (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
+                                [:span.definition {:data-type type
+                                                   :title     typeDescription}
+                                 (runs-view text runs)])
+                              definitions)))])
 
-  The sense id becomes the DOM id that sense-targeted navigation scrolls
-  to and focuses; the sense such a navigation targeted carries
+(defn sense-view
+  "The sense at index `i` as a numbered list item: the meaning line, the
+  examples, the labels, the translations and the relations.
+
+  A sense that carries more than its meaning line folds. The meaning
+  becomes the summary of a details that opens by default, so a reader
+  who has read a long sense can put its examples and relations away
+  and keep the definitions in view. The sense id becomes the DOM id
+  that sense-targeted navigation scrolls to and focuses; the sense
+  such a navigation targeted carries
   aria-current, the sense on screen carries the margin mark via the
   on-screen class, and the sense a pending `:reveal` of `nav` names
   carries the hook that performs it."
-  [{:keys [spy current reveal]}
+  [ui
+   {:keys [spy current reveal]}
    i
    {:keys [id indicator labels definitions translations examples
            relations relation-groups]}]
-  [:li.sense (cond-> {:replicant/key (or id i)}
-               id                (assoc :id id :tabindex -1)
-               (= id current)    (assoc :aria-current "location")
-               (= id spy)        (assoc :class "on-screen")
-               (= id (:sense reveal))
-               (assoc :replicant/on-render [[:app/reveal reveal]]))
-   [:p.meaning
-    (when indicator [:span.indicator indicator])
-    (into [:span.definitions]
-          (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
-                                 [:span.definition {:data-type type
-                                                    :title     typeDescription}
-                                  (runs-view text runs)])
-                               definitions)))]
-   (map example-view examples)
-   (labels-view "sense-labels" labels)
-   (translations-view translations)
-   (relations-view [:div.related] relations relation-groups)])
+  (let [body (seq (remove nil? [(seq (map example-view examples))
+                                (labels-view "sense-labels" labels)
+                                (translations-view translations)
+                                (relations-view [:div.related] relations
+                                                relation-groups)]))]
+    [:li.sense (cond-> {:replicant/key (or id i)}
+                 id                (assoc :id id :tabindex -1)
+                 (= id current)    (assoc :aria-current "location")
+                 (= id spy)        (assoc :class "on-screen")
+                 (= id (:sense reveal))
+                 (assoc :replicant/on-render [[:app/reveal reveal]]))
+     (if body
+       [:details.sense-body {:open true}
+        (conj (meaning-view :summary.meaning indicator definitions)
+              [:span.fold-mark
+               {:lang        (shared/en ui "Show or hide the rest.")
+                :title       (shared/tr ui "Show or hide the rest.")
+                :aria-hidden "true"}])
+        body]
+       (meaning-view :p.meaning indicator definitions))]))
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list,
@@ -300,7 +319,7 @@
       [hiccup/tr {:hiccup/tag :h2.relation-group} "about the word"]
       (labels-view "entry-labels" labels)])
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
-         (map-indexed (partial sense-view nav) senses))
+         (map-indexed (partial sense-view ui nav) senses))
    (relations-view [:nav.related {:aria-label (shared/tr ui "related")}]
                    relations relation-groups)])
 

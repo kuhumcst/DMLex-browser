@@ -3,6 +3,10 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #: src/dk/cst/dmlex_viewer/views.cljc
+msgid "Show or hide the rest."
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/views.cljc
 msgid "contents"
 msgstr ""
 
