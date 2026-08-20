@@ -593,6 +593,33 @@
   (when (.isDirectory dir)
     (run! #(.delete ^java.io.File %) (reverse (file-seq dir)))))
 
+(defn label-types-used
+  "The label types of `resource` that a presentation config can reach:
+  the types of the labels on an entry or on one of its senses.
+
+  The labels of an inflected form and of an example are beyond the
+  config, and so is a type that the inventory declares but nothing
+  uses. Neither belongs in a report of what the config hides."
+  [{:keys [entries labelTags]}]
+  (let [type-of (into {} (map (juxt :tag :typeTag)) labelTags)]
+    (into #{}
+          (comp (mapcat (fn [{:keys [labels senses]}]
+                          (concat labels (mapcat :labels senses))))
+                (keep type-of))
+          entries)))
+
+(defn report-swallowed!
+  "Print the label and relation types of `resource` that the `config`
+  drops without naming them, if any."
+  [config {:keys [relations] :as resource}]
+  (doseq [[section types kind]
+          [[(get config "labelTypes") (label-types-used resource) "label"]
+           [(get config "relationTypes") (distinct (map :type relations)) "relation"]]
+          :let [swallowed (presentation/swallowed-types section types)]
+          :when (seq swallowed)]
+    (println "The config hides" kind "types without listing them:"
+             (str/join ", " swallowed))))
+
 (defn build!
   "Read the DMLex JSON file (or zip export) `in` and write the static
   data files of the viewer into the directory `out`, and the
@@ -624,6 +651,7 @@
     ;; Overwriting a file costs several times what creating one does on a
     ;; copy-on-write filesystem: on APFS, rewriting the DanNet output in
     ;; place takes 11 minutes against 2 to clear it and write it afresh.
+    (report-swallowed! config resource)
     (println "Clearing the previous build")
     (clear! (io/file out "entries"))
     (clear! (io/file site "entry"))

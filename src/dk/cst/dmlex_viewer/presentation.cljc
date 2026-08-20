@@ -15,6 +15,48 @@
             [clojure.walk :as walk]
             [dk.cst.dmlex-viewer.shared :as shared]))
 
+(defn localized
+  "The display string `x` in the first of `langs` that names it: `x`
+  itself when the config gives one string, or the entry for a language
+  when it gives one per language.
+
+  English stands in for a language none of `langs` names, and the
+  first name in the order of the language codes stands in for that, so
+  a name is never lost. The last resort is sorted rather than taken as
+  it comes, or the two surfaces could read one config differently: a
+  map of more than eight names is a hash map, and the platforms hash
+  it in their own order."
+  [langs x]
+  (if (map? x)
+    (or (some x langs) (get x "en") (val (first (sort-by key x))))
+    x))
+
+(defn localize
+  "The `config` with every display string it carries resolved to the
+  first of `langs` that names it.
+
+  The names are the only part of a config that a language changes, so
+  they resolve once here and every op downstream reads plain strings.
+  One config can then ship with every export of a resource, keeping a
+  tag's name beside the tag rather than in a second file that has to
+  be kept in step.
+  Those are the renames of label types, relation types and roles, the
+  title and description of a relation group, and the fields of the
+  Apple bundle."
+  [langs config]
+  (let [name*    (partial localized langs)
+        group*   #(cond-> %
+                    (get % "title")       (update "title" name*)
+                    (get % "description") (update "description" name*))
+        section* #(cond-> %
+                    (get % "rename") (update "rename" update-vals name*)
+                    (get % "groups") (update "groups" (partial mapv group*)))]
+    (cond-> config
+      (get config "labelTypes")    (update "labelTypes" section*)
+      (get config "relationTypes") (update "relationTypes" section*)
+      (get config "roles")         (update "roles" section*)
+      (get config "appledict")     (update "appledict" update-vals name*))))
+
 (defn show-labels
   "Exchange the tag and description of every label whose type the `show`
   map sends to \"description\", over the `labels` of one scope.
@@ -125,6 +167,43 @@
                   (assoc :inline-labels (vec (sort-by (comp pos :type) in))))
         (seq out) (assoc :labels (vec out))))))
 
+(defn cite-labels
+  "Move the labels whose type the `cite` vector lists from the :labels
+  of the presented `scope` — an entry or one of its senses — to
+  :cite-labels, in the vector's order.
+
+  The views render them as the citation of the line that heads the
+  scope: the part-of-speech line of an entry, the meaning line of a
+  sense. The ordinary label ops run first, so hide beats cite and
+  renames carry over."
+  [cite {:keys [labels] :as scope}]
+  (let [pos      (into {} (map-indexed (fn [i t] [t i]) cite))
+        [in out] ((juxt filter remove) (comp pos :type) labels)]
+    (if (empty? in)
+      scope
+      (cond-> (-> scope
+                  (dissoc :labels)
+                  (assoc :cite-labels (vec (sort-by (comp pos :type) in))))
+        (seq out) (assoc :labels (vec out))))))
+
+(defn swallowed-types
+  "The `types` that the `ops` of one config section drop without naming
+  them: the unlisted ones, when \"unlisted\" is \"hide\".
+
+  A type the config hides by name is a decision. A type it never
+  mentions is usually one the dataset added after it wrote the config,
+  which the data build reports so that it does not disappear without a
+  word. A type that \"combine\" merges into a host has not vanished:
+  its values show on the host label."
+  [{:strs [order unlisted combine]} types]
+  (when (= unlisted "hide")
+    (let [listed?   (set order)
+          absorbed? (set (vals combine))]
+      (->> types
+           (remove #(or (listed? %) (absorbed? %)))
+           (sort)
+           (vec)))))
+
 (defn resolve-links
   "Rewrite every sameAs-derived URI of the presented `entry` — :uri,
   :typeUri and :sourceUri wherever they appear — to the `resolver` URL
@@ -186,7 +265,9 @@
   and on each of its senses. Combined label types merge first, so a
   qualifier needs no place of its own in the order. Label types listed
   as \"inline\" move to the entry's :inline-labels for the
-  part-of-speech line. When the config declares relation \"groups\",
+  part-of-speech line, and those listed as \"cite\" move to the
+  :cite-labels of the entry and of each sense, for the line that heads
+  each of them. When the config declares relation \"groups\",
   :relations becomes :relation-groups.
   A \"linkResolver\" reroutes every sameAs-derived URI through the
   dataset's resource browser. An empty `config` returns `entry`
@@ -196,6 +277,7 @@
     entry
     (let [label-ops (get config "labelTypes")
           inline    (get label-ops "inline")
+          cite      (get label-ops "cite")
           rel-ops   (get config "relationTypes")
           groups    (get rel-ops "groups")
           role-of   (get-in config ["roles" "rename"])
@@ -221,16 +303,18 @@
                                                     (get rel-ops "unlisted")
                                                     (:relations m))))))
           sense*    (fn [sense]
-                      (-> (cond-> sense
-                            (:labels sense) (update :labels labels*)
-                            (:relations sense) (update :relations rels*))
-                          (section*)))]
+                      (->> (-> (cond-> sense
+                                 (:labels sense) (update :labels labels*)
+                                 (:relations sense) (update :relations rels*))
+                               (section*))
+                           (cite-labels cite)))]
       (cond->> (inline-labels inline
-                              (-> (cond-> entry
+                              (cite-labels cite
+                                           (-> (cond-> entry
                                     (:labels entry) (update :labels labels*)
                                     (:relations entry) (update :relations rels*)
                                     (:senses entry) (update :senses #(mapv sense* %)))
-                                  (section*)))
+                                  (section*))))
         (get config "linkResolver")
         (resolve-links (get config "linkResolver"))))))
 
@@ -257,9 +341,17 @@
 
   Both surfaces of the viewer decide the same way: the dataset's config
   unless the reader switched it off, and a member order of :alpha when
-  the reader forced one, of :collation when the config asks for it."
-  [{:keys [manifest presentation presentation? alpha? raw-entries] :as state}]
-  (let [config     (when presentation? presentation)
+  the reader forced one, of :collation when the config asks for it.
+
+  A config that carries a name per language resolves to the language
+  the reader chose, then to the resource's own. The pre-rendered pages
+  take the second, since no reader has chosen yet when the data build
+  writes them."
+  [{:keys [manifest presentation presentation? alpha? raw-entries lang]
+    :as   state}]
+  (let [config     (when presentation?
+                     (localize (remove nil? [lang (:langCode manifest)])
+                               presentation))
         order-mode (cond
                      alpha? :alpha
                      (= "collation" (get config "memberOrder")) :collation)]

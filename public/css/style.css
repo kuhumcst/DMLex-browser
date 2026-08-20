@@ -79,7 +79,7 @@ summary {
 }
 
 /* The small-caps metadata voice: keys, citations and stat names. */
-.labels dt, .relations dt, .stats dt, .example cite {
+.labels dt, .relations dt, .stats dt, .example cite, .cite-label {
   font-family: var(--serif);
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
@@ -684,6 +684,29 @@ section.titled {
   font-weight: 600;
   color: var(--accent);
 }
+
+/* The definition of a sense carries the link to its source, so no
+   word beside it wraps onto a line of its own. It reads as text until
+   the pointer is on it, visited or not: the definition is the content
+   of the page, and a read source is not news. */
+.definition-source,
+.definition-source:visited {
+  color: inherit;
+  text-decoration: none;
+}
+
+.definition-source:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 2.5px;
+}
+
+/* A cited label runs in after the definitions of a sense. On the
+   part-of-speech line it takes the dot separator of the labels it
+   stands among instead of the space. */
+.cite-label { margin-left: 0.5em; font-style: normal; }
+.pos .cite-label { margin-left: 0; }
+.pos * + .cite-label::before { content: " · "; }
 
 .relations details { display: block; }
 .member-list { margin: 0.25rem 0 0; }

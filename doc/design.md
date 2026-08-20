@@ -358,7 +358,15 @@ string instead of an abstraction.
 
 DMLex 1.0 has a single description field per inventory tag, so one
 export cannot be bilingual. A resource instead exports once per
-language. The `langCode` of each export decides the rest: the dataset
+language.
+
+The presentation config is not bound that way. Its operations are the
+same in every language, and only the names differ, so a name can be
+given per language and one config can ship with every export. The
+viewer resolves the names once, to the language the reader picked, and
+the operations downstream read plain strings. The text of the dataset
+still stays in the language of its export, so a reader who picks
+another language gets its names around the dataset's own words. The `langCode` of each export decides the rest: the dataset
 text, the UI language, and the chrome of the Apple bundle. (The
 export generates CSS overrides for the two strings that its
 stylesheet shows as content.)

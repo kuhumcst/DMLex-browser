@@ -133,14 +133,16 @@ remembers the choice per dataset.
     "rename":   {"domain": "emne"},
     "combine":  {"sentiment": "sentimentValue"},
     "show":     {"synset": "description"},
-    "inline":   ["sentiment"]
+    "inline":   ["sentiment"],
+    "cite":     ["source"]
   },
   "relationTypes": {
     "order":  ["synonym"],
     "groups": [{"title": "Betydning", "types": ["synonym", "antonym"]},
                {"title": "Andre relationer"}]
   },
-  "roles":         {"rename": {"hypernym": "overbegreb"}},
+  "roles":         {"rename": {"hypernym": {"da": "overbegreb",
+                                            "en": "broader"}}},
   "memberOrder":   "collation",      // or "listing" (the default)
   "linkResolver":  "https://wordnet.dk/dannet/external?subject=",
   "css":           "extra.css",
@@ -162,6 +164,30 @@ remembers the choice per dataset.
 
 The design decisions behind the config are in
 [doc/design.md](doc/design.md).
+
+### Names in more than one language
+
+Wherever the config gives a display name, it can give one per language
+instead of one string:
+
+```jsonc
+"rename": {"domain": {"da": "emne", "en": "subject"}}
+```
+
+The viewer resolves the name to the language the reader picked, then
+to the language of the resource. English stands in for a language the
+config does not name, and the first name in the order of the language
+codes stands in for that, so a name is never lost.
+
+This applies to the renames of label types, relation types and roles,
+to the title and description of a relation group, and to the fields of
+the `appledict` section. A resource exports once per language, but its
+config need not: the operations are the same in every language, and
+only the names differ, so one config can ship with every export.
+
+The text of the dataset stays in the language of its export. The names
+follow the reader; the definitions, the examples and the descriptions
+of the inventory do not.
 
 ### `labelTypes` and `relationTypes`
 
@@ -191,6 +217,11 @@ Label types take three more:
   stays hidden and renames carry over. Senses keep these types in
   their own label lists. When every entry label moves, the labels box
   disappears.
+- `cite` lists the label types that move out of a sense's labels box
+  and onto its meaning line, after the definitions, as a citation.
+  Each shows the displayed name of its type, linked to whatever the
+  label points at, so a label whose tag is an identifier rather than
+  a word still reads. A dataset's source reference belongs here.
 
 Relation types take one more:
 

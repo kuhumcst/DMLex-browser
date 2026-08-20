@@ -72,6 +72,75 @@
                                           "combine"  {"pol" "val"}}}
                            {:labels sentiments})))))))
 
+(deftest localize-test
+  (let [config {"labelTypes"    {"order"  ["a"]
+                                 "rename" {"a" {"da" "aa" "en" "ay"}
+                                           "b" "same in every language"}}
+                "relationTypes" {"groups" [{"title" {"da" "gruppe" "en" "group"}
+                                            "types" ["x"]}]}
+                "roles"         {"rename" {"r" {"da" "rolle" "en" "role"}}}
+                "appledict"     {"identifier" {"da" "id.da" "en" "id.en"}}}]
+    (testing "every name resolves to the language asked for"
+      (let [da (presentation/localize ["da"] config)]
+        (is (= "aa" (get-in da ["labelTypes" "rename" "a"])))
+        (is (= "gruppe" (get-in da ["relationTypes" "groups" 0 "title"])))
+        (is (= "rolle" (get-in da ["roles" "rename" "r"])))
+        (is (= "id.da" (get-in da ["appledict" "identifier"])))))
+    (testing "one string stands for every language"
+      (is (= "same in every language"
+             (get-in (presentation/localize ["en"] config)
+                     ["labelTypes" "rename" "b"]))))
+    (testing "the languages are tried in order"
+      (is (= "aa" (get-in (presentation/localize ["de" "da"] config)
+                          ["labelTypes" "rename" "a"]))
+          "the resource's own language stands in for the reader's"))
+    (testing "an unnamed language falls back to English"
+      (is (= "ay" (get-in (presentation/localize ["de"] config)
+                          ["labelTypes" "rename" "a"]))))
+    (testing "a config that names no language asked for picks by code order"
+      (let [nine (into {} (map (fn [i] [(str "l" i) (str "name" i)])) (range 9))]
+        (is (= "name0" (presentation/localized ["en"] nine))
+            "sorted, so both surfaces read one config the same way")))
+    (testing "the ops themselves are untouched"
+      (is (= ["a"] (get-in (presentation/localize ["da"] config)
+                           ["labelTypes" "order"])))
+      (is (= ["x"] (get-in (presentation/localize ["da"] config)
+                           ["relationTypes" "groups" 0 "types"]))))
+    (testing "a config of plain strings passes through unchanged"
+      (let [plain {"labelTypes" {"rename" {"a" "b"}}}]
+        (is (= plain (presentation/localize ["da"] plain)))))))
+
+(deftest cite-labels-test
+  (testing "listed types move to :cite-labels in the listed order"
+    (is (= {:cite-labels [{:tag "b1" :type "beta"}
+                          {:tag "a1" :type "alpha"}
+                          {:tag "a2" :type "alpha"}]
+            :labels      [{:tag "c1" :type "gamma"}]}
+           (presentation/cite-labels ["beta" "alpha"] {:labels labels}))))
+  (testing "without a matching type the scope passes through"
+    (is (= {:labels labels}
+           (presentation/cite-labels nil {:labels labels}))))
+  (testing "present-entry cites both the entry and its senses"
+    (let [e (presentation/present-entry
+              {"labelTypes" {"cite" ["gamma"]}}
+              {:labels labels :senses [{:labels labels}]})]
+      (is (= [{:tag "c1" :type "gamma"}] (:cite-labels e)))
+      (is (= [{:tag "c1" :type "gamma"}] (get-in e [:senses 0 :cite-labels])))
+      (is (not-any? #(= "gamma" (:type %))
+                    (concat (:labels e) (get-in e [:senses 0 :labels])))
+          "a cited label leaves the label block"))))
+
+(deftest swallowed-types-test
+  (let [types ["alpha" "beta" "val"]]
+    (testing "unlisted types are swallowed when unlisted hides"
+      (is (= ["beta"] (presentation/swallowed-types
+                        {"order" ["alpha"] "unlisted" "hide"
+                         "combine" {"alpha" "val"}}
+                        types))
+          "the combined qualifier shows on its host, so it is not lost"))
+    (testing "nothing is swallowed when unlisted types are kept"
+      (is (empty? (presentation/swallowed-types {"order" ["alpha"]} types))))))
+
 (deftest inline-labels-test
   (testing "listed types move to :inline-labels in the listed order"
     (is (= {:inline-labels [{:tag "b1" :type "beta"}

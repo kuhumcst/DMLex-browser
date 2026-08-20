@@ -185,18 +185,55 @@
                                         sourceElaboration)))]]]
       [:p.example example labels'])))
 
+(defn cite-view
+  "One label the config moved to the line that heads its scope: the
+  name of its type, linked to whatever the label points at.
+
+  The tag itself stays out of the text: a cited tag is usually an
+  identifier rather than a word, and the type is what the reader can
+  read."
+  [{:keys [uri type display typeDescription]}]
+  [:cite.cite-label (linked uri (tagged (or display type) typeDescription))])
+
+(defn definitions-view
+  "The `definitions` of a sense, run together divided by semicolons, and
+  linked to `source` when the config cited one.
+
+  The definition carries the link rather than a word beside it: beside
+  a definition of any length, the word wraps onto a line of its own
+  and reads as a gap. The name of the type follows the text for
+  assistive tech, since the definition alone does not say where the
+  link goes. The click stops at the link, or it would fold the sense
+  it opens."
+  [definitions {:keys [uri type display typeDescription] :as source}]
+  (let [text (into [:span.definitions]
+                   (interpose "; "
+                              (map (fn [{:keys [text type typeDescription runs]}]
+                                     [:span.definition {:data-type type
+                                                        :title     typeDescription}
+                                      (runs-view text runs)])
+                                   definitions)))]
+    (if uri
+      [:a.definition-source {:href   uri
+                             :target "_blank"
+                             :title  typeDescription
+                             :on     {:click [[:event/stop]]}}
+       text
+       [:span.visually-hidden (str " (" (or display type) ")")]]
+      text)))
+
 (defn meaning-view
-  "The meaning line of a sense in the element `tag`: the `indicator` and
-  the `definitions`, which run together divided by semicolons."
-  [tag indicator definitions]
-  [tag
-   (when indicator [:span.indicator indicator])
-   (into [:span.definitions]
-         (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
-                                [:span.definition {:data-type type
-                                                   :title     typeDescription}
-                                 (runs-view text runs)])
-                              definitions)))])
+  "The meaning line of a sense in the element `tag`: the `indicator`,
+  the `definitions` and the `cites` that the config moved here.
+
+  The first cite that points anywhere links the definitions; any other
+  follows them."
+  [tag indicator definitions cites]
+  (let [source (first (filter :uri cites))]
+    [tag
+     (when indicator [:span.indicator indicator])
+     (definitions-view definitions source)
+     (map cite-view (remove #(= % source) cites))]))
 
 (defn sense-view
   "The sense at index `i` as a numbered list item: the meaning line, the
@@ -218,7 +255,7 @@
    {:keys [spy current reveal folded]}
    i
    {:keys [id indicator labels definitions translations examples
-           relations relation-groups]}]
+           relations relation-groups cite-labels]}]
   (let [body (seq (remove nil? [(seq (map example-view examples))
                                 (labels-view "sense-labels" labels)
                                 (translations-view translations)
@@ -233,13 +270,13 @@
      (if body
        [:details.sense-body {:open (not (contains? folded id))
                              :on   {:toggle [[:app/fold id]]}}
-        (conj (meaning-view :summary.meaning indicator definitions)
+        (conj (meaning-view :summary.meaning indicator definitions cite-labels)
               [:span.fold-mark
                {:lang        (shared/en ui "Show or hide the rest.")
                 :title       (shared/tr ui "Show or hide the rest.")
                 :aria-hidden "true"}])
         body]
-       (meaning-view :p.meaning indicator definitions))]))
+       (meaning-view :p.meaning indicator definitions cite-labels))]))
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list,
@@ -299,7 +336,7 @@
   the hook of a pending `:reveal` that names no sense."
   [ui {:keys [reveal] :as nav}
    {:keys [file headword homographNumber partsOfSpeech labels inline-labels
-           inflectedForms senses relations relation-groups]}]
+           inflectedForms senses relations relation-groups cite-labels]}]
   [:article.entry {:id file :replicant/key file}
    [:header
     [:h1.headword (cond-> {:tabindex -1}
@@ -307,7 +344,7 @@
                     (assoc :replicant/on-render [[:app/reveal reveal]]))
      [:dfn headword]
      (when homographNumber [:sup.hom homographNumber])]
-    (when (or (seq partsOfSpeech) (seq inline-labels))
+    (when (or (seq partsOfSpeech) (seq inline-labels) (seq cite-labels))
       [:p.pos
        (when (seq partsOfSpeech)
          (into [:span.pos-list]
@@ -315,7 +352,8 @@
                                       (linked uri (tagged (or description tag)
                                                           (when description tag))))
                                     partsOfSpeech))))
-       (map inline-label-view inline-labels)])
+       (map inline-label-view inline-labels)
+       (map cite-view cite-labels)])
     (inflections-view headword inflectedForms)
     (paradigm-view inflectedForms)]
    (when (seq labels)

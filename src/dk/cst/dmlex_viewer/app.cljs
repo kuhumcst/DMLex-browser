@@ -459,6 +459,7 @@
         :app/set-pref   (apply set-pref! args)
         :app/focus      (.focus node)
         :app/reveal     (reveal! node (first args))
+        :event/stop     (.stopPropagation dom-event)
         :search/keydown (search-keydown! dom-event)))))
 
 (defonce rendered-ui

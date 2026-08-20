@@ -115,6 +115,13 @@
   [:dd (linked uri (tagged tag description))
    (when qualifier (str " (" qualifier ")"))])
 
+(defn cite-view
+  "One label the config moved to the line that heads its scope: the
+  name of its type, linked to whatever the label points at."
+  [{:keys [uri type display typeDescription]}]
+  [:cite {:class "cite-label"}
+   (linked uri (tagged (or display type) typeDescription))])
+
 (defn inline-label-view
   "One of the `labels` the config moves onto the part-of-speech line:
   its tag, linked and with any combined `:qualifier` in parentheses.
@@ -253,6 +260,25 @@
                                         sourceElaboration)))]]]
       [:p {:class "example" :d/priority "2"} example labels'])))
 
+(defn definitions-view
+  "The `definitions` of a sense, run together divided by semicolons, and
+  linked to `source` when the config cited one.
+
+  The definition carries the link rather than a word beside it, which
+  would wrap onto a line of its own."
+  [definitions {:keys [uri typeDescription] :as source}]
+  (let [text [:span {:class "definitions"}
+              (interpose "; "
+                         (map (fn [{:keys [text type typeDescription runs]}]
+                                [:span {:class     "definition"
+                                        :data-type type
+                                        :title     typeDescription}
+                                 (runs-view text runs)])
+                              definitions))]]
+    (if uri
+      [:a {:class "definition-source" :href uri :title typeDescription} text]
+      text)))
+
 (defn sense-view
   "One sense as a list item: the indicator, the definitions, the
   examples, the labels, the translations and the relations.
@@ -260,18 +286,14 @@
   The sense id becomes the anchor that sense-targeted member links
   scroll to."
   [ui {:keys [id indicator definitions translations examples labels relations
-              relation-groups]}]
+              relation-groups cite-labels]}]
   [:li (cond-> {:class "sense"}
          id (assoc :id id))
-   [:p {:class "meaning"}
-    (when indicator [:span {:class "indicator"} indicator])
-    [:span {:class "definitions"}
-     (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
-                            [:span {:class     "definition"
-                                    :data-type type
-                                    :title     typeDescription}
-                             (runs-view text runs)])
-                          definitions))]]
+   (let [source (first (filter :uri cite-labels))]
+     [:p {:class "meaning"}
+      (when indicator [:span {:class "indicator"} indicator])
+      (definitions-view definitions source)
+      (map cite-view (remove #(= % source) cite-labels))])
    (map example-view examples)
    (labels-view ui "sense-labels" labels)
    (translations-view translations)
@@ -370,13 +392,14 @@
   Everything but the headword, the pos and the definitions carries
   d:priority 2, which the compact Look Up panel omits."
   [ui {:keys [file headword homographNumber partsOfSpeech labels inline-labels
+              cite-labels
               inflectedForms senses relations relation-groups]}]
   [:d/entry {:id file :d/title headword}
    (->index headword inflectedForms)
    (sense-index file senses)
    [:h1 {:class "headword"} [:dfn headword]
     (when homographNumber [:sup {:class "hom"} homographNumber])]
-   (when (or (seq partsOfSpeech) (seq inline-labels))
+   (when (or (seq partsOfSpeech) (seq inline-labels) (seq cite-labels))
      [:p {:class "pos"}
       (when (seq partsOfSpeech)
         [:span {:class "pos-list"}
@@ -384,7 +407,8 @@
                                 (linked uri (tagged (or description tag)
                                                     (when description tag))))
                               partsOfSpeech))])
-      (map inline-label-view inline-labels)])
+      (map inline-label-view inline-labels)
+      (map cite-view cite-labels)])
    (inflections-view ui headword inflectedForms)
    (paradigm-view ui inflectedForms)
    (when (seq labels)
@@ -643,7 +667,8 @@
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (build/->input in)
         resource (build/read-resource content-of dmlex-file)
-        config   (build/read-config content-of)
+        config   (presentation/localize [(:langCode resource)]
+                                        (build/read-config content-of))
         ui       (merge (get (translations/tables) (:langCode resource))
                         (get config "ui"))
         config   (cond-> config (seq ui) (assoc "ui" ui))
