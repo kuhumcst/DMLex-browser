@@ -292,7 +292,7 @@ p.pos { margin: 0 0 0.4rem; }
      gap past the 3rem page padding, and the body reserves both. */
   :root {
     --desk-column: 16rem;
-    --desk-gap: 1rem;
+    --desk-gap: 1.5rem;
   }
 
   /* The column stands outside the sheet, which leaves the pair sitting
@@ -320,7 +320,7 @@ p.pos { margin: 0 0 0.4rem; }
     max-height: 100vh;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
   }
 
   /* Each panel is a small sheet on the desk, in the page's own
