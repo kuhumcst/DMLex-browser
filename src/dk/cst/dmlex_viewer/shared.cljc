@@ -24,6 +24,18 @@
   [ui s]
   (when-not (contains? ui s) "en"))
 
+(defn ui-table
+  "The active UI table over the bundled `tables`: the table of the
+  language chosen in `state`, or of the resource language by default.
+
+  The dataset's own \"ui\" table merges on top, but only while the
+  choice is the resource's language, since its strings are in that
+  language."
+  [tables {:keys [manifest presentation lang]}]
+  (merge (get tables (or lang (:langCode manifest)))
+         (when (or (nil? lang) (= lang (:langCode manifest)))
+           (get presentation "ui"))))
+
 (defn encode-uri
   "Percent-encode `s` as one URI component, the way JavaScript's
   encodeURIComponent does, on both platforms.
@@ -40,6 +52,31 @@
                (str/replace "%28" "(")
                (str/replace "%29" ")")
                (str/replace "%7E" "~"))))
+
+(defn language-name
+  "The name of the language `code` in that language, or `code` itself
+  when the platform does not know it."
+  [code]
+  #?(:cljs (try
+             (.of (js/Intl.DisplayNames. #js [code] #js {:type "language"})
+                  code)
+             (catch :default _ code))
+     :clj  (let [locale (java.util.Locale/forLanguageTag code)]
+             (or (not-empty (.getDisplayLanguage locale locale)) code))))
+
+(def collation
+  "A comparator over headwords in the collation of `lang-code`, which
+  orders them the way the language does rather than the way their code
+  points fall.
+
+  Memoised: the data build asks for the same collation once per entry."
+  (memoize
+    (fn [lang-code]
+      #?(:cljs (let [collator (js/Intl.Collator. (or lang-code js/undefined))]
+                 (fn [a b] (.compare collator a b)))
+         :clj  (let [collator (java.text.Collator/getInstance
+                                (java.util.Locale/forLanguageTag (or lang-code "")))]
+                 (fn [a b] (.compare collator ^String a ^String b)))))))
 
 (defn distinct-by
   "The elements of `coll`, keeping the first occurrence of each `(f x)`."

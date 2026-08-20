@@ -1,0 +1,599 @@
+(ns dk.cst.dmlex-viewer.views
+  "The hiccup of the web viewer, as pure functions over one value of the
+  app state.
+
+  Nothing here touches the DOM or the state atom: the browser renders
+  these views through replicant.dom and the data build pre-renders the
+  same ones through replicant.string, which is why the namespace is
+  cljc. Chrome text arrives through the hiccup/tr alias, so only the views
+  that translate an attribute value carry the `ui` table themselves.
+
+  Mirrored by hand in dk.cst.dmlex-viewer.appledict: carry markup edits
+  over, minding the differences listed there."
+  (:require [clojure.string :as str]
+            [dk.cst.dmlex-viewer.shared :as shared]
+            [dk.cst.dmlex-viewer.hiccup :as hiccup]))
+
+(def fallback-title
+  "The viewer's own name, shown when the manifest supplies no title."
+  "DMLex viewer")
+
+(defn tagged
+  "The `tag` as a span with the `description` of the dataset as its tooltip.
+
+  Whether a tag abbreviates anything is the dataset's own business, so
+  the markup stays a neutral span rather than an abbr."
+  [tag description]
+  (if description
+    [:span {:title description} tag]
+    tag))
+
+(defn linked
+  "The hiccup `x`, linked to `uri` when the dataset supplies one."
+  [uri x]
+  (if uri
+    [:a {:href uri :target "_blank"} x]
+    x))
+
+(defn runs-view
+  "The `text` of one definition or example, with its marker `runs` — the
+  marked headword in bold, a collocate with its lemma as the tooltip —
+  or plain when it has none."
+  [text runs]
+  (if runs
+    (map (fn [{:keys [text marker lemma]}]
+           (case marker
+             "headword"  [:b text]
+             "collocate" [:span.collocate {:title lemma} text]
+             text))
+         runs)
+    text))
+
+(defn label-dd
+  "The dd of one label: its tag, linked when the label carries a URI,
+  with any combined `:qualifier` values in parentheses."
+  [{:keys [tag description uri qualifier]}]
+  [:dd (linked uri (tagged tag description))
+   (when qualifier (str " (" qualifier ")"))])
+
+(defn inline-label-view
+  "One of the `labels` the config moves onto the part-of-speech line:
+  its tag, linked and with any combined `:qualifier` in parentheses.
+
+  The display name of the type stays in the markup for assistive
+  tech; the dot separator lives in CSS, so it is never announced."
+  [{:keys [tag uri qualifier type display] :as label}]
+  (let [attr (or display type)]
+    [:span.inline-label
+     (when attr [:span.visually-hidden (str attr ": ")])
+     (linked uri (tagged tag (shared/label-title label)))
+     (when qualifier (str " (" qualifier ")"))]))
+
+(defn labels-view
+  "The `labels` as a definition list grouped by label type, with the
+  extra `class` on the list.
+
+  E.g. domain: zoo · gender: Male."
+  [class labels]
+  (when (seq labels)
+    (into [:dl {:class ["labels" class]}]
+          (map (fn [group]
+                 (let [{:keys [type typeDescription typeUri display]} (first group)]
+                   (into [:div {:data-type type}
+                          (if type
+                            [:dt (linked typeUri (tagged (or display type)
+                                                         typeDescription))]
+                            [hiccup/tr {:hiccup/tag :dt.visually-hidden} "label"])]
+                         (map label-dd group))))
+               (partition-by :type labels)))))
+
+(defn member-link
+  "The link to the home entry of one relation member, targeting its home
+  sense when the member is one."
+  [{:keys [headword file sense indicator]}]
+  [hiccup/a {:hiccup/entry file :hiccup/sense sense :title indicator} headword])
+
+(defn members-dd
+  "The `members` of one relation row, folded behind a details disclosure when
+  the row is long."
+  [members]
+  (let [links (interpose ", " (map member-link members))]
+    (if (> (count members) 10)
+      [:dd
+       [:details
+        [hiccup/tr {:hiccup/tag :summary :hiccup/n (count members)} "{n} entries"]
+        (into [:p.member-list] links)]]
+      (into [:dd] links))))
+
+(defn relations-dl
+  "The pre-resolved `relations` rows as a definition list: the role of
+  the related senses against the links to their entries."
+  [relations]
+  (into [:dl.relations]
+        (map (fn [{:keys [type role description roleDescription note uri
+                          display display-role members]}]
+               [:div {:data-type type :data-role role}
+                [:dt {:title (or note roleDescription description type)}
+                 (linked uri (or display-role role display type))]
+                (members-dd members)])
+             relations)))
+
+(defn relations-view
+  "The `relations` rows — or the titled `relation-groups` of the
+  presentation config — as the children of the hiccup `wrapper`.
+
+  The entry passes a nav landmark and each sense a plain div, so a
+  many-sensed entry does not repeat identically named landmarks. A
+  titled group renders as a section under its headline, with the
+  group's description as the headline's tooltip; an untitled group is
+  a bare div of rows."
+  [wrapper relations relation-groups]
+  (cond
+    (seq relation-groups)
+    (into wrapper
+          (map (fn [{:keys [title description relations]}]
+                 (if title
+                   [:section.titled
+                    [:h2.relation-group {:title description} title]
+                    (relations-dl relations)]
+                   [:div (relations-dl relations)]))
+               relation-groups))
+
+    (seq relations)
+    (conj wrapper
+          [:section.titled
+           [hiccup/tr {:hiccup/tag :h2.relation-group} "related"]
+           (relations-dl relations)])))
+
+(defn translations-view
+  "The headword `translations` of one sense as a definition list grouped
+  by language: the language code against its comma-joined equivalents."
+  [translations]
+  (when (seq translations)
+    (into [:dl.labels.translations]
+          (for [lang (distinct (map :lang translations))]
+            [:div {:replicant/key lang}
+             [:dt lang]
+             [:dd {:lang lang}
+              (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
+                                   translations))]]))))
+
+(defn example-view
+  "One example as a paragraph, or as a cited quotation when it carries a
+  source.
+
+  The labels and the citation sit outside the quoted text, which is all
+  a blockquote may contain."
+  [{:keys [text runs labels source sourceDescription sourceUri
+           sourceElaboration]}]
+  (let [example (runs-view text runs)
+        labels' (when (seq labels)
+                  [:span.example-labels " ("
+                   (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                          (linked uri (tagged tag description)))
+                                        labels))
+                   ")"])]
+    (if source
+      [:figure.example
+       [:blockquote [:p example]]
+       labels'
+       [:figcaption
+        [:cite (linked (or (shared/elaboration-url sourceElaboration)
+                           sourceUri)
+                       (tagged source (shared/source-title
+                                        sourceDescription
+                                        sourceElaboration)))]]]
+      [:p.example example labels'])))
+
+(defn sense-view
+  "The sense at index `i` as a numbered list item: the indicator, the
+  definitions, the examples, the labels, the translations and the
+  relations.
+
+  The sense id becomes the DOM id that sense-targeted navigation scrolls
+  to and focuses; the sense such a navigation targeted carries
+  aria-current, the sense on screen carries the margin mark via the
+  on-screen class, and the sense a pending `:reveal` of `nav` names
+  carries the hook that performs it."
+  [{:keys [spy current reveal]}
+   i
+   {:keys [id indicator labels definitions translations examples
+           relations relation-groups]}]
+  [:li.sense (cond-> {:replicant/key (or id i)}
+               id                (assoc :id id :tabindex -1)
+               (= id current)    (assoc :aria-current "location")
+               (= id spy)        (assoc :class "on-screen")
+               (= id (:sense reveal))
+               (assoc :replicant/on-render [[:app/reveal reveal]]))
+   [:p.meaning
+    (when indicator [:span.indicator indicator])
+    (into [:span.definitions]
+          (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
+                                 [:span.definition {:data-type type
+                                                    :title     typeDescription}
+                                  (runs-view text runs)])
+                               definitions)))]
+   (map example-view examples)
+   (labels-view "sense-labels" labels)
+   (translations-view translations)
+   (relations-view [:div.related] relations relation-groups)])
+
+(defn inflections-view
+  "The inflected `forms` of `headword` as one run-in definition list,
+  reduced to the representatives of shared/inflection-line.
+
+  The paradigm slot of each form stays in the markup for assistive
+  tech; sighted readers get it as a tooltip."
+  [headword forms]
+  (when-let [forms (shared/inflection-line headword forms)]
+    (into [:dl.inflections]
+          (map (fn [{:keys [tag text short description labels]}]
+                 [:div
+                  [:dt.visually-hidden (or description tag
+                                           [hiccup/tr {} "form"])]
+                  [:dd {:title (if short
+                                 (str text (when description
+                                             (str " — " description)))
+                                 description)}
+                   (or short text)
+                   (when (seq labels)
+                     [:span.form-label " (" (str/join ", " (map :tag labels)) ")"])]])
+               forms))))
+
+(defn paradigm-view
+  "The full paradigm of the inflected `forms` as a table behind a details
+  disclosure.
+
+  One row per paradigm slot; forms that share the slot — variant
+  spellings — join on the row."
+  [forms]
+  (when (some shared/paradigm-slot forms)
+    [:details.paradigm
+     [hiccup/tr {:hiccup/tag :summary} "all forms"]
+     [:table
+      [hiccup/tr {:hiccup/tag :caption.visually-hidden} "all forms"]
+      (into [:tbody]
+            (map (fn [group]
+                   [:tr
+                    [:th {:scope "row"} (shared/paradigm-slot (first group))]
+                    (into [:td]
+                          (interpose ", "
+                                     (map (fn [{:keys [text labels]}]
+                                            (list text
+                                                  (when (seq labels)
+                                                    [:span.form-label
+                                                     " (" (str/join ", " (map :tag labels)) ")"])))
+                                          group)))])
+                 (partition-by shared/paradigm-slot forms)))]]))
+
+(defn entry-view
+  "One entry as an article under the navigation state `nav`: the header,
+  the entry-level labels in their titled box, the senses and the
+  entry-level relations, with `ui` naming the related landmark.
+
+  The entry file becomes the DOM id that entry-targeted navigation
+  scrolls to within a merged homograph group, and the headword carries
+  the hook of a pending `:reveal` that names no sense."
+  [ui {:keys [reveal] :as nav}
+   {:keys [file headword homographNumber partsOfSpeech labels inline-labels
+           inflectedForms senses relations relation-groups]}]
+  [:article.entry {:id file :replicant/key file}
+   [:header
+    [:h1.headword (cond-> {:tabindex -1}
+                    (and (= file (:file reveal)) (nil? (:sense reveal)))
+                    (assoc :replicant/on-render [[:app/reveal reveal]]))
+     [:dfn headword]
+     (when homographNumber [:sup.hom homographNumber])]
+    (when (or (seq partsOfSpeech) (seq inline-labels))
+      [:p.pos
+       (when (seq partsOfSpeech)
+         (into [:span.pos-list]
+               (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                      (linked uri (tagged (or description tag)
+                                                          (when description tag))))
+                                    partsOfSpeech))))
+       (map inline-label-view inline-labels)])
+    (inflections-view headword inflectedForms)
+    (paradigm-view inflectedForms)]
+   (when (seq labels)
+     [:section.titled
+      [hiccup/tr {:hiccup/tag :h2.relation-group} "about the word"]
+      (labels-view "entry-labels" labels)])
+   (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
+         (map-indexed (partial sense-view nav) senses))
+   (relations-view [:nav.related {:aria-label (shared/tr ui "related")}]
+                   relations relation-groups)])
+
+(defn entries-view
+  "The homograph group `entries` as successive articles divided by
+  horizontal rules, under the navigation state `nav`."
+  [ui nav entries]
+  (interpose [:hr.homograph] (map (partial entry-view ui nav) entries)))
+
+(defn index-items
+  "The linked contents of the sense index over `entries`, with the sense
+  on screen per `nav` marked.
+
+  Every entry heads its own numbered list of senses — the way back up
+  to its headword and inflected forms — and the numbers match the
+  sense numerals of the page. The entries of a homograph group divide
+  by rules like the page, and the home entry of the marked sense is
+  marked with it."
+  [{:keys [spy]} entries]
+  (->> (for [{:keys [file headword homographNumber senses]} entries]
+         [:div {:replicant/key file}
+          [hiccup/a (cond-> {:hiccup/entry file :class ["index-entry"]}
+                      (and spy (some (comp #{spy} :id) senses))
+                      (update :class conj "current"))
+           headword (when homographNumber [:sup.hom homographNumber])]
+          (into [:ol.index-senses]
+                (map-indexed
+                  (fn [i {:keys [id] :as sense}]
+                    [:li (cond-> {:replicant/key (or id i)}
+                           (= id spy) (assoc :class "current"))
+                     (if id
+                       [hiccup/a {:hiccup/entry file :hiccup/sense id}
+                        (shared/sense-label sense)]
+                       (shared/sense-label sense))])
+                  senses))])
+       (interpose [:hr.homograph])))
+
+(defn indexable?
+  "Does the group of `entries` have more than one sense to index?"
+  [entries]
+  (boolean (next (mapcat :senses entries))))
+
+(defn index-panel
+  "The sense index of the homograph group `entries` as a panel on the
+  desk: a zero-height sticky anchor at the top of the sheet that the
+  panel hangs from, so it spawns level with the sheet and pins to the
+  viewport top. The stylesheet shows it only when the viewport has
+  room beside the page.
+
+  Nothing renders when the group is not `indexable?`."
+  [ui nav entries]
+  (when (indexable? entries)
+    [:div.sense-index-anchor {:replicant/mounting {:class "arriving"}}
+     [:nav.sense-index {:aria-label (shared/tr ui "contents")}
+      (index-items nav entries)]]))
+
+(defn index-disclosure
+  "The sense index of the homograph group `entries` as a bordered
+  disclosure that the entry content wraps around, for viewports
+  without room for the panel.
+
+  Nothing renders when the group is not `indexable?`."
+  [ui nav entries]
+  (when (indexable? entries)
+    [:details.sense-index-inline
+     [hiccup/tr {:hiccup/tag :summary} "contents"]
+     [:nav {:aria-label (shared/tr ui "contents")}
+      (index-items nav entries)]]))
+
+(defn related?
+  "Does the presented `entry` or one of its senses carry relation rows?"
+  [{:keys [relations relation-groups senses]}]
+  (boolean (or relations relation-groups
+               (some #(or (:relations %) (:relation-groups %)) senses))))
+
+(defn dictionary-language
+  "The registered language of the dictionary content of `manifest`.
+
+  Shown beside the UI language control, so the choice clearly affects
+  only the interface. The language name is an autonym and carries its
+  own lang attribute."
+  [ui {:keys [langCode]}]
+  (when langCode
+    [:span.dictionary-language
+     {:lang  (shared/en ui "language")
+      :title (shared/tr ui "The dataset's own language.")}
+     (shared/tr ui "language") ": "
+     [:b {:lang langCode} (shared/language-name langCode)]]))
+
+(defn language-select
+  "The dropdown switching the UI language `lang` between the offered
+  `languages`, defaulting to the resource language of the `manifest`
+  when a table for it exists."
+  [ui lang manifest languages]
+  (let [value (or lang (:langCode manifest))
+        value (if (some #{value} languages) value "en")]
+    [:label.ui-language
+     {:lang  (shared/en ui "interface")
+      :title (shared/tr ui "The language of the interface.")}
+     (shared/tr ui "interface") " "
+     (into [:select
+            {:on {:change [[:app/set-pref :lang "lang" :event/target.value]]}}]
+           (for [code languages]
+             [:option {:value code :selected (= code value)}
+              (shared/language-name code)]))]))
+
+(defn alpha-toggle
+  "The checkbox forcing a strictly alphabetical order on the members of
+  every relation row, over whatever order the dataset prefers."
+  [ui alpha?]
+  [:label.member-order
+   {:lang  (shared/en ui "alphabetical")
+    :title (shared/tr ui "Strictly alphabetical, without the dataset's ranking.")}
+   [:input {:type    "checkbox"
+            :checked alpha?
+            :on      {:change [[:app/set-pref :alpha? "alpha"
+                                :event/target.checked]]}}]
+   " " (shared/tr ui "alphabetical")])
+
+(defn presentation-toggle
+  "The checkbox switching the presentation config of the dataset on and
+  off, to compare an entry with the neutral default view."
+  [ui presentation?]
+  [:label.custom-view
+   {:lang  (shared/en ui "custom")
+    :title (shared/tr ui "The dataset's own presentation.")}
+   [:input {:type    "checkbox"
+            :checked presentation?
+            :on      {:change [[:app/set-pref :presentation? "custom"
+                                :event/target.checked]]}}]
+   " " (shared/tr ui "custom")])
+
+(defn matches
+  "The first 100 rows of `index` whose headword begins with `query`."
+  [index query]
+  (let [q (str/lower-case query)]
+    (into [] (comp (filter #(str/starts-with? (:lower %) q))
+                   (take 100))
+          index)))
+
+(defn result-headword
+  "The `headword` of one search result, with the matched `query` prefix
+  marked."
+  [headword query]
+  (let [n (count query)]
+    (if (and (pos? n) (<= n (count headword)))
+      (list [:mark (subs headword 0 n)] (subs headword n))
+      headword)))
+
+(defn results-view
+  "The search result `rows` as a listbox, with the `query` prefix marked
+  and the `active` row selected for the combobox's aria-activedescendant.
+
+  A status line announces the row count to assistive technology."
+  [ui rows query active]
+  (list
+    (let [s (if (empty? rows) "No matches" "matches: {n}")]
+      [:p.result-count {:role  "status"
+                        :lang  (shared/en ui s)
+                        :class (when (seq rows) "visually-hidden")}
+       (shared/tr ui s (count rows))])
+    (when (seq rows)
+      [:ol.results {:id "search-results" :role "listbox"
+                    :aria-label (shared/tr ui "Search results")
+                    :replicant/mounting {:class "arriving"}}
+       (map-indexed
+         (fn [i {:keys [headword file pos]}]
+           [:li {:replicant/key file :role "none"}
+            [hiccup/a {:hiccup/entry  file
+                       :id            (str "result-" i)
+                       :role          "option"
+                       :aria-selected (if (= i active) "true" "false")}
+             (result-headword headword query)
+             (when (seq pos) [:i.pos pos])]])
+         rows)])))
+
+(defn search-view
+  "The search result `rows` with the `active` row selected and the `query`
+  prefix marked, or the `index-error` when the index failed to load.
+
+  Nil `rows` mean the index is still loading."
+  [ui rows index-error query active]
+  (cond
+    rows        (results-view ui rows query active)
+    index-error (let [s "Search failed to load. Reload the page."]
+                  [:p.error {:lang (shared/en ui s)} (shared/tr ui s)])))
+
+(defn front-matter-view
+  "The front matter of the `manifest` metadata on the front page.
+
+  The description reads as a serif lead, and the publisher, the
+  licence and the rights sit in the aligned key/value voice of the
+  entry labels. The source datasets form a titled group in the same
+  voice, each linked to its home and paired with its licence when the
+  metadata carries them. The fields come from the Dublin Core
+  metadata.json that the data build merges into the manifest; without
+  one, nothing renders."
+  [{:keys [description publisher rights license licenseName sources]}]
+  (when (or description publisher rights license (seq sources))
+    [:section.front-matter {:aria-labelledby "resource-title"}
+     (when description [:p.description description])
+     [:dl.labels
+      (when publisher
+        [:div [hiccup/tr {:hiccup/tag :dt} "publisher"] [:dd publisher]])
+      (when license
+        [:div [hiccup/tr {:hiccup/tag :dt} "licence"]
+         [:dd (linked license (or licenseName license))]])
+      (when rights
+        [:div [hiccup/tr {:hiccup/tag :dt} "rights"] [:dd rights]])]
+     (when (seq sources)
+       [:section.titled {:aria-labelledby "front-matter-sources"}
+        (let [s (if (some :license sources) "sources & licences" "sources")]
+          [hiccup/tr {:hiccup/tag :h2.relation-group :id "front-matter-sources"} s])
+        (into [:dl.labels]
+              (map (fn [{:keys [title full uri license licenseName]}]
+                     [:div
+                      [:dt (linked uri (tagged title full))]
+                      [:dd (linked license (or licenseName license))]]))
+              sources)])]))
+
+(defn footer-view
+  "The colophon at the foot of every view: the title, the counts and the
+  URI of the resource."
+  [{:keys [title uri entries senses relations] :as manifest}]
+  (when manifest
+    [:footer.colophon
+     [:p.resource (or title "DMLex resource")
+      (when uri (list " · " [:a {:href uri} uri]))]
+     [:dl.stats
+      [:div [hiccup/tr {:hiccup/tag :dt} "entries"] [:dd entries]]
+      [:div [hiccup/tr {:hiccup/tag :dt} "senses"] [:dd senses]]
+      [:div [hiccup/tr {:hiccup/tag :dt} "relations"] [:dd relations]]]]))
+
+(defn app
+  "The root view over one value of the app state.
+
+  Until the manifest or its error arrives, only the empty page sheet
+  renders, so the English defaults never flash before the dataset's
+  own front page. The search field and the result list form an ARIA
+  combobox: focus stays in the field while aria-activedescendant
+  points at the active option. The app replaces the markup of a
+  pre-rendered page, so the field asks back for the focus that its
+  autofocus gave it, unless a reveal is already claiming it."
+  [{:keys [ui manifest presentation index index-error query active entries
+           error languages lang nav alpha? presentation?]}]
+  (if-not (or manifest error)
+    [:div.container]
+    (let [rows     (when (and index (seq query)) (matches index query))
+          controls [:div.controls
+                    (or (dictionary-language ui manifest) [:span])
+                    [:span.toggles
+                     (when (some related? entries)
+                       (alpha-toggle ui alpha?))
+                     (when (and (seq entries)
+                                (seq (dissoc presentation "ui")))
+                       (presentation-toggle ui presentation?))]
+                    (language-select ui lang manifest languages)]]
+      [:div.container
+       (index-panel ui nav entries)
+       [:search
+        [:label.visually-hidden {:for  "search"
+                                 :lang (shared/en ui "Search the dictionary")}
+         (shared/tr ui "Search the dictionary")]
+        [:input {:replicant/on-mount    (when-not (:reveal nav) [[:app/focus]])
+                 :id                    "search"
+                 :type                  "search"
+                 :placeholder           (shared/tr ui "Type a word to look it up.")
+                 :value                 query
+                 :autofocus             true
+                 :enterkeyhint          "go"
+                 :autocapitalize        "none"
+                 :role                  "combobox"
+                 :aria-autocomplete     "list"
+                 :aria-expanded         (str (boolean (seq rows)))
+                 :aria-controls         (when (seq rows) "search-results")
+                 :aria-activedescendant (when (and active (seq rows))
+                                          (str "result-" active))
+                 :on                    {:input   [[:app/assoc
+                                                    :query :event/target.value
+                                                    :active nil]]
+                                         :keydown [[:search/keydown]]}}]]
+       controls
+       [:main
+        (when (or (seq query) (empty? entries))
+          [:h1 {:id    "resource-title"
+                :class (if (seq query) "visually-hidden" "resource-title")}
+           (or (:title manifest) fallback-title)])
+        (cond
+          (seq query)   (search-view ui rows index-error query active)
+          (seq entries) (list (index-disclosure ui nav entries)
+                              (entries-view ui nav entries))
+          error         [:p.error {:lang (shared/en ui "The page failed to load.")}
+                         (shared/tr ui "The page failed to load.") " "
+                         [hiccup/a {} (shared/tr ui "Go to the front page.")]]
+          :else         (front-matter-view manifest))]
+       (footer-view manifest)])))

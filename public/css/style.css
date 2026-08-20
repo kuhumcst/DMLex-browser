@@ -123,6 +123,12 @@ search input:focus {
 
 .results { list-style: none; margin: 1.75rem 0 0; padding: 0; }
 
+/* Replicant sets .arriving for the mount render only, so the list and
+   the panel fade in when they first appear. */
+.results, .sense-index { transition: opacity 0.2s ease-out; }
+.results.arriving,
+.sense-index-anchor.arriving .sense-index { opacity: 0; }
+
 /* Each option is a full-width row: the padding extends into a negative
    margin, so the text stays aligned with the page while the active
    row's crimson bar bleeds past it. */
@@ -425,6 +431,9 @@ hr.homograph {
 @media (prefers-reduced-motion: reduce) {
   .sense.on-screen .meaning::before,
   .index-senses li.current::after { animation: none; }
+  .results, .sense-index { transition: none; }
+  .results.arriving,
+  .sense-index-anchor.arriving .sense-index { opacity: 1; }
 }
 
 .sense::before {

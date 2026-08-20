@@ -6,7 +6,10 @@
   kinds of file into the output directory: manifest.json with the resource
   metadata, index.json with one row per entry for the search field, and
   one file per entry under entries/ with every tag and relation resolved
-  for display, so that the frontend needs no other lookup. A Dublin Core
+  for display, so that the frontend needs no other lookup. Beside the
+  data it writes the pre-rendered page of every entry and of the front
+  page, through the same views the browser renders, so that the site
+  reads without JavaScript and a crawler sees the entries. A Dublin Core
   metadata.json next to the DMLex file merges into manifest.json for the
   front page of the viewer. The Apple Dictionary export
   (dk.cst.dmlex-viewer.appledict) renders the same resolved entries.
@@ -15,8 +18,13 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]
-            [pottery.core :as pottery])
+            [dk.cst.dmlex-viewer.translations :as translations]
+            [dk.cst.dmlex-viewer.hiccup :as hiccup]
+            [dk.cst.dmlex-viewer.views :as views]
+            [pottery.core :as pottery]
+            [replicant.string :as replicant])
   (:import [java.text Collator]
            [java.util Locale]
            [java.util.zip ZipFile]))
@@ -492,37 +500,131 @@
   (spit f (json/write-str data :escape-slash false :escape-unicode false)))
 
 (defn copy-companions!
-  "Copy the optional presentation companions of the input into `out`,
-  read through its `content-of`.
+  "Copy the presentation `config` of the input and the stylesheet it
+  names, read through `content-of`, into `out`.
 
-  The companions are presentation.json — with any ui.po translations
-  merged into its \"ui\" section — and the stylesheet the config names.
-  The config belongs to the dataset, so the build only carries it along."
-  [content-of out]
-  (let [config (read-config content-of)]
-    (when config
-      (write-json! (io/file out "presentation.json") config))
-    (when-let [css (get config "css")]
-      (when-let [content (content-of css)]
-        (spit (io/file out css) content)))))
+  The config belongs to the dataset, so the build only carries it
+  along."
+  [config content-of out]
+  (when config
+    (write-json! (io/file out "presentation.json") config))
+  (when-let [css (get config "css")]
+    (when-let [content (content-of css)]
+      (spit (io/file out css) content))))
+
+(defn render-html
+  "The hiccup `body` rendered to HTML, its chrome translated by the UI
+  table `ui`.
+
+  replicant.string escapes a double quote as &#39;, an apostrophe, and
+  nothing else in its output makes that entity; the repair keeps quoted
+  example text intact."
+  [ui body]
+  (-> (replicant/render body {:alias-data {:ui ui}})
+      (str/replace "&#39;" "&quot;")))
+
+(defn ->state
+  "The app state that a pre-rendered page shows: the homograph group
+  `entries` presented under `config`, with the entry of the file
+  basename `file` as its target and `ui` and `languages` for its
+  chrome.
+
+  A nil `file` and no entries make the front page."
+  [ui languages manifest config file entries]
+  (let [entry (first (filter #(= file (:file %)) entries))]
+    (presentation/present-state
+      {:ui            ui
+       :languages     languages
+       :manifest      manifest
+       :presentation  config
+       :presentation? true
+       :alpha?        false
+       :query         ""
+       :raw-entries   entries
+       :nav           (if file
+                        {:file file :spy (:id (first (:senses entry)))}
+                        {})})))
+
+(defn page
+  "The complete HTML of the page showing the app `state`, with `base` — a
+  relative path — pointing at the site root from the page's own depth.
+
+  The markup is the one the browser renders into #app, so the app takes
+  the page over without changing it. Reading needs no JavaScript;
+  searching does.
+
+  Only the front page carries a description: the manifest describes the
+  resource, and nothing generic is worth repeating on every entry."
+  [base {:keys [ui manifest entries nav] :as state}]
+  (let [{:keys [title langCode description]} manifest
+        headword (some #(when (= (:file nav) (:file %)) (:headword %)) entries)]
+    (str "<!doctype html>\n"
+         (render-html
+           ui
+           [:html {:lang (or langCode "en")}
+            [:head
+             [:meta {:charset "utf-8"}]
+             [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+             [:base {:href base}]
+             [:meta {:name "color-scheme" :content "light"}]
+             [:meta {:name "theme-color" :content "#ffffff"}]
+             [:title (str/join " – " (remove nil? [headword
+                                                   (or title views/fallback-title)]))]
+             (when (and description (not headword))
+               [:meta {:name "description" :content description}])
+             [:link {:rel "icon" :href "favicon.svg" :type "image/svg+xml"}]
+             [:link {:rel "stylesheet" :href "css/tokens.css"}]
+             [:link {:rel "stylesheet" :href "css/style.css"}]
+             [:script {:src "js/main.js" :defer true}]]
+            [:body
+             [:div {:id "app"} (views/app state)]
+             [:noscript
+              [hiccup/tr {:hiccup/tag :p.container} "Searching needs JavaScript."]]]]))))
+
+(defn write-page!
+  "Write the page HTML `html` to the file `f`, creating its parents."
+  [f html]
+  (io/make-parents f)
+  (spit f html))
 
 (defn build!
   "Read the DMLex JSON file (or zip export) `in` and write the static
-  data files of the viewer into the directory `out`."
+  data files of the viewer into the directory `out`, and the
+  pre-rendered pages into the site directory that holds it.
+
+  The data directory sits at <site>/data, which is also how the app
+  reaches it from the browser, so the site is `out`'s parent."
   [in out]
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (->input in)
-        resource (read-resource content-of dmlex-file)
-        metadata (read-companion content-of "metadata.json")
-        env      (->env resource)
-        entries  (:entries resource)]
-    (println "Writing" (count entries) "entries into" out)
+        resource  (read-resource content-of dmlex-file)
+        metadata  (read-companion content-of "metadata.json")
+        config    (read-config content-of)
+        env       (->env resource)
+        entries   (:entries resource)
+        manifest  (manifest resource metadata)
+        site      (or (.getParentFile (io/file out)) (io/file "."))
+        tables    (translations/tables)
+        ui        (shared/ui-table tables {:manifest     manifest
+                                           :presentation config})
+        languages (sort (conj (set (keys tables)) "en"))
+        entry-of  (index-by (comp ->file :id) entries)
+        ->page    (fn [base file group]
+                    (page base (->state ui languages manifest config
+                                        file group)))]
+    (println "Writing" (count entries) "entries into" out
+             "and their pages into" (str (io/file site "entry")))
     (doseq [entry entries
-            :let [{:keys [file] :as m} (->entry-file env entry)]]
-      (write-json! (io/file out "entries" (str file ".json")) m))
+            :let [{:keys [file homographs] :as m} (->entry-file env entry)
+                  group (mapv #(if (= % file) m (->entry-file env (entry-of %)))
+                              (or homographs [file]))]]
+      (write-json! (io/file out "entries" (str file ".json")) m)
+      (write-page! (io/file site "entry" file "index.html")
+                   (->page "../../" file group)))
     (write-json! (io/file out "index.json") (index-rows resource))
-    (write-json! (io/file out "manifest.json") (manifest resource metadata))
-    (copy-companions! content-of out)
+    (write-json! (io/file out "manifest.json") manifest)
+    (copy-companions! config content-of out)
+    (write-page! (io/file site "index.html") (->page "./" nil nil))
     (println "Done.")))
 
 (defn -main

@@ -97,3 +97,6 @@ msgstr "Gå til forsiden."
 
 msgid "About {title}"
 msgstr "Om {title}"
+
+msgid "Searching needs JavaScript."
+msgstr "Søgning kræver JavaScript."

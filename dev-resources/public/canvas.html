@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* The scene renders into the viewer's own sheet, so it looks where
+       it lives: white page, grey desk, one measure.
+
+       Portfolio measures the scene once and sizes its frame to that, so
+       a disclosure opened afterwards would fall outside the frame and
+       out of reach. The sheet therefore sits in a scroller of its own,
+       which has to be a fixed height: a height in vh would feed back
+       into the frame that defines it, and collapse. */
+    body { margin: 0; }
+    .scene { height: 800px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <div class="container">
+      <main id="canvas"></main>
+    </div>
+  </div>
+</body>
+</html>

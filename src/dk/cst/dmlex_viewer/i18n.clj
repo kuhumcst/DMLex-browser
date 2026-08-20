@@ -1,11 +1,12 @@
 (ns dk.cst.dmlex-viewer.i18n
   "Gettext tooling for the translatable UI chrome of the viewer.
 
-  Extracts every key the views pass to tr and en into the template
-  i18n/template.pot, which translators load into a PO tool such as
-  Poedit to produce the ui.po a dataset ships next to its DMLex file.
-  The template is regenerated from the source with clojure -M:i18n and
-  a test compares it against a fresh extraction, so it cannot drift.
+  Extracts every key the views pass to the hiccup/tr alias, to tr or
+  to en into the template i18n/template.pot, which translators load
+  into a PO tool such as Poedit to produce the ui.po a dataset ships
+  next to its DMLex file. The template is regenerated from the source
+  with clojure -M:i18n and a test compares it against a fresh
+  extraction, so it cannot drift.
 
   A key argument must be a string literal, a (str ...) of literals, or
   a symbol bound in the enclosing let to a conditional over such
@@ -16,8 +17,9 @@
             [pottery.scan :as scan]))
 
 (def source-files
-  "The namespaces whose tr and en calls carry the UI chrome."
-  ["src/dk/cst/dmlex_viewer/app.cljs"
+  "The namespaces whose chrome strings the template carries."
+  ["src/dk/cst/dmlex_viewer/views.cljc"
+   "src/dk/cst/dmlex_viewer/build.clj"
    "src/dk/cst/dmlex_viewer/appledict.clj"])
 
 (def template-file
@@ -37,9 +39,17 @@
                        :auto-resolve symbol}))
 
 (defn ui-key-arg
-  "The key argument of the tr/en call `form`, or nil for any other form."
+  "The key argument of the tr/en call or of the hiccup/tr alias in
+  `form`, or nil for any other form.
+
+  The alias carries its string as the last element, after the attribute
+  map: [hiccup/tr {:hiccup/tag :dt} \"publisher\"]."
   [form]
-  (when (seq? form)
+  (cond
+    (and (vector? form) (= 'hiccup/tr (first form)))
+    (last form)
+
+    (seq? form)
     (case (first form)
       (tr en)               (second form)
       (shared/tr shared/en) (nth form 2 nil)

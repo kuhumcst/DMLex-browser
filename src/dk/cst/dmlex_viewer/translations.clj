@@ -4,11 +4,12 @@
 
   The web viewer inlines the tables at compile time via the
   inline-tables macro and picks one by the langCode of the manifest;
-  the Apple dictionary export reads them at export time. A dataset's
-  own \"ui\" section or ui.po merges over the bundled table, so a
-  dataset can still override or extend the chrome. After editing a po
-  file, force a recompile of the frontend: the ClojureScript build
-  cannot see through the macro to the file."
+  the data build and the Apple dictionary export read them at build
+  and export time. A dataset's own \"ui\" section or ui.po merges
+  over the bundled table, so a dataset can still override or extend
+  the chrome. After editing a po file, force a recompile of the
+  frontend: the ClojureScript build cannot see through the macro to
+  the file."
   (:require [clojure.java.io :as io]
             [pottery.core :as pottery]))
 

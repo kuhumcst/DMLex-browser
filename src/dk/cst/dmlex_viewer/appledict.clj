@@ -14,6 +14,15 @@
   the exact shape that the DDK scripts and WebKit expect, so the emitter
   is a small string-based hiccup renderer rather than clojure.data.xml,
   whose namespace-aware emission cannot reproduce that shape verbatim.
+  replicant.string, which renders the web viewer's own hiccup, is out
+  for the same reason: a namespaced keyword tag means an alias to
+  Replicant, not a prefixed element, and it self-closes only the void
+  HTML elements.
+
+  The view functions mirror dk.cst.dmlex-viewer.views by hand. They
+  differ in x-dictionary links without a target, d:priority on
+  secondary content, chrome text in CSS content so that Look Up cannot
+  search it, and none of the web viewer's ARIA or focus wiring.
 
   Usage (from the project root, which anchors the stylesheet paths):
   clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]"
@@ -23,9 +32,6 @@
             [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]
             [dk.cst.dmlex-viewer.translations :as translations]))
-
-;; -----------------------------------------------------------------------------
-;; XML emission
 
 (defn escape
   "Escape `s` for use as XML text content or an attribute value."
@@ -71,12 +77,6 @@
                                         "</" (xml-name tag) ">")))
     (seqable? x) (str/join (map hiccup->xml x))
     :else (escape x)))
-
-;; -----------------------------------------------------------------------------
-;; Entry rendering, mirroring the views of dk.cst.dmlex-viewer.app.
-;; Known differences: x-dictionary links without target, d:priority on
-;; secondary content, chrome text in CSS content so that Look Up cannot
-;; search it, and none of the web viewer's ARIA or focus wiring.
 
 (defn tagged
   "The `tag` as a span with the `description` of the dataset as its tooltip."
@@ -397,9 +397,6 @@
     (map (partial sense-view ui) senses)]
    (relations-view ui relations relation-groups)])
 
-;; -----------------------------------------------------------------------------
-;; Bundle metadata
-
 (defn about-title
   "The About title of the bundle `title`, translated by the `ui` table."
   [ui title]
@@ -446,9 +443,6 @@
               (when license
                 (list " · " [:a {:href license} (or licenseName license)]))])])
     (when uri [:p [:a {:href uri} uri]])]])
-
-;; -----------------------------------------------------------------------------
-;; Project files
 
 (def xml-preamble
   "The XML declaration and the d:dictionary root element, opening the

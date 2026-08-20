@@ -1,5 +1,6 @@
 {
   "devDependencies": {
-    "shadow-cljs": "3.4.11"
+    "shadow-cljs": "3.4.11",
+    "snabbdom": "^3.6.4"
   }
 }

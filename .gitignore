@@ -5,6 +5,10 @@ export/
 node_modules/
 public/js/
 public/data/
+public/entry/
+public/index.html
+dev-resources/public/js/
+dev-resources/public/index.html
 package-lock.json
 *.log
 datasets/

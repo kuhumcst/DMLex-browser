@@ -233,3 +233,35 @@
                                   (section*)))
         (get config "linkResolver")
         (resolve-links (get config "linkResolver"))))))
+
+(defn present-entries
+  "The homograph group `entries` presented under `config`, with the
+  members of every relation row collated per `order-mode` (:alpha,
+  :collation or nil) in the collation of `lang-code`.
+
+  Presenting walks and sorts a whole group, so the result belongs in
+  the app state rather than in the render path."
+  [config order-mode lang-code entries]
+  (let [compare* (when order-mode (shared/collation lang-code))
+        order    (case order-mode
+                   :alpha     (shared/alphabetical-order compare*)
+                   :collation (shared/member-order compare*)
+                   nil)]
+    (mapv #(cond->> (present-entry config %)
+             order (collate-members order))
+          entries)))
+
+(defn present-state
+  "The app state `state` with its raw entries presented under the config
+  and the member order it currently asks for.
+
+  Both surfaces of the viewer decide the same way: the dataset's config
+  unless the reader switched it off, and a member order of :alpha when
+  the reader forced one, of :collation when the config asks for it."
+  [{:keys [manifest presentation presentation? alpha? raw-entries] :as state}]
+  (let [config     (when presentation? presentation)
+        order-mode (cond
+                     alpha? :alpha
+                     (= "collation" (get config "memberOrder")) :collation)]
+    (assoc state :entries (present-entries config order-mode
+                                           (:langCode manifest) raw-entries))))

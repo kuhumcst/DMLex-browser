@@ -4,27 +4,40 @@
 
   The app is a static site. It fetches the data files that
   dk.cst.dmlex-viewer.build writes: manifest.json, index.json and one
-  pre-resolved file per entry."
+  pre-resolved file per entry. The same build pre-renders every page,
+  so this namespace holds only what a browser adds to it: the state,
+  the effects behind the actions the views dispatch, and the routing."
   (:require [clojure.string :as str]
             [dk.cst.dmlex-viewer.presentation :as presentation]
             [dk.cst.dmlex-viewer.shared :as shared]
+            [dk.cst.dmlex-viewer.hiccup :as hiccup]
+            [dk.cst.dmlex-viewer.views :as views]
             [replicant.dom :as r])
   (:require-macros [dk.cst.dmlex-viewer.translations :refer [inline-tables]]))
 
 (defonce state
-  (atom {:manifest     nil
-         :presentation nil
-         :index        nil
-         :index-error  nil
-         :query        ""
-         :active       nil
-         :entry        nil
-         :entries      nil
-         :spy-sense    nil
-         :error        nil
-         :alpha?       nil
-         :presentation? nil
-         :lang         nil}))
+  (atom {:manifest      nil
+         :presentation  nil
+         :index         nil
+         :index-error   nil
+         :query         ""
+         :active        nil
+         :raw-entries   nil
+         :entries       nil
+         :nav           {}
+         :error         nil
+         :routed?       false
+         :alpha?        false
+         :presentation? true
+         :lang          nil}))
+
+(def translations
+  "The bundled UI tables by language code, inlined from i18n/*.po."
+  (inline-tables))
+
+(def ui-languages
+  "The offered UI languages: the bundled tables plus English."
+  (sort (conj (set (keys translations)) "en")))
 
 (defn fetch-json
   "The parsed content of the JSON file at `path`, as a js/Promise."
@@ -98,154 +111,63 @@
       (.then (fn [res] (when (.-ok res) (.json res))))
       (.then (fn [data]
                (when data
-                 (swap! state assoc :presentation (js->clj data)))))
+                 (swap! state #(-> %
+                                   (assoc :presentation (js->clj data))
+                                   (presentation/present-state))))))
       (.catch (fn [_] nil))))
 
-(def translations
-  "The bundled UI tables by language code, inlined from i18n/*.po."
-  (inline-tables))
+(defn site-path
+  "The site-relative path of the absolute URL `url`, or nil when it
+  points outside the site.
 
-(def ui-languages
-  "The offered UI languages: the bundled tables plus English."
-  (sort (conj (set (keys translations)) "en")))
+  Every page carries a base element at the site root, so the base URI
+  is exactly the prefix that a site path drops."
+  [url]
+  (when (str/starts-with? url js/document.baseURI)
+    (subs url (count js/document.baseURI))))
 
-(def fallback-title
-  "The viewer's own name, shown when the manifest supplies no title."
-  "DMLex viewer")
+(defn ->route
+  "The route of the site-relative `path`: the entry file basename it
+  names and the sense in its fragment, an empty map for the front page,
+  or nil for a path that is no page of the viewer."
+  [path]
+  (let [[path fragment] (str/split path #"#" 2)]
+    (if (contains? #{"" "index.html"} path)
+      {}
+      (when-let [[_ file] (re-find #"^entry/([^/]+)/?$" path)]
+        {:file file :sense (not-empty fragment)}))))
 
-(defn ui-table
-  "The active UI table: the bundled table of the chosen language, or of
-  the resource language by default.
+(defn ->reveal
+  "The reveal instruction for a navigation to `sense` within `entry` of
+  the shown group `entries`, told whether the previous location was the
+  same entry (`same-entry?`) and the same homograph group (`same-group?`).
 
-  The dataset's own \"ui\" table merges on top, but only while the
-  choice is the resource's language, since its strings are in that
-  language."
-  []
-  (let [{:keys [manifest presentation lang]} @state]
-    (merge (get translations (or lang (:langCode manifest)))
-           (when (or (nil? lang) (= lang (:langCode manifest)))
-             (get presentation "ui")))))
-
-(defn tr
-  "The UI string `s`, with the count `n` in its {n} placeholder,
-  translated by the active UI table.
-
-  Untranslated strings stay English."
-  ([s] (shared/tr (ui-table) s))
-  ([s n] (shared/tr (ui-table) s n)))
-
-(defn en
-  "The lang attribute of the UI string `s`: \"en\" while it is
-  untranslated, nil once a translation supplies its own language."
-  [s]
-  (shared/en (ui-table) s))
-
-(defn matches
-  "The first 100 rows of `index` whose headword begins with `query`."
-  [index query]
-  (let [q (str/lower-case query)]
-    (into [] (comp (filter #(str/starts-with? (:lower %) q))
-                   (take 100))
-          index)))
-
-(defn goto-entry!
-  "Clear the search and go to the entry of the file basename `file`."
-  [file]
-  (swap! state assoc :query "" :active nil)
-  (set! (.-hash js/location) (str "/entry/" file)))
-
-(defn next-active
-  "The active result index after pressing `key` (\"ArrowDown\" or
-  \"ArrowUp\") at index `active` among `n` results.
-
-  Nil is the search field itself: Down enters the list at the top, Up
-  leaves it there."
-  [key active n]
-  (case key
-    "ArrowDown" (if active (min (inc active) (dec n)) 0)
-    "ArrowUp"   (cond
-                  (nil? active)  (dec n)
-                  (zero? active) nil
-                  :else          (dec active))))
-
-(defn set-active!
-  "Set the active result index to `i` and scroll it into view."
-  [i]
-  (swap! state assoc :active i)
-  (when i
-    (some-> (js/document.getElementById (str "result-" i))
-            (.scrollIntoView #js {:block "nearest"}))))
-
-(defn search-keydown!
-  "Handle the keydown `e` in the search field over the current result
-  `rows`, `query` and `active` index.
-
-  The arrow keys move the active result, Enter follows it (or the first
-  row, or goes home on a blank query), Escape clears the search."
-  [rows query active e]
-  (case (.-key e)
-    ("ArrowDown" "ArrowUp")
-    (when (seq rows)
-      (.preventDefault e)
-      (set-active! (next-active (.-key e) active (count rows))))
-    "Enter"
-    (if (str/blank? query)
-      (set! (.-hash js/location) "")
-      (when-let [row (nth rows (or active 0) nil)]
-        (goto-entry! (:file row))))
-    "Escape"
-    (swap! state assoc :query "" :active nil)
-    nil))
+  The instruction names the node that takes the focus — the sense, or
+  the entry when the entry carries no such sense — and what scrolls:
+  the page top on arrival from another page at the first entry of the
+  group, the entry when the target is the first sense of an entry
+  arrived at from elsewhere, and otherwise the target itself."
+  [entries {:keys [file senses]} sense same-entry? same-group?]
+  (let [sense  (when (some (comp #{sense} :id) senses) sense)
+        entry? (or (nil? sense)
+                   (and (= sense (:id (first senses))) (not same-entry?)))
+        top?   (and (= file (:file (first entries))) (not same-group?))]
+    {:file   file
+     :sense  sense
+     :scroll (cond
+               (not entry?) :sense
+               top?         :top
+               :else        :entry)}))
 
 (defn update-title!
   "Set the document title from the current entry and the manifest title."
   []
-  (let [{:keys [entry manifest]} @state]
+  (let [{:keys [entries nav manifest]} @state
+        headword (some #(when (= (:file nav) (:file %)) (:headword %)) entries)]
     (set! (.-title js/document)
-          (str/join " – " (remove nil? [(:headword entry)
+          (str/join " – " (remove nil? [headword
                                         (or (:title manifest)
-                                            fallback-title)])))))
-
-(defn mark-sense
-  "Mark the sense of `entry` whose id is `sense-id` with the flag `k`:
-  :current? for the navigation target, :spy? for the sense on screen —
-  see the sense view for what each renders as. A nil `sense-id` marks
-  nothing."
-  [entry sense-id k]
-  (cond-> entry
-    sense-id (update :senses (partial mapv #(cond-> %
-                                              (= sense-id (:id %))
-                                              (assoc k true))))))
-
-(defn reveal-target!
-  "Scroll to and focus the navigation target within the shown group of
-  `entries`: the sense of the id `sense` within the target `entry` when
-  one is named, else the entry itself.
-
-  The navigation scrolls smoothly, like sense navigation — except that
-  on arrival from another page (`same-group?` false) the first entry
-  of the group shows from the page top. Within the page — the sense
-  index — every entry scrolls to its own headword. A link to the
-  first sense of another entry (`same-entry?` false) reveals the
-  entry with the sense merely marked. The focus never scrolls on its
-  own, so it cannot cut the smooth scroll short."
-  [entries {:keys [file senses] :as entry} sense same-entry? same-group?]
-  (let [article   (js/document.getElementById file)
-        to-entry! (fn []
-                    (if (and (= file (:file (first entries)))
-                             (not same-group?))
-                      (.scrollTo js/window 0 0)
-                      (some-> article
-                              (.scrollIntoView #js {:behavior "smooth"}))))]
-    (if-let [el (some-> sense (js/document.getElementById))]
-      (do (if (and (= sense (:id (first senses))) (not same-entry?))
-            (to-entry!)
-            (.scrollIntoView el #js {:behavior "smooth"}))
-          (.focus el #js {:preventScroll true}))
-      (do (to-entry!)
-          (some-> article
-                  (.querySelector "h1.headword")
-                  (.focus #js {:preventScroll true}))))))
+                                            views/fallback-title)])))))
 
 (defonce sense-watch
   (atom nil))
@@ -313,9 +235,9 @@
     (reset! sense-watch nil)))
 
 (defn watch-senses!
-  "Follow the scroll with :spy-sense, the sense of `current-sense` over
-  the sense elements of the shown entries, which the sense index and
-  the margin mark render as the one on screen.
+  "Follow the scroll with the :spy of the navigation state, the sense of
+  `current-sense` over the sense elements of the shown entries, which
+  the sense index and the margin mark render as the one on screen.
 
   While a navigation scroll settles (`settle-scroll!`), the watch
   stays quiet and the navigated sense keeps the mark."
@@ -335,10 +257,10 @@
                                           -scrollHeight)
                                       2))
                           spy  (current-sense tops js/window.innerHeight
-                                              (:spy-sense @state) end? up?)]
+                                              (:spy (:nav @state)) end? up?)]
                       (reset! last-y y)
-                      (when (and spy (not= spy (:spy-sense @state)))
-                        (swap! state assoc :spy-sense spy))))
+                      (when (and spy (not= spy (:spy (:nav @state))))
+                        (swap! state assoc-in [:nav :spy] spy))))
         on-scroll (fn []
                     (if @settle-timer
                       (settle-scroll!)
@@ -350,22 +272,74 @@
                           (js/window.removeEventListener "resize" on-scroll)))
     (when-not @settle-timer (tick))))
 
-(defn route!
-  "Load the homograph group of the entry of the current URL fragment, or
-  return to the front page. A second fragment segment names a sense of
-  the entry, marked for the sense view by `mark-sense` and shown by
-  `reveal-target!`. The navigated sense — or the first sense of the
-  target entry — takes the on-screen mark at once, through the settling
-  of the scroll.
+(defn reveal!
+  "Scroll to and focus the DOM `node` that the pending `reveal` named,
+  then clear the instruction so that it runs once.
 
-  Focus follows the navigation — to the sense, the headword or the search
-  field — so that keyboard and screen-reader users land on the new content
-  instead of on an element the re-render removed."
+  The focus never scrolls on its own, so it cannot cut the smooth
+  scroll short."
+  [node {:keys [scroll] :as reveal}]
+  (case scroll
+    :top   (.scrollTo js/window 0 0)
+    :entry (some-> (.closest node "article.entry")
+                   (.scrollIntoView #js {:behavior "smooth"}))
+    :sense (.scrollIntoView node #js {:behavior "smooth"}))
+  (.focus node #js {:preventScroll true})
+  (swap! state update :nav #(cond-> % (= reveal (:reveal %)) (dissoc :reveal))))
+
+(defn show-entry!
+  "Show the homograph group `entries` with the entry of the file
+  basename `file` as its target and `sense` as its navigated sense.
+
+  Where the reader came from decides what the reveal scrolls, and the
+  state still holds the previous location, so both answers are read
+  from it here rather than passed in."
+  [entries file sense]
+  (let [{:keys [nav] previous :raw-entries} @state
+        entry       (first (filter #(= file (:file %)) entries))
+        same-entry? (= file (:file nav))
+        same-group? (boolean (some #(= file (:file %)) previous))]
+    (swap! state (fn [state]
+                   (-> state
+                       (assoc :raw-entries entries :error nil
+                              :query "" :active nil :routed? true)
+                       (presentation/present-state)
+                       (assoc :nav {:file    file
+                                    :current sense
+                                    :spy     (or sense (:id (first (:senses entry))))
+                                    :reveal  (->reveal entries entry sense
+                                                       same-entry? same-group?)}))))
+    (update-title!)
+    (settle-scroll!)
+    (watch-senses!)))
+
+(defn show-front!
+  "Return to the front page and put the focus back in the search field."
   []
-  (if-let [[_ file sense] (re-find #"^#/entry/([^/]+)(?:/(.+))?$"
-                                   (.-hash js/location))]
-    (let [same-entry? (= file (:file (:entry @state)))
-          same-group? (boolean (some #(= file (:file %)) (:entries @state)))]
+  (unwatch-senses!)
+  (swap! state assoc :raw-entries nil :entries nil :nav {} :error nil
+         :routed? true)
+  (update-title!)
+  (some-> (js/document.getElementById "search") (.focus)))
+
+(defn route!
+  "Show the homograph group of the entry of the current URL, or the
+  front page. The fragment names a sense of the entry, which takes the
+  focus and the on-screen mark.
+
+  A group already on screen needs no fetch, so a link to another of its
+  senses or entries resolves without a round trip."
+  []
+  (let [{:keys [file sense]} (->route (site-path js/location.href))
+        {:keys [raw-entries]} @state]
+    (cond
+      (nil? file)
+      (show-front!)
+
+      (some #(= file (:file %)) raw-entries)
+      (show-entry! raw-entries file sense)
+
+      :else
       (-> (fetch-entry file)
           (.then (fn [entry]
                    (js/Promise.all
@@ -375,424 +349,79 @@
                            (js/Promise.resolve entry)
                            (fetch-entry f)))))))
           (.then (fn [entries]
-                   (let [entries (mapv (fn [e]
-                                         (cond-> e
-                                           (= file (:file e))
-                                           (mark-sense sense :current?)))
-                                       (array-seq entries))
-                         entry   (first (filter #(= file (:file %)) entries))]
-                     (swap! state assoc :error nil
-                            :entry entry :entries entries
-                            :spy-sense (or sense
-                                           (:id (first (:senses entry)))))
-                     (update-title!)
-                     (settle-scroll!)
-                     (reveal-target! entries entry sense same-entry?
-                                     same-group?)
-                     (watch-senses!))))
+                   (show-entry! (vec (array-seq entries)) file sense)))
           (.catch (fn [e]
                     (js/console.error e)
-                    (swap! state assoc :entry nil :entries nil
-                           :error (.-message e))
-                    (update-title!)))))
-    (do (unwatch-senses!)
-        (swap! state assoc :entry nil :entries nil :spy-sense nil :error nil)
-        (update-title!)
-        (some-> (js/document.getElementById "search") (.focus)))))
+                    (swap! state assoc :raw-entries nil :entries nil :nav {}
+                           :routed? true :error (.-message e))
+                    (update-title!)))))))
 
-;; -----------------------------------------------------------------------------
-;; Views, mirrored by hand in dk.cst.dmlex-viewer.appledict: carry
-;; markup edits over, minding the differences listed there.
+(defn navigate!
+  "Go to the site-relative `path` without leaving the page.
 
-(defn tagged
-  "The `tag` as a span with the `description` of the dataset as its tooltip.
+  Going where the reader already is replaces the history entry rather
+  than stacking another one on it."
+  [path]
+  (if (= path (site-path js/location.href))
+    (.replaceState js/history nil "" path)
+    (.pushState js/history nil "" path))
+  (route!))
 
-  Whether a tag abbreviates anything is the dataset's own business, so
-  the markup stays a neutral span rather than an abbr."
-  [tag description]
-  (if description
-    [:span {:title description} tag]
-    tag))
+(defn route-click!
+  "Route the click `e` when it opens a page of this site in this tab,
+  and leave every other click to the browser."
+  [e]
+  (when (and (zero? (.-button e))
+             (not (or (.-metaKey e) (.-ctrlKey e) (.-shiftKey e) (.-altKey e))))
+    (when-let [a (some-> (.-target e) (.closest "a[href]"))]
+      (when-let [path (and (str/blank? (.-target a)) (site-path (.-href a)))]
+        (when (->route path)
+          (.preventDefault e)
+          (navigate! path))))))
 
-(defn linked
-  "The hiccup `x`, linked to `uri` when the dataset supplies one."
-  [uri x]
-  (if uri
-    [:a {:href uri :target "_blank"} x]
-    x))
+(defn next-active
+  "The active result index after pressing `key` (\"ArrowDown\" or
+  \"ArrowUp\") at index `active` among `n` results.
 
-(defn runs-view
-  "The `text` of one definition or example, with its marker `runs` — the
-  marked headword in bold, a collocate with its lemma as the tooltip —
-  or plain when it has none."
-  [text runs]
-  (if runs
-    (map (fn [{:keys [text marker lemma]}]
-           (case marker
-             "headword"  [:b text]
-             "collocate" [:span.collocate {:title lemma} text]
-             text))
-         runs)
-    text))
+  Nil is the search field itself: Down enters the list at the top, Up
+  leaves it there."
+  [key active n]
+  (case key
+    "ArrowDown" (if active (min (inc active) (dec n)) 0)
+    "ArrowUp"   (cond
+                  (nil? active)  (dec n)
+                  (zero? active) nil
+                  :else          (dec active))))
 
-(defn label-dd
-  "The dd of one label: its tag, linked when the label carries a URI,
-  with any combined `:qualifier` values in parentheses."
-  [{:keys [tag description uri qualifier]}]
-  [:dd (linked uri (tagged tag description))
-   (when qualifier (str " (" qualifier ")"))])
+(defn set-active!
+  "Set the active result index to `i` and scroll it into view."
+  [i]
+  (swap! state assoc :active i)
+  (when i
+    (some-> (js/document.getElementById (str "result-" i))
+            (.scrollIntoView #js {:block "nearest"}))))
 
-(defn inline-label-view
-  "One of the `labels` the config moves onto the part-of-speech line:
-  its tag, linked and with any combined `:qualifier` in parentheses.
+(defn search-keydown!
+  "Handle the keydown `e` in the search field over the current results.
 
-  The display name of the type stays in the markup for assistive
-  tech; the dot separator lives in CSS, so it is never announced."
-  [{:keys [tag uri qualifier type display] :as label}]
-  (let [attr (or display type)]
-    [:span.inline-label
-     (when attr [:span.visually-hidden (str attr ": ")])
-     (linked uri (tagged tag (shared/label-title label)))
-     (when qualifier (str " (" qualifier ")"))]))
-
-(defn labels-view
-  "The `labels` as a definition list grouped by label type, with the
-  extra `class` on the list.
-
-  E.g. domain: zoo · gender: Male."
-  [class labels]
-  (when (seq labels)
-    (into [:dl {:class ["labels" class]}]
-          (map-indexed
-            (fn [i group]
-              (let [{:keys [type typeDescription typeUri display]} (first group)]
-                (into [:div {:replicant/key i :data-type type}
-                       (if type
-                         [:dt (linked typeUri (tagged (or display type)
-                                                      typeDescription))]
-                         [:dt.visually-hidden {:lang (en "label")} (tr "label")])]
-                      (map label-dd group))))
-            (partition-by :type labels)))))
-
-(defn member-link
-  "The link to the home entry of one relation member, targeting its home
-  sense when the member is one."
-  [{:keys [headword file sense indicator]}]
-  [:a {:href  (str "#/entry/" file (when sense (str "/" sense)))
-       :title indicator}
-   headword])
-
-(defn members-dd
-  "The `members` of one relation row, folded behind a details disclosure when
-  the row is long."
-  [members]
-  (let [links (interpose ", " (map member-link members))]
-    (if (> (count members) 10)
-      [:dd
-       [:details
-        [:summary {:lang (en "{n} entries")}
-         (tr "{n} entries" (count members))]
-        (into [:p.member-list] links)]]
-      (into [:dd] links))))
-
-(defn relations-dl
-  "The pre-resolved `relations` rows as a definition list: the role of
-  the related senses against the links to their entries."
-  [relations]
-  (into [:dl.relations]
-        (map-indexed
-          (fn [i {:keys [type role description roleDescription note uri
-                         display display-role members]}]
-            [:div {:replicant/key i :data-type type :data-role role}
-             [:dt {:title (or note roleDescription description type)}
-              (linked uri (or display-role role display type))]
-             (members-dd members)])
-          relations)))
-
-(defn relations-view
-  "The `relations` rows — or the titled `relation-groups` of the
-  presentation config — as the children of the hiccup `wrapper`.
-
-  The entry passes a nav landmark and each sense a plain div, so a
-  many-sensed entry does not repeat identically named landmarks. A
-  titled group renders as a section under its headline, with the
-  group's description as the headline's tooltip; an untitled group is
-  a bare div of rows."
-  [wrapper relations relation-groups]
-  (cond
-    (seq relation-groups)
-    (into wrapper
-          (map-indexed
-            (fn [i {:keys [title description relations]}]
-              (if title
-                [:section.titled {:replicant/key i}
-                 [:h2.relation-group {:title description} title]
-                 (relations-dl relations)]
-                [:div {:replicant/key i}
-                 (relations-dl relations)]))
-            relation-groups))
-
-    (seq relations)
-    (conj wrapper
-          [:section.titled
-           [:h2.relation-group {:lang (en "related")} (tr "related")]
-           (relations-dl relations)])))
-
-(defn translations-view
-  "The headword `translations` of one sense as a definition list grouped
-  by language: the language code against its comma-joined equivalents."
-  [translations]
-  (when (seq translations)
-    (into [:dl.labels.translations]
-          (for [lang (distinct (map :lang translations))]
-            [:div {:replicant/key lang}
-             [:dt lang]
-             [:dd {:lang lang}
-              (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
-                                   translations))]]))))
-
-(defn example-view
-  "One example as a paragraph, or as a cited quotation when it carries a
-  source.
-
-  The labels and the citation sit outside the quoted text, which is all
-  a blockquote may contain."
-  [{:keys [text runs labels source sourceDescription sourceUri
-           sourceElaboration]}]
-  (let [example (runs-view text runs)
-        labels' (when (seq labels)
-                  [:span.example-labels " ("
-                   (interpose ", " (map (fn [{:keys [tag description uri]}]
-                                          (linked uri (tagged tag description)))
-                                        labels))
-                   ")"])]
-    (if source
-      [:figure.example
-       [:blockquote [:p example]]
-       labels'
-       [:figcaption
-        [:cite (linked (or (shared/elaboration-url sourceElaboration)
-                           sourceUri)
-                       (tagged source (shared/source-title
-                                        sourceDescription
-                                        sourceElaboration)))]]]
-      [:p.example example labels'])))
-
-(defn sense-view
-  "The sense at index `i` as a numbered list item: the indicator, the
-  definitions, the examples, the labels, the translations and the
-  relations.
-
-  The sense id becomes the DOM id that sense-targeted navigation scrolls
-  to and focuses; the sense such a navigation targeted carries
-  aria-current, and the sense on screen carries the margin mark via the
-  on-screen class."
-  [i {:keys [id indicator labels definitions translations examples
-             relations relation-groups current? spy?]}]
-  [:li.sense (cond-> {:replicant/key (or id i)}
-               id (assoc :id id :tabindex -1)
-               current? (assoc :aria-current "location")
-               spy? (assoc :class "on-screen"))
-   [:p.meaning
-    (when indicator [:span.indicator indicator])
-    (into [:span.definitions]
-          (interpose "; " (map (fn [{:keys [text type typeDescription runs]}]
-                                 [:span.definition {:data-type type
-                                                    :title     typeDescription}
-                                  (runs-view text runs)])
-                               definitions)))]
-   (map example-view examples)
-   (labels-view "sense-labels" labels)
-   (translations-view translations)
-   (relations-view [:div.related] relations relation-groups)])
-
-(defn inflections-view
-  "The inflected `forms` of `headword` as one run-in definition list,
-  reduced to the representatives of shared/inflection-line.
-
-  The paradigm slot of each form stays in the markup for assistive
-  tech; sighted readers get it as a tooltip."
-  [headword forms]
-  (when-let [forms (shared/inflection-line headword forms)]
-    (into [:dl.inflections]
-          (map-indexed
-            (fn [i {:keys [tag text short description labels]}]
-              [:div {:replicant/key i}
-               [:dt.visually-hidden (or description tag (tr "form"))]
-               [:dd {:title (if short
-                              (str text (when description
-                                          (str " — " description)))
-                              description)}
-                (or short text)
-                (when (seq labels)
-                  [:span.form-label " (" (str/join ", " (map :tag labels)) ")"])]])
-            forms))))
-
-(defn paradigm-view
-  "The full paradigm of the inflected `forms` as a table behind a details
-  disclosure.
-
-  One row per paradigm slot; forms that share the slot — variant
-  spellings — join on the row."
-  [forms]
-  (when (some shared/paradigm-slot forms)
-    [:details.paradigm
-     [:summary {:lang (en "all forms")} (tr "all forms")]
-     [:table
-      [:caption.visually-hidden {:lang (en "all forms")} (tr "all forms")]
-      (into [:tbody]
-            (map-indexed
-              (fn [i group]
-                [:tr {:replicant/key i}
-                 [:th {:scope "row"} (shared/paradigm-slot (first group))]
-                 (into [:td]
-                       (interpose ", "
-                                  (map (fn [{:keys [text labels]}]
-                                         (list text
-                                               (when (seq labels)
-                                                 [:span.form-label
-                                                  " (" (str/join ", " (map :tag labels)) ")"])))
-                                       group)))])
-              (partition-by shared/paradigm-slot forms)))]]))
-
-(defn entry-view
-  "One entry as an article: the header, the entry-level labels in their
-  titled box, the senses and the entry-level relations.
-
-  The entry file becomes the DOM id that entry-targeted navigation
-  scrolls to within a merged homograph group."
-  [{:keys [file headword homographNumber partsOfSpeech labels inline-labels
-           inflectedForms senses relations relation-groups]}]
-  [:article.entry {:id file :replicant/key file}
-   [:header
-    [:h1.headword {:tabindex -1} [:dfn headword]
-     (when homographNumber [:sup.hom homographNumber])]
-    (when (or (seq partsOfSpeech) (seq inline-labels))
-      [:p.pos
-       (when (seq partsOfSpeech)
-         (into [:span.pos-list]
-               (interpose ", " (map (fn [{:keys [tag description uri]}]
-                                      (linked uri (tagged (or description tag)
-                                                          (when description tag))))
-                                    partsOfSpeech))))
-       (map inline-label-view inline-labels)])
-    (inflections-view headword inflectedForms)
-    (paradigm-view inflectedForms)]
-   (when (seq labels)
-     [:section.titled
-      [:h2.relation-group {:lang (en "about the word")} (tr "about the word")]
-      (labels-view "entry-labels" labels)])
-   (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
-         (map-indexed sense-view senses))
-   (relations-view [:nav.related {:aria-label (tr "related")}]
-                   relations relation-groups)])
-
-(defn entries-view
-  "The homograph group `entries` as successive articles divided by
-  horizontal rules."
-  [entries]
-  (interpose [:hr.homograph] (map entry-view entries)))
-
-(defn index-items
-  "The linked contents of the sense index over `entries`, with the
-  sense of the id `spy` marked as the one on screen.
-
-  Every entry heads its own numbered list of senses — the way back up
-  to its headword and inflected forms — and the numbers match the
-  sense numerals of the page. The entries of a homograph group divide
-  by rules like the page, and the home entry of the marked sense is
-  marked with it."
-  [spy entries]
-  (->> (for [{:keys [file headword homographNumber senses]} entries]
-         [:div {:replicant/key file}
-          [:a.index-entry
-           (cond-> {:href (str "#/entry/" file)}
-             (and spy (some (comp #{spy} :id) senses))
-             (assoc :class "current"))
-           headword (when homographNumber [:sup.hom homographNumber])]
-          (into [:ol.index-senses]
-                (map-indexed
-                  (fn [i {:keys [id] :as sense}]
-                    [:li (cond-> {:replicant/key (or id i)}
-                           (= id spy) (assoc :class "current"))
-                     (if id
-                       [:a {:href (str "#/entry/" file "/" id)}
-                        (shared/sense-label sense)]
-                       (shared/sense-label sense))]))
-                senses)])
-       (interpose [:hr.homograph])))
-
-(defn indexable?
-  "Does the group of `entries` have more than one sense to index?"
-  [entries]
-  (boolean (next (mapcat :senses entries))))
-
-(defn index-panel
-  "The sense index of the homograph group `entries` as a panel on the
-  desk: a zero-height sticky anchor at the top of the sheet that the
-  panel hangs from, so it spawns level with the sheet and pins to the
-  viewport top. The stylesheet shows it only when the viewport has
-  room beside the page.
-
-  Nothing renders when the group is not `indexable?`."
-  [spy entries]
-  (when (indexable? entries)
-    [:div.sense-index-anchor
-     [:nav.sense-index {:aria-label (tr "contents")}
-      (index-items spy entries)]]))
-
-(defn index-disclosure
-  "The sense index of the homograph group `entries` as a bordered
-  disclosure that the entry content wraps around, for viewports
-  without room for the panel.
-
-  Nothing renders when the group is not `indexable?`."
-  [spy entries]
-  (when (indexable? entries)
-    [:details.sense-index-inline
-     [:summary {:lang (en "contents")} (tr "contents")]
-     [:nav {:aria-label (tr "contents")}
-      (index-items spy entries)]]))
-
-(defn headword-collation
-  "The headword comparator of `lang-code`, using the collator of the
-  browser."
-  [lang-code]
-  (let [collator (js/Intl.Collator. (or lang-code js/undefined))]
-    (fn [a b] (.compare collator a b))))
-
-(defn related?
-  "Does the presented `entry` or one of its senses carry relation rows?"
-  [{:keys [relations relation-groups senses]}]
-  (boolean (or relations relation-groups
-               (some #(or (:relations %) (:relation-groups %)) senses))))
-
-(defonce presented-cache
-  (atom nil))
-
-(defn present-entries
-  "The homograph group `entries` presented under `config`, with the
-  members of every relation row collated per `order-mode` (:alpha,
-  :collation or nil) in the collation of `lang-code`.
-
-  Cached on the inputs: a render happens on every keystroke and every
-  scroll tick, and presenting walks and sorts the whole group — far
-  too much work to repeat when only the search query or the on-screen
-  sense changed."
-  [config order-mode lang-code entries]
-  (let [k [config order-mode lang-code entries]]
-    (or (when-let [{:keys [key val]} @presented-cache]
-          (when (= key k) val))
-        (let [compare* (when order-mode (headword-collation lang-code))
-              order    (case order-mode
-                         :alpha     (shared/alphabetical-order compare*)
-                         :collation (shared/member-order compare*)
-                         nil)
-              val      (mapv #(cond->> (presentation/present-entry config %)
-                                order (presentation/collate-members order))
-                             entries)]
-          (reset! presented-cache {:key k :val val})
-          val))))
+  The arrow keys move the active result, Enter follows it (or the first
+  row, or goes home on a blank query), Escape clears the search."
+  [e]
+  (let [{:keys [index query active]} @state
+        rows (when (and index (seq query)) (views/matches index query))]
+    (case (.-key e)
+      ("ArrowDown" "ArrowUp")
+      (when (seq rows)
+        (.preventDefault e)
+        (set-active! (next-active (.-key e) active (count rows))))
+      "Enter"
+      (if (str/blank? query)
+        (navigate! hiccup/front-path)
+        (when-let [row (nth rows (or active 0) nil)]
+          (navigate! (hiccup/entry-path (:file row)))))
+      "Escape"
+      (swap! state assoc :query "" :active nil)
+      nil)))
 
 (defn pref-key
   "The localStorage key of the preference `pref` for the dataset of
@@ -809,273 +438,75 @@
     (catch :default _ nil)))
 
 (defn set-pref!
-  "Set the state key `k` to `v` and remember it as the preference
-  `pref` for the current dataset."
+  "Set the state key `k` to `v`, present the entries again under it and
+  remember it as the preference `pref` for the current dataset."
   [k pref v]
-  (swap! state assoc k v)
+  (swap! state #(-> % (assoc k v) (presentation/present-state)))
   (try
     (js/localStorage.setItem (pref-key pref (:manifest @state)) (str v))
     (catch :default _ nil)))
 
-(defn language-name
-  "The name of the language `code` in that language, via the browser."
-  [code]
-  (try
-    (.of (js/Intl.DisplayNames. #js [code] #js {:type "language"}) code)
-    (catch :default _ code)))
+(defn interpolate
+  "The `action` with the placeholders of the DOM event `e` filled in."
+  [e action]
+  (mapv (fn [x]
+          (case x
+            :event/target.value   (.. e -target -value)
+            :event/target.checked (.. e -target -checked)
+            x))
+        action))
 
-(defn dictionary-language
-  "The registered language of the dictionary content of `manifest`.
-
-  Shown beside the UI language control, so the choice clearly affects
-  only the interface. The language name is an autonym and carries its
-  own lang attribute."
-  [{:keys [langCode]}]
-  (when langCode
-    [:span.dictionary-language
-     {:lang  (en "language")
-      :title (tr "The dataset's own language.")}
-     (tr "language") ": "
-     [:b {:lang langCode} (language-name langCode)]]))
-
-(defn language-select
-  "The dropdown switching the UI language `lang` between the bundled
-  languages and English, defaulting to the resource language of the
-  `manifest` when a table for it exists."
-  [lang manifest]
-  (let [value (or lang (:langCode manifest))
-        value (if (some #{value} ui-languages) value "en")]
-    [:label.ui-language
-     {:lang  (en "interface")
-      :title (tr "The language of the interface.")}
-     (tr "interface") " "
-     (into [:select
-            {:on {:change (fn [e]
-                            (set-pref! :lang "lang" (.. e -target -value)))}}]
-           (for [code ui-languages]
-             [:option {:value code :selected (= code value)}
-              (language-name code)]))]))
-
-(defn alpha-toggle
-  "The checkbox forcing a strictly alphabetical order on the members of
-  every relation row, over whatever order the dataset prefers."
-  [alpha?]
-  [:label.member-order
-   {:lang  (en "alphabetical")
-    :title (tr "Strictly alphabetical, without the dataset's ranking.")}
-   [:input {:type    "checkbox"
-            :checked alpha?
-            :on      {:change (fn [e]
-                                (set-pref! :alpha? "alpha"
-                                           (.. e -target -checked)))}}]
-   " " (tr "alphabetical")])
-
-(defn presentation-toggle
-  "The checkbox switching the presentation config of the dataset on and
-  off, to compare an entry with the neutral default view."
-  [presentation?]
-  [:label.custom-view
-   {:lang  (en "custom")
-    :title (tr "The dataset's own presentation.")}
-   [:input {:type    "checkbox"
-            :checked presentation?
-            :on      {:change (fn [e]
-                                (set-pref! :presentation? "custom"
-                                           (.. e -target -checked)))}}]
-   " " (tr "custom")])
-
-(defn result-headword
-  "The `headword` of one search result, with the matched `query` prefix
-  marked."
-  [headword query]
-  (let [n (count query)]
-    (if (and (pos? n) (<= n (count headword)))
-      (list [:mark (subs headword 0 n)] (subs headword n))
-      headword)))
-
-(defn results-view
-  "The search result `rows` as a listbox, with the `query` prefix marked
-  and the `active` row selected for the combobox's aria-activedescendant.
-
-  A status line announces the row count to assistive technology."
-  [rows query active]
-  (list
-    (let [s (if (empty? rows) "No matches" "matches: {n}")]
-      [:p.result-count {:role  "status"
-                        :lang  (en s)
-                        :class (when (seq rows) "visually-hidden")}
-       (tr s (count rows))])
-    (when (seq rows)
-      [:ol.results {:id "search-results" :role "listbox"
-                    :aria-label (tr "Search results")}
-       (map-indexed
-         (fn [i {:keys [headword file pos]}]
-           [:li {:replicant/key file :role "none"}
-            [:a {:id            (str "result-" i)
-                 :role          "option"
-                 :aria-selected (if (= i active) "true" "false")
-                 :href          (str "#/entry/" file)
-                 :on            {:click (fn [_] (swap! state assoc
-                                                       :query "" :active nil))}}
-             (result-headword headword query)
-             (when (seq pos) [:i.pos pos])]])
-         rows)])))
-
-(defn search-view
-  "The search result `rows` with the `active` row selected and the `query`
-  prefix marked, or the `index-error` when the index failed to load.
-
-  Nil `rows` mean the index is still loading."
-  [rows index-error query active]
-  (cond
-    rows        (results-view rows query active)
-    index-error (let [s "Search failed to load. Reload the page."]
-                  [:p.error {:lang (en s)} (tr s)])))
-
-(defn front-matter-view
-  "The front matter of the `manifest` metadata on the front page.
-
-  The description reads as a serif lead, and the publisher, the
-  licence and the rights sit in the aligned key/value voice of the
-  entry labels. The source datasets form a titled group in the same
-  voice, each linked to its home and paired with its licence when the
-  metadata carries them. The fields come from the Dublin Core
-  metadata.json that the data build merges into the manifest; without
-  one, nothing renders."
-  [{:keys [description publisher rights license licenseName sources]}]
-  (when (or description publisher rights license (seq sources))
-    [:section.front-matter {:aria-labelledby "resource-title"}
-     (when description [:p.description description])
-     [:dl.labels
-      (when publisher
-        [:div [:dt {:lang (en "publisher")} (tr "publisher")] [:dd publisher]])
-      (when license
-        [:div [:dt {:lang (en "licence")} (tr "licence")]
-         [:dd (linked license (or licenseName license))]])
-      (when rights
-        [:div [:dt {:lang (en "rights")} (tr "rights")] [:dd rights]])]
-     (when (seq sources)
-       [:section.titled {:aria-labelledby "front-matter-sources"}
-        (let [s (if (some :license sources) "sources & licences" "sources")]
-          [:h2.relation-group {:id "front-matter-sources" :lang (en s)}
-           (tr s)])
-        (into [:dl.labels]
-              (map-indexed
-                (fn [i {:keys [title full uri license licenseName]}]
-                  [:div {:replicant/key i}
-                   [:dt (linked uri (tagged title full))]
-                   [:dd (linked license (or licenseName license))]]))
-              sources)])]))
-
-(defn footer-view
-  "The colophon at the foot of every view: the title, the counts and the
-  URI of the resource."
-  [{:keys [title uri entries senses relations] :as manifest}]
-  (when manifest
-    [:footer.colophon
-     [:p.resource (or title "DMLex resource")
-      (when uri (list " · " [:a {:href uri} uri]))]
-     [:dl.stats
-      [:div [:dt {:lang (en "entries")} (tr "entries")] [:dd entries]]
-      [:div [:dt {:lang (en "senses")} (tr "senses")] [:dd senses]]
-      [:div [:dt {:lang (en "relations")} (tr "relations")] [:dd relations]]]]))
-
-(defn app
-  "The root view over one value of the app state.
-
-  Until the manifest or its error arrives, only the empty page sheet
-  renders, so the English defaults never flash before the dataset's
-  own front page. The search field and the result list form an ARIA
-  combobox: focus stays in the field while aria-activedescendant
-  points at the active option."
-  [{:keys [manifest presentation index index-error query active entry entries
-           spy-sense error alpha? presentation? lang]}]
-  (if-not (or manifest error)
-    [:div.container]
-    (let [rows      (when (and index (seq query)) (matches index query))
-          presentation? (if (some? presentation?) presentation? true)
-          config    (when presentation? presentation)
-          alpha?    (boolean alpha?)
-          order-mode (cond
-                       alpha? :alpha
-                       (= "collation" (get config "memberOrder")) :collation)
-          presented (when entry
-                      (cond->> (present-entries config order-mode
-                                                (:langCode manifest) entries)
-                        spy-sense (mapv #(mark-sense % spy-sense :spy?))))
-          controls  [:div.controls
-                     (or (dictionary-language manifest) [:span])
-                     [:span.toggles
-                      (when (some related? presented)
-                        (alpha-toggle alpha?))
-                      (when (and presented
-                                 (seq (dissoc presentation "ui")))
-                        (presentation-toggle presentation?))]
-                     (language-select lang manifest)]]
-      [:div.container
-       (index-panel spy-sense presented)
-       [:search
-        [:label.visually-hidden {:for  "search"
-                                 :lang (en "Search the dictionary")}
-         (tr "Search the dictionary")]
-        [:input {:id                    "search"
-                 :type                  "search"
-                 :placeholder           (tr "Type a word to look it up.")
-                 :value                 query
-                 :autofocus             true
-                 :enterkeyhint          "go"
-                 :autocapitalize        "none"
-                 :role                  "combobox"
-                 :aria-autocomplete     "list"
-                 :aria-expanded         (str (boolean (seq rows)))
-                 :aria-controls         (when (seq rows) "search-results")
-                 :aria-activedescendant (when (and active (seq rows))
-                                          (str "result-" active))
-                 :on                    {:input   (fn [e]
-                                                    (swap! state assoc
-                                                           :query (.. e -target -value)
-                                                           :active nil))
-                                         :keydown (fn [e]
-                                                    (search-keydown! rows query
-                                                                     active e))}}]]
-       controls
-       [:main
-        (when (or (seq query) (not entry))
-          [:h1 {:id    "resource-title"
-                :class (if (seq query) "visually-hidden" "resource-title")}
-           (or (:title manifest) fallback-title)])
-        (cond
-          (seq query) (search-view rows index-error query active)
-          entry       (list (index-disclosure spy-sense presented)
-                            (entries-view presented))
-          error       [:p.error {:lang (en "The page failed to load.")}
-                       (tr "The page failed to load.") " "
-                       [:a {:href "#/"} (tr "Go to the front page.")]]
-          :else       (front-matter-view manifest))]
-       (footer-view manifest)])))
+(defn execute!
+  "Perform the `actions` of one event handler or life-cycle hook, over
+  the `dom-event` or `node` that Replicant passed with them."
+  [{:replicant/keys [dom-event node]} actions]
+  (doseq [action actions]
+    (let [[verb & args] (cond->> action dom-event (interpolate dom-event))]
+      (case verb
+        :app/assoc      (apply swap! state assoc args)
+        :app/set-pref   (apply set-pref! args)
+        :app/focus      (.focus node)
+        :app/reveal     (reveal! node (first args))
+        :search/keydown (search-keydown! dom-event)))))
 
 (defn render!
-  "Render the app into the page from the current state."
+  "Render the app into the page from the current state.
+
+  Nothing renders before the first route and the manifest have
+  arrived: the page already shows the pre-rendered version of this
+  view, and an early render would replace it with a half-loaded one."
   []
-  (r/render (js/document.getElementById "app") (app @state)))
+  (let [state @state]
+    (when (and (:routed? state) (or (:manifest state) (:error state)))
+      (let [ui (shared/ui-table translations state)]
+        (r/render (js/document.getElementById "app")
+                  (views/app (assoc state :ui ui :languages ui-languages))
+                  {:alias-data {:ui ui}})))))
 
 (defn init
-  "Start the app: load the data files, install the routing and render."
+  "Start the app: install the dispatch, the render loop and the routing,
+  then load the data files."
   []
+  (r/set-dispatch! execute!)
   (add-watch state ::render (fn [_ _ _ _] (render!)))
+  (js/document.body.addEventListener "click" route-click!)
+  (js/window.addEventListener "popstate" (fn [_] (route!)))
   (fetch-json! "data/manifest.json"
                (fn [{:keys [langCode] :as manifest}]
-                 (swap! state assoc :manifest manifest)
-                 (doseq [[k pref parse] [[:lang "lang" identity]
-                                         [:alpha? "alpha" #(= % "true")]
-                                         [:presentation? "custom" #(= % "true")]]]
-                   (when-let [stored (read-pref pref manifest)]
-                     (swap! state assoc k (parse stored))))
+                 (swap! state
+                        (fn [state]
+                          (reduce (fn [state [k pref parse]]
+                                    (if-let [stored (read-pref pref manifest)]
+                                      (assoc state k (parse stored))
+                                      state))
+                                  (assoc state :manifest manifest)
+                                  [[:lang "lang" identity]
+                                   [:alpha? "alpha" #(= % "true")]
+                                   [:presentation? "custom" #(= % "true")]])))
+                 (swap! state presentation/present-state)
                  (when langCode
                    (set! (.-lang js/document.documentElement) langCode))
                  (update-title!)))
   (load-index!)
   (load-presentation!)
-  (.addEventListener js/window "hashchange" route!)
-  (route!)
-  (render!))
+  (route!))

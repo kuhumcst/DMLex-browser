@@ -95,7 +95,7 @@ already on the resolver's host stay direct.
 
 ## Two surfaces, one alignment rule
 
-The web app is a ClojureScript SPA (Replicant, hash routing, a single
+The web app is a ClojureScript SPA (Replicant, path routing, a single
 state atom, pure view functions). The Apple export writes the same
 resolved entries as a Dictionary Development Kit source project. The
 rule between them: share decisions, duplicate markup. What to show
@@ -105,6 +105,10 @@ fix reaches both surfaces. The view functions that emit the markup
 mirror each other name for name, and that duplication is a choice.
 The surfaces differ in link schemes, attribute conventions and
 layout, and a shared view abstraction couples them invisibly.
+
+The web views are cljc, but that is a different matter: the browser
+and the data build render the same markup for the same surface, which
+is what the rule asks for.
 
 This coupling has two danger zones, and short comments mark them in
 the code. The shared namespaces are the first zone. An edit there
@@ -124,14 +128,70 @@ affixed short forms.
 
 ## Static site, no server
 
-The web app is a directory of files behind any static host. Hash
-routing gives the site one crawlable URL, a consequence of the
-no-server design. As a result, the site has no sitemap and no
-server-side rendering. The JSON data files are the machine-readable
-interface. Entry ids come from the dataset, so entry URLs are stable.
-The site has no cookies, no analytics and no third-party requests,
-and therefore needs no consent machinery. The README lists the
-production headers.
+The web app is a directory of files behind any static host. Every
+entry URL is a real file, `entry/<id>/index.html`, which the data
+build renders from the same views the browser renders. Nothing about
+the site needs a server: a static host that serves `index.html` for a
+directory URL is enough.
+
+Two consequences follow. The site reads without JavaScript, and a
+crawler sees the entries rather than an empty shell; only searching
+needs the app. And every page can name the site root the same way, so
+each one carries a `base` element pointing at it and every link and
+fetch in the code is written relative to that root. This keeps the
+site portable to a subdirectory, which absolute paths would not be.
+
+Replicant has no hydration: the first client render replaces the
+served markup with an identical rebuild. The app therefore waits for
+the manifest and the first route before rendering, so the reader never
+sees a half-loaded page flash over the rendered one.
+
+The JSON data files remain the machine-readable interface. Entry ids
+come from the dataset, so entry URLs are stable. The site has no
+cookies, no analytics and no third-party requests, and therefore needs
+no consent machinery. The README lists the production headers.
+
+## Data in, hiccup out
+
+The views are pure functions from one value of the app state to
+hiccup. Nothing in them reads the state atom, touches the DOM or
+closes over an effect, which is what lets the data build render them
+on the JVM and the tests assert on their HTML without a browser.
+
+Four conventions keep it that way.
+
+The UI table and the URL scheme are ambient: nearly every view needs
+one or the other, and threading both through the tree would put a
+parameter on almost every function. They travel in Replicant's alias
+data instead, and two aliases read them. `hiccup/tr` renders a chrome
+string in the element it is given, and marks an untranslated one with
+`lang="en"` so assistive technology reads it in English. `hiccup/a` builds
+the link to an entry, and to a sense of one, so the URL scheme lives
+in a single place. An alias can only stand where an element stands, so
+the few views that translate an attribute value, such as an
+`aria-label` or a tooltip, still take the table as an argument. They
+are all chrome views, one call away from the root.
+
+Event handlers and life-cycle hooks are data, never functions. One
+dispatcher in the app namespace interprets them. This is what the
+library asks for: a closure is a new value on every render, so
+Replicant detaches and reattaches the listener each time. It is also
+what makes the views cross-platform, since a function that scrolls or
+focuses cannot live in a cljc file.
+
+Navigation states its intention rather than performing it. A route
+resolves to a reveal instruction, which names the entry or the sense
+that takes the focus and what should scroll: the page top, the entry,
+or the target itself. The element it names carries the hook, and the
+dispatcher clears the instruction once it has run. So no code reads
+the DOM in the hope that a render has already happened, and the
+answer to "why did it scroll there" is a value in the state.
+
+Presenting an entry group walks and sorts the whole of it, so it
+happens when the reader navigates or changes a control, not on every
+render. The state holds the entries as fetched and as presented, and
+one function decides which config and which member order the reader
+asked for.
 
 ## One page per homograph group
 
@@ -234,9 +294,9 @@ receives the tables at compile time.
 and writes them to `i18n/template.pot`. If the template or the
 bundled Danish file no longer matches the code, the tests fail.
 Neither can go stale in silence. The extraction sees only string
-literals (or a let-bound conditional over literals) in tr/en calls.
-That is why the views sometimes repeat a string instead of an
-abstraction.
+literals (or a let-bound conditional over literals) in a `hiccup/tr`
+alias or a tr/en call. That is why the views sometimes repeat a
+string instead of an abstraction.
 
 DMLex 1.0 has a single description field per inventory tag, so one
 export cannot be bilingual. A resource instead exports once per
@@ -261,12 +321,14 @@ The last audit against
 [The Website Specification](https://specification.website/) was on
 2026-08-14. A future audit needs only the delta since then (the
 changelog feed is at `https://specification.website/changelog/rss.xml`).
-Four items are declined, with reasons: a skip link (only one control
-precedes the main content), a sitemap and SSR (hash routing, see
-above), fingerprinted asset names (the README tells hosts to use
-`no-cache` instead), and JSON-LD (the data files serve agents
-better). Four more items wait until the site has a stable public URL:
-a custom 404 page, Open Graph tags, a canonical link, and `llms.txt`.
+Three items are declined, with reasons: a skip link (only one control
+precedes the main content), fingerprinted asset names (the README
+tells hosts to use `no-cache` instead), and JSON-LD (the data files
+serve agents better). Server-side rendering, once declined for hash
+routing, is now what the data build writes. Five items wait until the
+site has a stable public URL: a custom 404 page, Open Graph tags, a
+canonical link, a sitemap (which needs absolute URLs), and
+`llms.txt`.
 
 ## The DanNet boundary
 

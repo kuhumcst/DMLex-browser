@@ -1,7 +1,8 @@
 {:paths   ["src"]
- :deps    {org.clojure/clojure   {:mvn/version "1.12.5"}
-           org.clojure/data.json {:mvn/version "2.5.2"}
-           brightin/pottery      {:mvn/version "1.0.2"}}
+ :deps    {org.clojure/clojure    {:mvn/version "1.12.5"}
+           org.clojure/data.json  {:mvn/version "2.5.2"}
+           brightin/pottery       {:mvn/version "1.0.2"}
+           no.cjohansen/replicant {:mvn/version "2026.07.1"}}
  :aliases {;; The data build: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]
            :build  {:main-opts ["-m" "dk.cst.dmlex-viewer.build"]}
            ;; The Apple Dictionary export:
@@ -16,5 +17,7 @@
                     :main-opts   ["-m" "cognitect.test-runner"]}
            ;; The frontend build, driven by shadow-cljs.edn.
            :shadow {:extra-paths ["test"]
-                    :extra-deps  {thheller/shadow-cljs    {:mvn/version "3.4.11"}
-                                  no.cjohansen/replicant {:mvn/version "2025.12.1"}}}}}
+                    :extra-deps  {thheller/shadow-cljs {:mvn/version "3.4.11"}}}
+           ;; The scene workbench of the views: npx shadow-cljs watch portfolio
+           :portfolio {:extra-paths ["dev"]
+                       :extra-deps  {no.cjohansen/portfolio {:mvn/version "2026.03.1"}}}}}

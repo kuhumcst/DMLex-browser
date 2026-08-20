@@ -12,8 +12,10 @@ It has one search field, hyperlink navigation, and a typography-first
 entry display in black, white and grey.
 
 The viewer is a static site with no server and no database. A build step
-shards the single-file DMLex JSON serialization into small data files.
-The browser fetches only the entry that it shows.
+shards the single-file DMLex JSON serialization into small data files
+and pre-renders one page per entry. Every page reads without
+JavaScript; the app then takes it over, and the browser fetches only
+the entry that it shows.
 
 The project began as a side project of DanNet. It works on any DMLex 1.0
 JSON file and holds no DanNet knowledge. The frontend uses ClojureScript
@@ -36,7 +38,7 @@ The build finds the DMLex JSON inside a zip and reads the companion
 files from the same place. A downloaded export like `dannet-dmlex.zip`
 needs no unpacking.
 
-The build writes three kinds of file into `public/data/`:
+The build writes three kinds of data file into `public/data/`:
 
 - `manifest.json` holds the resource metadata. A Dublin Core
   `metadata.json` next to the DMLex file merges in. The viewer shows
@@ -44,6 +46,19 @@ The build writes three kinds of file into `public/data/`:
 - `index.json` holds the search index, sorted with the collation of the
   resource language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
+
+It also writes the pages of the site next to the data, through the same
+views that the browser renders:
+
+- `public/index.html` is the front page, titled with the resource and
+  carrying its front matter.
+- `public/entry/<id>/index.html` is the page of one homograph group.
+  Its URL is the one the viewer navigates to, so a reader without
+  JavaScript, and a crawler, see the entry that a reader with
+  JavaScript sees.
+
+Both are generated, so neither is in the repository. Build the data
+before serving the site.
 
 The build resolves the display data before the frontend runs:
 
@@ -254,6 +269,9 @@ Point a static file server at `public/`:
 python3 -m http.server 8000 -d public
 ```
 
+The host has to serve `index.html` for a directory URL, which every
+static host does. Nothing else is needed: entry URLs are real files.
+
 ## Deploy
 
 The `public/` directory is a complete static site. Any static host can
@@ -271,7 +289,7 @@ For a production host:
 | `X-Content-Type-Options` | `nosniff` |
 | `Content-Security-Policy` | `default-src 'self'` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Cache-Control` | `no-cache` for `index.html`, `js/main.js` and `data/` |
+| `Cache-Control` | `no-cache` for `index.html`, `entry/`, `js/main.js` and `data/` |
 
 The viewer loads no third-party resources, so the strict policy is safe.
 The file names do not change between builds, so `no-cache` makes the
@@ -279,7 +297,7 @@ browser revalidate each file.
 
 Some files stay out of the repository until the site has a stable public
 URL: a custom 404 page, the Open Graph tags, a `rel="canonical"` link,
-and an `llms.txt` for AI agents. The reasons are in
+a `sitemap.xml`, and an `llms.txt` for AI agents. The reasons are in
 [doc/design.md](doc/design.md), with the record of the audit against
 [The Website Specification](https://specification.website/).
 
@@ -332,7 +350,20 @@ npx shadow-cljs watch app
 ```
 
 The watch compiles on each change and serves `public/` at
-<http://localhost:8000>.
+<http://localhost:8000>. Build the data first: the watch compiles the
+frontend, and the data build writes the pages it loads into.
+
+The views have a scene workbench, which needs no dataset:
+
+```sh
+npx shadow-cljs watch portfolio
+```
+
+It serves the scenes of `dk.cst.dmlex-viewer.views-scenes` at
+<http://localhost:8001>, over hand-made DMLex shapes that a real
+dataset produces rarely. Each scene renders into
+[dev-resources/public/canvas.html](dev-resources/public/canvas.html),
+which gives it the viewer's own page sheet.
 
 The resolution logic of the data build has JVM tests:
 
@@ -340,7 +371,9 @@ The resolution logic of the data build has JVM tests:
 clojure -M:test
 ```
 
-The search and view logic of the frontend has Node tests:
+The views run on both platforms, so their tests run with the JVM tests
+as well. The routing and keyboard logic of the frontend has Node
+tests:
 
 ```sh
 npx shadow-cljs compile test && node out/node-tests.js
