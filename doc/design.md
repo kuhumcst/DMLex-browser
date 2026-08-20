@@ -221,13 +221,21 @@ by the width of its view, though its panel scrolls with the entry
 instead of pinning; it runs no scripts, so the marking below stays
 web-only there.
 
-While the reader scrolls down, the index and the crimson margin
-mark move to each sense at the reading line. That line sits a
-quarter down the viewport, where the reader's eyes rest. On the way
-back up, the mark follows the meaning line nearest the viewport
-top: a sense takes the mark back when its meaning returns to view.
-At the end of the page, the last sense takes the mark. A click in
-the index instead moves the mark to its target at once.
+The index and the crimson margin mark show the sense that the
+reader is on. A reading line a quarter down the viewport selects
+this sense. The eyes of the reader rest at this position on the
+screen. The last sense that moved up past the line takes the mark.
+
+The content at the end of the page cannot move up to the line,
+because the page stops. Over the last screen height, the line
+moves down the viewport instead. When the page reaches its end, the line
+reaches the foot of the viewport. The last sense takes the mark
+there.
+
+This line is the only rule, and it keeps no record of the direction
+of travel. When the reader scrolls up again, the senses take the
+mark at the same positions. A click in the index moves the mark to
+its target immediately.
 
 ## The visual language
 

@@ -184,48 +184,30 @@
   (some-> @settle-timer (js/clearTimeout))
   (reset! settle-timer (js/setTimeout #(reset! settle-timer nil) 200)))
 
+(defn reading-line
+  "How far down the viewport of height `vh` the reader reads, with
+  `scrolled` pixels behind the viewport and `remaining` ones below it.
+
+  The line rests a quarter down the viewport, where the reader's eyes
+  rest. The closing screenful of a page can never be scrolled up to
+  that line, so once the scroll starts to run out the line slides down
+  to meet the content instead, and reaches the foot of the viewport as
+  the page reaches its end. A page too short to scroll keeps its line
+  where it started, since the reader has passed nothing."
+  [vh scrolled remaining]
+  (let [resting (* 0.25 vh)]
+    (+ resting (min scrolled (max 0 (- vh resting remaining))))))
+
 (defn current-sense
-  "The sense the reader is on, from the ordered [id top] pairs `tops`
-  of the sense elements, the viewport height `vh`, the current `spy`,
-  whether the page is scrolled to its very `end?` and whether the
-  reader scrolls `up?`.
+  "The sense the reader is on, from the ordered [id top] pairs `tops` of
+  the sense elements and the reading-`line` they are measured against.
 
-  Scrolling down, the last sense whose top passed the reading line —
-  a quarter down the viewport, where the reader's eyes rest — carries
-  the mark. Scrolling up, the mark instead follows the meaning line
-  nearest the viewport top: a sense takes the mark back when its
-  meaning returns to view, and inside a sense too tall to show its
-  meaning, that sense holds it. The mark never moves down the page
-  on the way up. At the end of the page the last sense takes the
-  mark, since the reading line cannot reach it."
-  [tops vh spy end? up?]
-  (let [down-line (* 0.25 vh)
-        up-line   (* 0.75 vh)
-        idx       (into {} (map-indexed (fn [i [id _]] [id i]) tops))
-        top-of    (into {} tops)
-        cand      (last (for [[id top] tops :when (<= top down-line)] id))
-        spy-top   (top-of spy)]
-    (cond
-      (and end? (seq tops))
-      (first (peek tops))
-
-      up?
-      (or (first (for [[id top] tops
-                       :when (and (<= 0 top up-line)
-                                  (or (nil? (idx spy))
-                                      (<= (idx id) (idx spy))))]
-                   id))
-          (last (for [[id top] tops :when (neg? top)] id))
-          spy)
-
-      (and spy-top
-           (<= spy-top up-line)
-           (or (nil? cand) (> (idx spy) (idx cand))))
-      spy
-
-      cand cand
-
-      :else (first (for [[id top] tops :when (<= top up-line)] id)))))
+  The line is the whole of the rule, so it marks every sense it passes,
+  and scrolling back up retraces them one by one in the order they
+  arrived."
+  [tops line]
+  (or (last (for [[id top] tops :when (<= top line)] id))
+      (ffirst tops)))
 
 (defn unwatch-senses!
   "Remove the scroll watch of the senses, if one is active."
@@ -243,22 +225,20 @@
   stays quiet and the navigated sense keeps the mark."
   []
   (unwatch-senses!)
-  (let [last-y    (atom js/window.scrollY)
-        tick      (fn []
-                    (let [y    js/window.scrollY
-                          up?  (< y @last-y)
-                          tops (mapv (fn [el]
-                                       [(.-id el)
-                                        (.-top (.getBoundingClientRect el))])
-                                     (array-seq (js/document.querySelectorAll
-                                                  ".sense[id]")))
-                          end? (>= (+ y js/window.innerHeight)
-                                   (- (.. js/document -documentElement
-                                          -scrollHeight)
-                                      2))
-                          spy  (current-sense tops js/window.innerHeight
-                                              (:spy (:nav @state)) end? up?)]
-                      (reset! last-y y)
+  (let [tick      (fn []
+                    (let [vh        js/window.innerHeight
+                          scrolled  js/window.scrollY
+                          remaining (max 0 (- (.. js/document
+                                                  -documentElement
+                                                  -scrollHeight)
+                                              vh scrolled))
+                          tops      (mapv (fn [el]
+                                            [(.-id el)
+                                             (.-top (.getBoundingClientRect el))])
+                                          (array-seq (js/document.querySelectorAll
+                                                       ".sense[id]")))
+                          line      (reading-line vh scrolled remaining)
+                          spy       (current-sense tops line)]
                       (when (and spy (not= spy (:spy (:nav @state))))
                         (swap! state assoc-in [:nav :spy] spy))))
         on-scroll (fn []
