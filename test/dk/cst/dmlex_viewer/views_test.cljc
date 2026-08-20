@@ -52,6 +52,14 @@
     (is (str/includes? (html (views/footer-view {:title "T" :entries 1}))
                        "<dt lang=\"en\">entries</dt>"))))
 
+(deftest footer-language-test
+  (testing "the language of the content is metadata, not a preference"
+    (let [rendered (html (views/footer-view {:title "T" :langCode "da"}))]
+      (is (str/includes? rendered "<dd lang=\"da\">dansk</dd>"))))
+  (testing "a resource without a language says nothing"
+    (is (not (str/includes? (html (views/footer-view {:title "T"}))
+                            "<dd lang=")))))
+
 (deftest runs-view-test
   (testing "marker runs render the marked headword in bold"
     (is (= (list "en stor " [:b "hund"])
@@ -258,6 +266,24 @@
                                                          :scroll :top}}}))]
       (is (not (str/includes? rendered "replicant")))
       (is (not (str/includes? rendered ":app/reveal"))))))
+
+(deftest desk-aside-test
+  (let [entries [{:file     "a"
+                  :headword "sti"
+                  :senses   [{:id "s1"} {:id "s2"}]}]
+        prefs   [:span.toggles "prefs"]
+        with    (html (views/desk-aside nil {} entries prefs))
+        without (html (views/desk-aside nil {} [] prefs))]
+    (testing "the column carries the index over the preferences"
+      (is (str/includes? with "class=\"sense-index\""))
+      (is (str/includes? with "class=\"prefs\""))
+      (is (< (str/index-of with "sense-index")
+             (str/index-of with "class=\"prefs\""))))
+    (testing "a page without an index keeps its preferences"
+      (is (not (str/includes? without "class=\"sense-index\"")))
+      (is (str/includes? without "class=\"prefs\"")))
+    (testing "the aside is named for assistive technology"
+      (is (str/includes? without "aria-label=\"preferences\"")))))
 
 (deftest language-select-test
   (let [languages ["da" "en"]]

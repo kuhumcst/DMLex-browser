@@ -63,14 +63,17 @@ A missing config is the normal case, and the viewer then shows the
 data neutrally. It ignores unknown sections and unknown tags without
 complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
-fallback group unless the config hides them. Neutral relations render
-in the same titled box as configured groups, under the generic
-"related" heading. Entry-level labels sit in the same kind of box
-under the generic "about the word" heading. When the config moves
-every entry label onto the part-of-speech line, the box disappears.
+fallback group unless the config hides them.
+
+Neutral relations render in the same titled box as configured groups,
+under the generic "related" heading. Entry-level labels sit in the
+same kind of box under the generic "about the word" heading. When the
+config moves every entry label onto the part-of-speech line, the box
+disappears.
+
 A checkbox in the web viewer turns the config off for an entry, to
-compare it with this neutral view. localStorage remembers the
-checkbox choices per dataset, like the UI language choice.
+compare it with this neutral view. localStorage remembers the checkbox
+choices per dataset, like the UI language choice.
 
 Member order is taste too. By default the members of a relation row
 keep the listing order of the dataset. The DMLex spec asks a
@@ -78,10 +81,11 @@ conforming display to do exactly that. `"memberOrder": "collation"`
 instead sorts them by the `obverseListingOrder` of each member and
 then alphabetically. A checkbox in the web viewer forces a strictly
 alphabetical order, whatever the config prefers.
-This use of `obverseListingOrder` is more liberal than the spec,
-which reserves the field for the order of relations on a member's own
-page. Here the `order` and `groups` of the config already do that
-job, deliberately.
+
+This use of `obverseListingOrder` is more liberal than the spec, which
+reserves the field for the order of relations on a member's own page.
+Here the `order` and `groups` of the config already do that job,
+deliberately.
 
 `"linkResolver"` bends the no-construction rule, deliberately and
 minimally. Vocabulary URIs are identifiers first and links second.
@@ -98,16 +102,18 @@ already on the resolver's host stay direct.
 The web app is a ClojureScript SPA (Replicant, path routing, a single
 state atom, pure view functions). The Apple export writes the same
 resolved entries as a Dictionary Development Kit source project. The
-rule between them: share decisions, duplicate markup. What to show
-is pure data logic: which form represents a paradigm slot, what a
-tooltip says. This logic lives in the shared namespace, where one
-fix reaches both surfaces. The view functions that emit the markup
-mirror each other name for name, and that duplication is a choice.
-The surfaces differ in link schemes, attribute conventions and
-layout, and a shared view abstraction couples them invisibly.
+rule between them: share decisions, duplicate markup. What to show is
+pure data logic: which form represents a paradigm slot, what a tooltip
+says. This logic lives in the shared namespace, where one fix reaches
+both surfaces.
 
-The web views are cljc, but that is a different matter: the browser
-and the data build render the same markup for the same surface, which
+The view functions that emit the markup mirror each other name for
+name, and that duplication is a choice. The surfaces differ in link
+schemes, attribute conventions and layout, and a shared view
+abstraction couples them invisibly.
+
+The web views are cljc, but that is a different matter. The browser
+and the data build render the same markup for the same surface. That
 is what the rule asks for.
 
 This coupling has two danger zones, and short comments mark them in
@@ -135,15 +141,17 @@ the site needs a server: a static host that serves `index.html` for a
 directory URL is enough.
 
 Two consequences follow. The site reads without JavaScript, and a
-crawler sees the entries rather than an empty shell; only searching
-needs the app. And every page can name the site root the same way, so
-each one carries a `base` element pointing at it and every link and
-fetch in the code is written relative to that root. This keeps the
-site portable to a subdirectory, which absolute paths would not be.
+crawler sees the entries rather than an empty shell. Only the search
+needs the app.
+
+And every page can name the site root the same way. Each page carries
+a `base` element that points at the root, and every link and fetch in
+the code is relative to it. This keeps the site portable to a
+subdirectory. Absolute paths fix it to one location.
 
 Replicant has no hydration: the first client render replaces the
 served markup with an identical rebuild. The app therefore waits for
-the manifest and the first route before rendering, so the reader never
+the manifest and the first route before it renders. The reader never
 sees a half-loaded page flash over the rendered one.
 
 The JSON data files remain the machine-readable interface. Entry ids
@@ -155,22 +163,25 @@ no consent machinery. The README lists the production headers.
 
 The views are pure functions from one value of the app state to
 hiccup. Nothing in them reads the state atom, touches the DOM or
-closes over an effect, which is what lets the data build render them
-on the JVM and the tests assert on their HTML without a browser.
+closes over an effect. The data build can therefore render them on the
+JVM, and the tests can assert on their HTML without a browser.
 
 Four conventions keep it that way.
 
-The UI table and the URL scheme are ambient: nearly every view needs
-one or the other, and threading both through the tree would put a
-parameter on almost every function. They travel in Replicant's alias
-data instead, and two aliases read them. `hiccup/tr` renders a chrome
-string in the element it is given, and marks an untranslated one with
-`lang="en"` so assistive technology reads it in English. `hiccup/a` builds
-the link to an entry, and to a sense of one, so the URL scheme lives
-in a single place. An alias can only stand where an element stands, so
-the few views that translate an attribute value, such as an
-`aria-label` or a tooltip, still take the table as an argument. They
-are all chrome views, one call away from the root.
+The UI table and the URL scheme are ambient, because nearly every view
+needs one or the other. To thread both through the tree adds a
+parameter to almost every function. They travel in Replicant's alias
+data instead, and two aliases read them.
+
+`hiccup/tr` renders a chrome string in the element it is given. It
+marks an untranslated one with `lang="en"`, so assistive technology
+reads it in English. `hiccup/a` builds the link to an entry, and to a
+sense of one, so the URL scheme lives in a single place.
+
+An alias can only stand where an element stands. The few views that
+translate an attribute value, such as an `aria-label` or a tooltip,
+still take the table as an argument. They are all chrome views, one
+call away from the root.
 
 Event handlers and life-cycle hooks are data, never functions. One
 dispatcher in the app namespace interprets them. This is what the
@@ -180,18 +191,20 @@ what makes the views cross-platform, since a function that scrolls or
 focuses cannot live in a cljc file.
 
 Navigation states its intention rather than performing it. A route
-resolves to a reveal instruction, which names the entry or the sense
-that takes the focus and what should scroll: the page top, the entry,
-or the target itself. The element it names carries the hook, and the
-dispatcher clears the instruction once it has run. So no code reads
-the DOM in the hope that a render has already happened, and the
-answer to "why did it scroll there" is a value in the state.
+resolves to a reveal instruction. The instruction names the entry or
+the sense that takes the focus. It also names what scrolls: the page
+top, the entry, or the target itself.
 
-Presenting an entry group walks and sorts the whole of it, so it
-happens when the reader navigates or changes a control, not on every
-render. The state holds the entries as fetched and as presented, and
-one function decides which config and which member order the reader
-asked for.
+The element it names carries the hook, and the dispatcher clears the
+instruction once it has run. So no code reads the DOM in the hope that
+a render already ran. The answer to "why did it scroll there" is a
+value in the state.
+
+To present an entry group, the code walks and sorts the whole of it.
+This work happens when the reader navigates or changes a control, not
+on every render. The state holds the entries as fetched and as
+presented, and one function decides which config and which member
+order the reader asked for.
 
 ## One page per homograph group
 
@@ -210,16 +223,20 @@ so the Apple export does not change.
 ## The sense index
 
 A long entry hides its later senses below the fold. When a page has
-more than one sense, the viewer adds an index of links that scroll
-to them. Each entry heads its own list in the index, as the way back
-up to its headword and inflected forms.
-On a wide viewport the index sits beside the page, scrolls
-along, and pins to the top of the viewport.
-On a narrow viewport it folds into a disclosure that the entry
-content wraps around. Dictionary.app gets the same pair, switched
-by the width of its view, though its panel scrolls with the entry
-instead of pinning; it runs no scripts, so the marking below stays
-web-only there.
+more than one sense, the viewer adds an index of links that scroll to
+them. Each entry heads its own list in the index, as the way back up
+to its headword and inflected forms.
+
+On a wide viewport the index sits beside the page, scrolls along, and
+pins to the top of the viewport. On a narrow viewport it folds into a
+disclosure that the headword and its forms wrap around. The senses
+start below it, clear of the fold marks at the right edge of their
+meaning lines. An open disclosure therefore pushes the senses down and
+does not cover them.
+
+Dictionary.app gets the same pair, switched by the width of its view.
+Its panel scrolls with the entry and does not pin. It runs no scripts,
+so the marking below stays web-only there.
 
 The index and the crimson margin mark show the sense that the
 reader is on. A reading line a quarter down the viewport selects
@@ -236,6 +253,24 @@ This line is the only rule, and it keeps no record of the direction
 of travel. When the reader scrolls up again, the senses take the
 mark at the same positions. A click in the index moves the mark to
 its target immediately.
+
+## The preferences
+
+The preferences over the view are the alphabetical order of relation
+members, the dataset's own presentation, and the language of the
+interface. On a wide viewport they sit in the desk column beside the
+page. They sit under the sense index, across a small gap, and they
+pin with it. They take the same small sheet as the index, with the
+same band. On a narrow viewport they return to a row under the search
+field, at the width where the index folds into its disclosure.
+
+They render in both places, and the stylesheet shows the one that the
+viewport has room for. The rule under the search field stays in both,
+because it separates the field from the entry under it.
+
+The language of the dictionary content is not one of them. No reader
+can change it, so it reads as a fact in the colophon, beside the
+title, the URI and the counts of the resource.
 
 ## The visual language
 
@@ -263,15 +298,17 @@ appearance.
 
 ## Accessibility
 
-The search field and its suggestions form an ARIA combobox: arrow
-keys move the active option via `aria-activedescendant` while focus
-stays in the field. Focus follows navigation, to the headword of the
-new entry or back to the search field. The re-render removes the
-element that held focus. Each view has one `h1`, and a status line
-announces the result counts. Information in hover tooltips also
-reaches assistive technology through visually hidden markup. The
-document language comes from the manifest of the dataset at run time.
-UI strings that stay English carry a `lang="en"` marker.
+The search field and its suggestions form an ARIA combobox: arrow keys
+move the active option via `aria-activedescendant` while focus stays
+in the field. Focus follows navigation, to the headword of the new
+entry or back to the search field. The re-render removes the element
+that held focus.
+
+Each view has one `h1`, and a status line announces the result counts.
+Information in hover tooltips also reaches assistive technology
+through visually hidden markup. The document language comes from the
+manifest of the dataset at run time. UI strings that stay English
+carry a `lang="en"` marker.
 
 ## UI translations
 
@@ -284,19 +321,22 @@ source: the search placeholder, the front-matter keys, and the error
 messages.
 
 A plain gettext setup translates them. The English string is the
-lookup key and the fallback. `{n}` carries a count. The whole table
-is a map from English to the target language. The viewer ships a
-Danish table as `i18n/da.po` and uses it when the manifest says that
-the resource is Danish. A dataset can add or override translations
-with a `ui` section in its config or a `ui.po` file next to its data.
-The web viewer also has a dropdown that selects among the bundled
-languages, and localStorage remembers the choice per dataset. The
-`ui` table of the dataset applies only while the chosen language is
-the language of the resource, because its strings are in that
-language. The po format was the choice because translation tools
-(Poedit, Weblate) edit it directly. The pottery library that parses
-it runs only on the JVM at build and export time. The web app
-receives the tables at compile time.
+lookup key and the fallback. `{n}` carries a count. The whole table is
+a map from English to the target language.
+
+The viewer ships a Danish table as `i18n/da.po` and uses it when the
+manifest says that the resource is Danish. A dataset can add or
+override translations with a `ui` section in its config or a `ui.po`
+file next to its data. The web viewer also has a dropdown that selects
+among the bundled languages, and localStorage remembers the choice per
+dataset. The `ui` table of the dataset applies only while the chosen
+language is the language of the resource, because its strings are in
+that language.
+
+The po format was the choice because translation tools (Poedit,
+Weblate) edit it directly. The pottery library that parses it runs
+only on the JVM at build and export time. The web app receives the
+tables at compile time.
 
 `clojure -M:i18n` extracts the translatable strings from the source
 and writes them to `i18n/template.pot`. If the template or the
@@ -315,8 +355,8 @@ stylesheet shows as content.)
 
 ## Display over cleverness
 
-Where a clever reduction can mislead, the display falls back to the
-full form. The affix shorthand refuses multiword headwords, stem
+Where a clever reduction can mislead, the display shows the full form
+instead. The affix shorthand refuses multiword headwords, stem
 changes and compound stems. A form with the same spelling as the
 headword stays off the inflection line, but remains in the paradigm
 table and the search index. The run-in inflection line and the full

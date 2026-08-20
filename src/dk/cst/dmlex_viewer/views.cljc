@@ -368,23 +368,18 @@
 
 (defn index-panel
   "The sense index of the homograph group `entries` as a panel on the
-  desk: a zero-height sticky anchor at the top of the sheet that the
-  panel hangs from, so it spawns level with the sheet and pins to the
-  viewport top. The stylesheet shows it only when the viewport has
-  room beside the page.
+  desk beside the page.
 
   The panel fades in as it spawns and out as it goes, so a move to a
-  page without an index does not tear it off the desk. Replicant reads
-  the transition off the anchor itself, so the fade lives there rather
-  than on the panel it carries.
+  page without an index does not tear it off the desk.
 
   Nothing renders when the group is not `indexable?`."
   [ui nav entries]
   (when (indexable? entries)
-    [:div.sense-index-anchor {:replicant/mounting   {:class "arriving"}
-                              :replicant/unmounting {:class "leaving"}}
-     [:nav.sense-index {:aria-label (shared/tr ui "contents")}
-      (index-items nav entries)]]))
+    [:nav.sense-index {:aria-label           (shared/tr ui "contents")
+                       :replicant/mounting   {:class "arriving"}
+                       :replicant/unmounting {:class "leaving"}}
+     (index-items nav entries)]))
 
 (defn index-disclosure
   "The sense index of the homograph group `entries` as a bordered
@@ -399,25 +394,27 @@
      [:nav {:aria-label (shared/tr ui "contents")}
       (index-items nav entries)]]))
 
+(defn desk-aside
+  "The panels beside the page on the desk: the sense index of the
+  homograph group `entries`, and the `prefs` under it as a second
+  small sheet.
+
+  A zero-height sticky anchor at the top of the sheet carries the
+  column, so it spawns level with the sheet and pins to the viewport
+  top. The stylesheet shows the column only when the viewport has room
+  for it beside the page, and shows the row under the search field
+  instead when it does not."
+  [ui nav entries prefs]
+  [:div.desk-anchor
+   [:div.desk-panels
+    (index-panel ui nav entries)
+    [:aside.prefs {:aria-label (shared/tr ui "preferences")} prefs]]])
+
 (defn related?
   "Does the presented `entry` or one of its senses carry relation rows?"
   [{:keys [relations relation-groups senses]}]
   (boolean (or relations relation-groups
                (some #(or (:relations %) (:relation-groups %)) senses))))
-
-(defn dictionary-language
-  "The registered language of the dictionary content of `manifest`.
-
-  Shown beside the UI language control, so the choice clearly affects
-  only the interface. The language name is an autonym and carries its
-  own lang attribute."
-  [ui {:keys [langCode]}]
-  (when langCode
-    [:span.dictionary-language
-     {:lang  (shared/en ui "language")
-      :title (shared/tr ui "The dataset's own language.")}
-     (shared/tr ui "language") ": "
-     [:b {:lang langCode} (shared/language-name langCode)]]))
 
 (defn language-select
   "The dropdown switching the UI language `lang` between the offered
@@ -551,14 +548,21 @@
               sources)])]))
 
 (defn footer-view
-  "The colophon at the foot of every view: the title, the counts and the
-  URI of the resource."
-  [{:keys [title uri entries senses relations] :as manifest}]
+  "The colophon at the foot of every view: the title, the URI, the
+  language and the counts of the resource.
+
+  The language of the content sits here with the rest of the resource
+  metadata rather than beside the interface language, because it is a
+  fact about the dataset and not a preference the reader can change."
+  [{:keys [title uri langCode entries senses relations] :as manifest}]
   (when manifest
     [:footer.colophon
      [:p.resource (or title "DMLex resource")
       (when uri (list " · " [:a {:href uri} uri]))]
      [:dl.stats
+      (when langCode
+        [:div [hiccup/tr {:hiccup/tag :dt} "language"]
+         [:dd {:lang langCode} (shared/language-name langCode)]])
       [:div [hiccup/tr {:hiccup/tag :dt} "entries"] [:dd entries]]
       [:div [hiccup/tr {:hiccup/tag :dt} "senses"] [:dd senses]]
       [:div [hiccup/tr {:hiccup/tag :dt} "relations"] [:dd relations]]]]))
@@ -577,19 +581,18 @@
            error languages lang nav folded alpha? presentation?]}]
   (if-not (or manifest error)
     [:div.container]
-    (let [rows     (when (and index (seq query)) (matches index query))
-          nav      (assoc nav :folded folded)
-          controls [:div.controls
-                    (or (dictionary-language ui manifest) [:span])
-                    [:span.toggles
-                     (when (some related? entries)
-                       (alpha-toggle ui alpha?))
-                     (when (and (seq entries)
-                                (seq (dissoc presentation "ui")))
-                       (presentation-toggle ui presentation?))]
-                    (language-select ui lang manifest languages)]]
+    (let [rows  (when (and index (seq query)) (matches index query))
+          nav   (assoc nav :folded folded)
+          prefs (list
+                  [:span.toggles
+                   (when (some related? entries)
+                     (alpha-toggle ui alpha?))
+                   (when (and (seq entries)
+                              (seq (dissoc presentation "ui")))
+                     (presentation-toggle ui presentation?))]
+                  (language-select ui lang manifest languages))]
       [:div.container
-       (index-panel ui nav entries)
+       (desk-aside ui nav entries prefs)
        [:search
         [:label.visually-hidden {:for  "search"
                                  :lang (shared/en ui "Search the dictionary")}
@@ -612,7 +615,7 @@
                                                     :query :event/target.value
                                                     :active nil]]
                                          :keydown [[:search/keydown]]}}]]
-       controls
+       [:div.controls prefs]
        [:main
         (when (or (seq query) (empty? entries))
           [:h1 {:id    "resource-title"

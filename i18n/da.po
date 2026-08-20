@@ -8,6 +8,9 @@ msgstr "etiket"
 msgid "about the word"
 msgstr "om ordet"
 
+msgid "preferences"
+msgstr "indstillinger"
+
 msgid "contents"
 msgstr "indhold"
 
@@ -25,9 +28,6 @@ msgstr "grænseflade"
 
 msgid "language"
 msgstr "sprog"
-
-msgid "The dataset's own language."
-msgstr "Datasættets eget sprog."
 
 msgid "The dataset's own presentation."
 msgstr "Datasættets egen præsentation."

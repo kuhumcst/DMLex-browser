@@ -11,11 +11,7 @@ msgid "contents"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/views.cljc
-msgid "language"
-msgstr ""
-
-#: src/dk/cst/dmlex_viewer/views.cljc
-msgid "The dataset's own language."
+msgid "preferences"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/views.cljc
@@ -76,6 +72,10 @@ msgstr ""
 
 #: src/dk/cst/dmlex_viewer/views.cljc
 msgid "sources"
+msgstr ""
+
+#: src/dk/cst/dmlex_viewer/views.cljc
+msgid "language"
 msgstr ""
 
 #: src/dk/cst/dmlex_viewer/views.cljc
