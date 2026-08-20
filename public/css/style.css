@@ -123,11 +123,14 @@ search input:focus {
 
 .results { list-style: none; margin: 1.75rem 0 0; padding: 0; }
 
-/* Replicant sets .arriving for the mount render only, so the list and
-   the panel fade in when they first appear. */
-.results, .sense-index { transition: opacity 0.2s ease-out; }
+/* Replicant sets .arriving for the mount render only and .leaving while
+   it unmounts, so the list and the panel fade in when they appear and
+   the panel fades out when it goes. Replicant reads the wait off the
+   element it removes, so the panel's transition sits on its anchor. */
+.results, .sense-index-anchor { transition: opacity 0.2s ease-out; }
 .results.arriving,
-.sense-index-anchor.arriving .sense-index { opacity: 0; }
+.sense-index-anchor.arriving,
+.sense-index-anchor.leaving { opacity: 0; }
 
 /* Each option is a full-width row: the padding extends into a negative
    margin, so the text stays aligned with the page while the active
@@ -336,7 +339,7 @@ p.pos { margin: 0 0 0.4rem; }
   font-weight: 700;
 }
 
-.index-senses li.current::after {
+.index-senses li::after {
   content: "";
   position: absolute;
   left: -1.25rem;
@@ -345,14 +348,17 @@ p.pos { margin: 0 0 0.4rem; }
   width: 0.3rem;
   border-radius: 2px;
   background: var(--accent);
-  animation: sense-mark 1s ease-out;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
 }
+
+.index-senses li.current::after { opacity: 1; }
 
 /* On a multi-entry page the sense lists indent under their entry
    headers, and the group divider recurs between them. The accent bar
    reaches back across the indent to the box's edge. */
 .index-entry + .index-senses { padding-left: 0.85rem; }
-.index-entry + .index-senses li.current::after { left: -2.1rem; }
+.index-entry + .index-senses li::after { left: -2.1rem; }
 
 .sense-index hr.homograph,
 .sense-index-inline hr.homograph { margin: 0.75rem 0; }
@@ -408,8 +414,10 @@ hr.homograph {
 
 /* The bar hangs 0.85rem left of the sense box, which the numberless
    single-sense layout starts 2.2rem further left. Both offsets stay
-   within the narrowest page padding. */
-.sense.on-screen .meaning::before {
+   within the narrowest page padding. Every sense keeps its own bar at
+   nothing, so the mark crosses from one sense to the next: the bar
+   left behind fades out while the bar arrived at fades in. */
+.sense .meaning::before {
   content: "";
   position: absolute;
   left: -3.6rem;
@@ -418,23 +426,21 @@ hr.homograph {
   width: 0.55rem;
   border-radius: 2px;
   background: var(--accent);
-  animation: sense-mark 1s ease-out;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
 }
 
-.senses.single .sense.on-screen .meaning::before { left: -1.4rem; }
+.sense.on-screen .meaning::before { opacity: 1; }
 
-/* The marks fade in slowly as they move from sense to sense. */
-@keyframes sense-mark {
-  from { opacity: 0; }
-}
+.senses.single .sense .meaning::before { left: -1.4rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fold-mark::before { transition: none; }
-  .sense.on-screen .meaning::before,
-  .index-senses li.current::after { animation: none; }
-  .results, .sense-index { transition: none; }
+  .fold-mark::before,
+  .sense .meaning::before,
+  .index-senses li::after,
+  .results, .sense-index-anchor { transition: none; }
   .results.arriving,
-  .sense-index-anchor.arriving .sense-index { opacity: 1; }
+  .sense-index-anchor.arriving { opacity: 1; }
 }
 
 .sense::before {

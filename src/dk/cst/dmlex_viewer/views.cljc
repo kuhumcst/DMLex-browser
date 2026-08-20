@@ -369,10 +369,16 @@
   viewport top. The stylesheet shows it only when the viewport has
   room beside the page.
 
+  The panel fades in as it spawns and out as it goes, so a move to a
+  page without an index does not tear it off the desk. Replicant reads
+  the transition off the anchor itself, so the fade lives there rather
+  than on the panel it carries.
+
   Nothing renders when the group is not `indexable?`."
   [ui nav entries]
   (when (indexable? entries)
-    [:div.sense-index-anchor {:replicant/mounting {:class "arriving"}}
+    [:div.sense-index-anchor {:replicant/mounting   {:class "arriving"}
+                              :replicant/unmounting {:class "leaving"}}
      [:nav.sense-index {:aria-label (shared/tr ui "contents")}
       (index-items nav entries)]]))
 
