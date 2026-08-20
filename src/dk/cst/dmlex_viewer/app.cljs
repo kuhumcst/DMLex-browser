@@ -25,6 +25,7 @@
          :raw-entries   nil
          :entries       nil
          :nav           {}
+         :folded        #{}
          :error         nil
          :routed?       false
          :alpha?        false
@@ -452,6 +453,9 @@
     (let [[verb & args] (cond->> action dom-event (interpolate dom-event))]
       (case verb
         :app/assoc      (apply swap! state assoc args)
+        :app/fold       (swap! state update :folded
+                               (if (.. dom-event -target -open) disj conj)
+                               (first args))
         :app/set-pref   (apply set-pref! args)
         :app/focus      (.focus node)
         :app/reveal     (reveal! node (first args))

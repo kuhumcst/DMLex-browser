@@ -176,6 +176,15 @@
           "the meaning line is the summary the fold leaves in view")
       (is (str/includes? rendered "class=\"fold-mark\"")
           "the meaning line carries the fold mark")))
+  (testing "a sense the reader folded renders closed"
+    (let [entry    {:file   "x"
+                    :senses [{:id          "s1"
+                              :definitions [{:text "at sejle"}]
+                              :examples    [{:example "han sejler"}]}]}
+          rendered (html (views/entry-view nil {:folded #{"s1"}} entry))]
+      (is (str/includes? rendered "<details class=\"sense-body\">")
+          "so a re-render restores the fold instead of springing it open")
+      (is (not (str/includes? rendered "<details open")))))
   (testing "a sense of nothing but a meaning line stays a paragraph"
     (let [rendered (html (views/entry-view
                            nil {} {:file   "x"

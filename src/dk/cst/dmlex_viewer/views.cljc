@@ -205,14 +205,17 @@
   A sense that carries more than its meaning line folds. The meaning
   becomes the summary of a details that opens by default, so a reader
   who has read a long sense can put its examples and relations away
-  and keep the definitions in view. The sense id becomes the DOM id
+  and keep the definitions in view. The `:folded` ids of `nav` hold
+  which senses the reader put away, so a re-render of the sense
+  restores the fold rather than springing it open. The sense id
+  becomes the DOM id
   that sense-targeted navigation scrolls to and focuses; the sense
   such a navigation targeted carries
   aria-current, the sense on screen carries the margin mark via the
   on-screen class, and the sense a pending `:reveal` of `nav` names
   carries the hook that performs it."
   [ui
-   {:keys [spy current reveal]}
+   {:keys [spy current reveal folded]}
    i
    {:keys [id indicator labels definitions translations examples
            relations relation-groups]}]
@@ -228,7 +231,8 @@
                  (= id (:sense reveal))
                  (assoc :replicant/on-render [[:app/reveal reveal]]))
      (if body
-       [:details.sense-body {:open true}
+       [:details.sense-body {:open (not (contains? folded id))
+                             :on   {:toggle [[:app/fold id]]}}
         (conj (meaning-view :summary.meaning indicator definitions)
               [:span.fold-mark
                {:lang        (shared/en ui "Show or hide the rest.")
@@ -570,10 +574,11 @@
   pre-rendered page, so the field asks back for the focus that its
   autofocus gave it, unless a reveal is already claiming it."
   [{:keys [ui manifest presentation index index-error query active entries
-           error languages lang nav alpha? presentation?]}]
+           error languages lang nav folded alpha? presentation?]}]
   (if-not (or manifest error)
     [:div.container]
     (let [rows     (when (and index (seq query)) (matches index query))
+          nav      (assoc nav :folded folded)
           controls [:div.controls
                     (or (dictionary-language ui manifest) [:span])
                     [:span.toggles
