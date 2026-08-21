@@ -63,7 +63,7 @@
                   nil
                   (build/->entry-file env (first (:entries build-test/resource)))))]
     (testing "the entry id and title"
-      (is (str/includes? xml "<d:entry id=\"hund\" d:title=\"hund\">")))
+      (is (str/includes? xml "<d:entry id=\"hund\" class=\"entry\" d:title=\"hund\">")))
     (testing "full inflected forms become index terms"
       (is (str/includes? xml "<d:index d:value=\"hunde\" d:title=\"hunde (hund)\"/>")))
     (testing "the inflections line shows the affixed short form"

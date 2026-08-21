@@ -25,9 +25,7 @@
             [dk.cst.dmlex-viewer.views :as views]
             [pottery.core :as pottery]
             [replicant.string :as replicant])
-  (:import [java.text Collator]
-           [java.util Locale]
-           [java.util.zip ZipFile]))
+  (:import [java.util.zip ZipFile]))
 
 (defn ->file
   "The file basename of the DMLex object `id`.
@@ -157,12 +155,6 @@
               :sourceDescription description
               :sourceUri         (first sameAs)
               :sourceElaboration sourceElaboration})))
-
-(defn ->collator
-  "The collator of `lang-code`, which orders headwords the way the language
-  does rather than the way their code points fall."
-  [lang-code]
-  (Collator/getInstance (Locale/forLanguageTag (or lang-code ""))))
 
 (defn member-refs
   "All member refs of the `relations`, as a map of ref -> relation indices."
@@ -358,7 +350,7 @@
   A row is [headword file pos homographNumber]. The pos column prefers
   the description of each partOfSpeechTag over its technical tag."
   [{:keys [langCode partOfSpeechTags entries]}]
-  (let [collator (->collator langCode)
+  (let [collator (shared/collation langCode)
         pos-of   (index-by :tag partOfSpeechTags)
         pos-name (fn [tag]
                    (or (:description (pos-of tag)) tag))]

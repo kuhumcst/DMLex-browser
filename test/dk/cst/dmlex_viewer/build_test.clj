@@ -151,8 +151,7 @@
   by the member comparator that `->order` builds from it."
   ([members] (collated shared/member-order members))
   ([->order members]
-   (let [collator (build/->collator "da")
-         compare* (fn [a b] (.compare collator a b))]
+   (let [compare* (shared/collation "da")]
      (->> (presentation/collate-members (->order compare*)
                                         {:relations [{:members members}]})
           (:relations)

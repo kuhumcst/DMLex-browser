@@ -265,8 +265,10 @@
   linked to `source` when the config cited one.
 
   The definition carries the link rather than a word beside it, which
-  would wrap onto a line of its own."
-  [definitions {:keys [uri typeDescription] :as source}]
+  would wrap onto a line of its own. The name of the type follows the
+  text for assistive tech, since the definition alone does not say
+  where the link goes."
+  [definitions {:keys [uri type display typeDescription] :as source}]
   (let [text [:span {:class "definitions"}
               (interpose "; "
                          (map (fn [{:keys [text type typeDescription runs]}]
@@ -276,7 +278,8 @@
                                  (runs-view text runs)])
                               definitions))]]
     (if uri
-      [:a {:class "definition-source" :href uri :title typeDescription} text]
+      [:a {:class "definition-source" :href uri :title typeDescription} text
+       [:span {:class "visually-hidden"} (str " (" (or display type) ")")]]
       text)))
 
 (defn sense-view
@@ -390,11 +393,16 @@
   the index terms, the header, the senses and the entry-level relations.
 
   Everything but the headword, the pos and the definitions carries
-  d:priority 2, which the compact Look Up panel omits."
+  d:priority 2, which the compact Look Up panel omits.
+
+  The entry carries a class so that the stylesheet can divide two
+  stacked entries, the way Apple's own dictionaries do. The schema
+  does not list the attribute, but the build only checks that the
+  source is well-formed."
   [ui {:keys [file headword homographNumber partsOfSpeech labels inline-labels
               cite-labels
               inflectedForms senses relations relation-groups]}]
-  [:d/entry {:id file :d/title headword}
+  [:d/entry {:id file :class "entry" :d/title headword}
    (->index headword inflectedForms)
    (sense-index file senses)
    [:h1 {:class "headword"} [:dfn headword]
@@ -521,9 +529,8 @@
                            (keep (comp :id first :senses))
                            (:entries resource))
         collate      (when (= "collation" (get config "memberOrder"))
-                       (let [collator (build/->collator (:langCode resource))]
-                         (shared/member-order
-                           (fn [a b] (.compare collator a b)))))
+                       (shared/member-order
+                         (shared/collation (:langCode resource))))
         present      (fn [entry]
                        (cond->> (presentation/present-entry config entry)
                          collate (presentation/collate-members collate)))
@@ -679,6 +686,7 @@
         front    (some-> (get-in config ["appledict" "frontMatter"])
                          (content-of))
         xml-file (io/file out "Dictionary.xml")]
+    (build/report-swallowed! config resource)
     (io/make-parents xml-file)
     (println "Writing" (count (:entries resource)) "entries into" (str out))
     (write-xml! xml-file info config front resource)

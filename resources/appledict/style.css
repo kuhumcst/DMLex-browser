@@ -157,6 +157,18 @@ details.sense-index-inline {
   margin-right: 0.5em;
 }
 
+/* Dictionary.app stacks the entries that share a headword in one view,
+   one after the next and with nothing between them, and it hands each
+   over inline. The hairline of the web viewer's homograph rule
+   divides them. */
+.entry { display: block; }
+
+.entry + .entry {
+  border-top: 1px solid var(--rule);
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+}
+
 /* Entry header */
 
 .headword {
@@ -217,7 +229,18 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 
 /* Senses */
 
-.senses { list-style: none; counter-reset: sense; margin: 1.25rem 0 0; padding: 0; }
+/* The senses start below the floated index disclosure rather than
+   beside it: only their inline content flows around the float, so an
+   open index would leave the first senses reading in little more than
+   half the column. Closed, the box is shorter than the headword and
+   its forms, and the clearance costs nothing. */
+.senses {
+  clear: right;
+  list-style: none;
+  counter-reset: sense;
+  margin: 1.25rem 0 0;
+  padding: 0;
+}
 
 .sense { position: relative; padding-left: 1.8rem; margin: 0 0 1.25rem; }
 
