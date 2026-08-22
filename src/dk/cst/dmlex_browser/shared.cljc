@@ -1,4 +1,4 @@
-(ns dk.cst.dmlex-viewer.shared
+(ns dk.cst.dmlex-browser.shared
   "Pure helpers shared between the frontend and the JVM exports.
 
   Coupling zone: an edit here changes the content of both surfaces,

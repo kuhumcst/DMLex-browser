@@ -1,10 +1,10 @@
-(ns dk.cst.dmlex-viewer.views-test
+(ns dk.cst.dmlex-browser.views-test
   "Tests of the pure views, through the HTML that Replicant renders from
   them."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.shared :as shared]
-            [dk.cst.dmlex-viewer.views :as views]
+            [dk.cst.dmlex-browser.shared :as shared]
+            [dk.cst.dmlex-browser.views :as views]
             [replicant.string :as replicant]))
 
 (def index

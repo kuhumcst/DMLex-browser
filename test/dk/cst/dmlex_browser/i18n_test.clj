@@ -1,9 +1,9 @@
-(ns dk.cst.dmlex-viewer.i18n-test
+(ns dk.cst.dmlex-browser.i18n-test
   "Tests of the gettext extraction and the drift guard of the template."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.i18n :as i18n]
-            [dk.cst.dmlex-viewer.translations :as translations]
+            [dk.cst.dmlex-browser.i18n :as i18n]
+            [dk.cst.dmlex-browser.translations :as translations]
             [pottery.core :as pottery]))
 
 (deftest extract-test

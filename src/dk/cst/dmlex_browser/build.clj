@@ -1,5 +1,5 @@
-(ns dk.cst.dmlex-viewer.build
-  "Shard a DMLex 1.0 JSON file into the static data files of the viewer.
+(ns dk.cst.dmlex-browser.build
+  "Shard a DMLex 1.0 JSON file into the static data files of the app.
 
   Reads the single-file JSON serialization of a lexicographic resource,
   either the file itself or a zip export containing it, and writes three
@@ -11,18 +11,18 @@
   page, through the same views the browser renders, so that the site
   reads without JavaScript and a crawler sees the entries. A Dublin Core
   metadata.json next to the DMLex file merges into manifest.json for the
-  front page of the viewer. The Apple Dictionary export
-  (dk.cst.dmlex-viewer.appledict) renders the same resolved entries.
+  front page of the app. The Apple Dictionary export
+  (dk.cst.dmlex-browser.appledict) renders the same resolved entries.
 
   Usage: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [dk.cst.dmlex-viewer.presentation :as presentation]
-            [dk.cst.dmlex-viewer.shared :as shared]
-            [dk.cst.dmlex-viewer.translations :as translations]
-            [dk.cst.dmlex-viewer.hiccup :as hiccup]
-            [dk.cst.dmlex-viewer.views :as views]
+            [dk.cst.dmlex-browser.presentation :as presentation]
+            [dk.cst.dmlex-browser.shared :as shared]
+            [dk.cst.dmlex-browser.translations :as translations]
+            [dk.cst.dmlex-browser.hiccup :as hiccup]
+            [dk.cst.dmlex-browser.views :as views]
             [pottery.core :as pottery]
             [replicant.string :as replicant])
   (:import [java.util.zip ZipFile]))
@@ -52,7 +52,7 @@
 
 (defn ->label
   "Resolve the `tag` of a label against the `label-of` and `label-type-of`
-  inventories into the display map of the viewer."
+  inventories into the display map."
   [label-of label-type-of tag]
   (let [{:keys [description typeTag sameAs]} (label-of tag)
         type-tag (label-type-of typeTag)]
@@ -220,7 +220,7 @@
   relation the entry or one of its senses is a member of appears as
   pre-resolved rows. An entry that shares its headword and part of
   speech with others carries the ordered files of the whole group as
-  :homographs, which the web viewer merges into one page."
+  :homographs, which the web app merges into one page."
   [{:keys [label-of label-type-of deftype-of form-tag-of pos-of source-of
            homographs-of]
     :as   env}
@@ -425,7 +425,7 @@
 
   The gettext ui.po next to the DMLex file merges over the \"ui\"
   section of the presentation `config`; the po file is what translation
-  tools produce from i18n/template.pot (see dk.cst.dmlex-viewer.i18n)."
+  tools produce from i18n/template.pot (see dk.cst.dmlex-browser.i18n)."
   [content-of config]
   (merge (get config "ui")
          (some-> (content-of "ui.po") (pottery/read-po-str))))
@@ -614,7 +614,7 @@
 
 (defn build!
   "Read the DMLex JSON file (or zip export) `in` and write the static
-  data files of the viewer into the directory `out`, and the
+  data files of the app into the directory `out`, and the
   pre-rendered pages into the site directory that holds it.
 
   The data directory sits at <site>/data, which is also how the app

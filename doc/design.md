@@ -1,6 +1,6 @@
 # Design
 
-dmlex-viewer is a generic viewer for DMLex 1.0 lexicographic
+DMLex browser is a generic browser for DMLex 1.0 lexicographic
 resources. Two display surfaces (a static web app and an Apple
 Dictionary bundle) show the output of one resolution step. This
 document records the decisions and principles that shape the code. It
@@ -20,7 +20,7 @@ keeps the whole project small.
 
 ## No dataset knowledge
 
-The viewer works on any DMLex 1.0 JSON file and knows nothing about
+The project works on any DMLex 1.0 JSON file and knows nothing about
 any particular dataset. Tags are opaque strings, and the code
 compares them only for equality. This invariant decides where
 features live. Anything that depends on what a tag means belongs to
@@ -59,7 +59,7 @@ Two boundaries limit the config:
   config stays plain and deterministic, and also serves as a readable
   record of the vocabulary.
 
-A missing config is the normal case, and the viewer then shows the
+A missing config is the normal case, and the interface then shows the
 data neutrally. It ignores unknown sections and unknown tags without
 complaint. Nothing disappears by accident. A qualifier without a host
 stays an ordinary label, and unclaimed relation rows collect in a
@@ -71,7 +71,7 @@ same kind of box under the generic "about the word" heading. When the
 config moves every entry label onto the part-of-speech line, the box
 disappears.
 
-A checkbox in the web viewer turns the config off for an entry, to
+A checkbox in the web app turns the config off for an entry, to
 compare it with this neutral view. localStorage remembers the checkbox
 choices per dataset, like the UI language choice.
 
@@ -79,7 +79,7 @@ Member order is taste too. By default the members of a relation row
 keep the listing order of the dataset. The DMLex spec asks a
 conforming display to do exactly that. `"memberOrder": "collation"`
 instead sorts them by the `obverseListingOrder` of each member and
-then alphabetically. A checkbox in the web viewer forces a strictly
+then alphabetically. A checkbox in the web app forces a strictly
 alphabetical order, whatever the config prefers.
 
 This use of `obverseListingOrder` is more liberal than the spec, which
@@ -125,7 +125,7 @@ function. A shared function never gets options for one surface. The
 mirrored view pairs are the second zone: the two files differ on
 purpose, so a verbatim copy of a view is never correct.
 
-Where the surfaces can differ, the presentation of the web viewer
+Where the surfaces can differ, the presentation of the web app
 wins. Dictionary.app adapts the conventions, not the content. The
 export marks secondary content with `d:priority`, so the compact Look
 Up panel shows only the core. Every full inflected form becomes a
@@ -209,7 +209,7 @@ order the reader asked for.
 ## One page per homograph group
 
 A dataset can split one headword into many entries with homograph
-numbers. The web viewer shows the entries that share a headword and
+numbers. The web app shows the entries that share a headword and
 a part of speech as one page, divided by hairline rules. Each entry
 keeps its own number and its own stable URL. A URL that names a
 later entry of the group scrolls down to it, like sense navigation.
@@ -223,7 +223,7 @@ so the Apple export does not change.
 ## The sense index
 
 A long entry hides its later senses below the fold. When a page has
-more than one sense, the viewer adds an index of links that scroll to
+more than one sense, the web app adds an index of links that scroll to
 them. Each entry heads its own list in the index, as the way back up
 to its headword and inflected forms.
 
@@ -300,7 +300,7 @@ silently reflow Dictionary.app. There a regression stays invisible
 until someone rebuilds a bundle. Visible duplication beats invisible
 coupling.
 
-The web viewer is light-only by choice. Dictionary.app adapts to dark
+The web app is light-only by choice. Dictionary.app adapts to dark
 mode. The export's stylesheet pins `prefers-color-scheme` to light.
 It derives the palette from `CanvasText`/`Canvas` mixes instead of a
 dark media block, so the semantic colours follow the actual
@@ -322,11 +322,11 @@ carry a `lang="en"` marker.
 
 ## UI translations
 
-Most of what the viewer shows is dataset text, already in the
+Most of what the interface shows is dataset text, already in the
 language of the resource. The views also prefer the dataset's
 descriptions over technical tags where both exist, so a Danish
 resource shows "substantiv" with "noun" in the tooltip. That leaves
-the viewer's own strings, about two dozen, written in English in the
+the interface's own strings, about two dozen, written in English in the
 source: the search placeholder, the front-matter keys, and the error
 messages.
 
@@ -334,10 +334,10 @@ A plain gettext setup translates them. The English string is the
 lookup key and the fallback. `{n}` carries a count. The whole table is
 a map from English to the target language.
 
-The viewer ships a Danish table as `i18n/da.po` and uses it when the
+The project ships a Danish table as `i18n/da.po` and uses it when the
 manifest says that the resource is Danish. A dataset can add or
 override translations with a `ui` section in its config or a `ui.po`
-file next to its data. The web viewer also has a dropdown that selects
+file next to its data. The web app also has a dropdown that selects
 among the bundled languages, and localStorage remembers the choice per
 dataset. The `ui` table of the dataset applies only while the chosen
 language is the language of the resource, because its strings are in
@@ -363,7 +363,7 @@ language.
 The presentation config is not bound that way. Its operations are the
 same in every language, and only the names differ, so a name can be
 given per language and one config can ship with every export. The
-viewer resolves the names once, to the language the reader picked, and
+interface resolves the names once, to the language the reader picked, and
 the operations downstream read plain strings. The text of the dataset
 still stays in the language of its export, so a reader who picks
 another language gets its names around the dataset's own words. The `langCode` of each export decides the rest: the dataset

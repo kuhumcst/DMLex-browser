@@ -1,10 +1,10 @@
-(ns dk.cst.dmlex-viewer.views-scenes
+(ns dk.cst.dmlex-browser.views-scenes
   "Scenes of the views over hand-made DMLex shapes.
 
   One scene per shape that a real dataset produces rarely and that the
   markup has to survive: a qualified inline label, a relation row long
   enough to fold, a paradigm of variant spellings, a homograph group."
-  (:require [dk.cst.dmlex-viewer.views :as views]
+  (:require [dk.cst.dmlex-browser.views :as views]
             [portfolio.replicant :refer [defscene]]))
 
 (def sense

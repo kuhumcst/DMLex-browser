@@ -1,7 +1,7 @@
-(ns dk.cst.dmlex-viewer.app-test
+(ns dk.cst.dmlex-browser.app-test
   "Tests of the pure routing and keyboard logic of the frontend."
   (:require [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.app :as app]))
+            [dk.cst.dmlex-browser.app :as app]))
 
 (deftest collapse-homographs-test
   (testing "rows sharing headword and pos collapse to their first row"
@@ -23,7 +23,7 @@
   (testing "the site root is the front page"
     (is (= {} (app/->route "")))
     (is (= {} (app/->route "index.html"))))
-  (testing "any other path is no page of the viewer, so the browser keeps it"
+  (testing "any other path is no page of the app, so the browser keeps it"
     (is (nil? (app/->route "entry/abe/extra")))
     (is (nil? (app/->route "data/index.json")))))
 

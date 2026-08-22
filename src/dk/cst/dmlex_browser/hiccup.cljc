@@ -1,18 +1,18 @@
-(ns dk.cst.dmlex-viewer.hiccup
+(ns dk.cst.dmlex-browser.hiccup
   "The hiccup vocabulary of the views: a translation alias, a link alias
   and the paths that the second one builds.
 
   Both aliases read what they need from Replicant's alias data, so no
   view has to carry the UI table or the URL scheme as an argument. The
-  render call supplies the table under :ui; see dk.cst.dmlex-viewer.app
-  for the browser and dk.cst.dmlex-viewer.build for the pre-rendered
+  render call supplies the table under :ui; see dk.cst.dmlex-browser.app
+  for the browser and dk.cst.dmlex-browser.build for the pre-rendered
   pages.
 
   An alias runs only when its own hiccup changes: Replicant skips an
   unchanged node before it resolves the alias. New alias data alone
   never reaches one, so the app unmounts before it renders with
   another table."
-  (:require [dk.cst.dmlex-viewer.shared :as shared]
+  (:require [dk.cst.dmlex-browser.shared :as shared]
             [replicant.alias :refer [defalias]]))
 
 (def front-path

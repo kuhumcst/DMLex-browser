@@ -1,5 +1,5 @@
-(ns dk.cst.dmlex-viewer.views
-  "The hiccup of the web viewer, as pure functions over one value of the
+(ns dk.cst.dmlex-browser.views
+  "The hiccup of the web app, as pure functions over one value of the
   app state.
 
   Nothing here touches the DOM or the state atom: the browser renders
@@ -8,15 +8,15 @@
   cljc. Chrome text arrives through the hiccup/tr alias, so only the views
   that translate an attribute value carry the `ui` table themselves.
 
-  Mirrored by hand in dk.cst.dmlex-viewer.appledict: carry markup edits
+  Mirrored by hand in dk.cst.dmlex-browser.appledict: carry markup edits
   over, minding the differences listed there."
   (:require [clojure.string :as str]
-            [dk.cst.dmlex-viewer.shared :as shared]
-            [dk.cst.dmlex-viewer.hiccup :as hiccup]))
+            [dk.cst.dmlex-browser.shared :as shared]
+            [dk.cst.dmlex-browser.hiccup :as hiccup]))
 
 (def fallback-title
-  "The viewer's own name, shown when the manifest supplies no title."
-  "DMLex viewer")
+  "The app's own name, shown when the manifest supplies no title."
+  "DMLex browser")
 
 (defn tagged
   "The `tag` as a span with the `description` of the dataset as its tooltip.

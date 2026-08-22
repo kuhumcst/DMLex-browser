@@ -1,19 +1,19 @@
-(ns dk.cst.dmlex-viewer.app
-  "A generic DMLex viewer: one search field over the entry index and a
+(ns dk.cst.dmlex-browser.app
+  "A generic DMLex browser: one search field over the entry index and a
   typography-first rendering of single entries.
 
   The app is a static site. It fetches the data files that
-  dk.cst.dmlex-viewer.build writes: manifest.json, index.json and one
+  dk.cst.dmlex-browser.build writes: manifest.json, index.json and one
   pre-resolved file per entry. The same build pre-renders every page,
   so this namespace holds only what a browser adds to it: the state,
   the effects behind the actions the views dispatch, and the routing."
   (:require [clojure.string :as str]
-            [dk.cst.dmlex-viewer.presentation :as presentation]
-            [dk.cst.dmlex-viewer.shared :as shared]
-            [dk.cst.dmlex-viewer.hiccup :as hiccup]
-            [dk.cst.dmlex-viewer.views :as views]
+            [dk.cst.dmlex-browser.presentation :as presentation]
+            [dk.cst.dmlex-browser.shared :as shared]
+            [dk.cst.dmlex-browser.hiccup :as hiccup]
+            [dk.cst.dmlex-browser.views :as views]
             [replicant.dom :as r])
-  (:require-macros [dk.cst.dmlex-viewer.translations :refer [inline-tables]]))
+  (:require-macros [dk.cst.dmlex-browser.translations :refer [inline-tables]]))
 
 (defonce state
   (atom {:manifest      nil
@@ -130,7 +130,7 @@
 (defn ->route
   "The route of the site-relative `path`: the entry file basename it
   names and the sense in its fragment, an empty map for the front page,
-  or nil for a path that is no page of the viewer."
+  or nil for a path that is no page of the app."
   [path]
   (let [[path fragment] (str/split path #"#" 2)]
     (if (contains? #{"" "index.html"} path)
@@ -416,7 +416,7 @@
   "The localStorage key of the preference `pref` for the dataset of
   `manifest`."
   [pref manifest]
-  (str "dmlex-viewer:" pref ":" (or (:uri manifest) (:title manifest) "default")))
+  (str "dmlex-browser:" pref ":" (or (:uri manifest) (:title manifest) "default")))
 
 (defn read-pref
   "The stored value of the preference `pref` for the dataset of

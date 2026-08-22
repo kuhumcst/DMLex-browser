@@ -1,19 +1,19 @@
-(ns dk.cst.dmlex-viewer.presentation
+(ns dk.cst.dmlex-browser.presentation
   "Apply a per-dataset presentation config to the resolved entries of
-  dk.cst.dmlex-viewer.build.
+  dk.cst.dmlex-browser.build.
 
   The config is a JSON file the dataset ships next to its data. Its keys
   are the dataset's own tags and stay strings — tags need not be valid
   keywords — while the entries keep the keyword keys of the build. The
   ops are generic (set membership, sort by list position, string
-  substitution), so the viewer never learns what any tag means. The web
-  viewer applies them at render time and the Apple Dictionary export at
+  substitution), so the project never learns what any tag means. The web
+  app applies them at render time and the Apple Dictionary export at
   export time, which is why this namespace is cljc — and why an edit
   here also changes Dictionary.app, with no automated render to show
   it."
   (:require [clojure.string :as str]
             [clojure.walk :as walk]
-            [dk.cst.dmlex-viewer.shared :as shared]))
+            [dk.cst.dmlex-browser.shared :as shared]))
 
 (defn localized
   "The display string `x` in the first of `langs` that names it: `x`
@@ -235,12 +235,12 @@
 (defn collate-members
   "Sort the members of every relation row of the presented `entry` — on
   the entry, its senses and any relation groups — with the member
-  comparator `compare-members` (see dk.cst.dmlex-viewer.shared for the
+  comparator `compare-members` (see dk.cst.dmlex-browser.shared for the
   ranked and the strictly alphabetical one).
 
   Without this the members keep the listing order of the dataset; the
   \"memberOrder\" config value \"collation\" and the checkbox of the
-  web viewer apply it."
+  web app apply it."
   [compare-members entry]
   (let [rows*   (fn [rows]
                   (mapv (fn [row]
@@ -339,7 +339,7 @@
   "The app state `state` with its raw entries presented under the config
   and the member order it currently asks for.
 
-  Both surfaces of the viewer decide the same way: the dataset's config
+  Both surfaces decide the same way: the dataset's config
   unless the reader switched it off, and a member order of :alpha when
   the reader forced one, of :collation when the config asks for it.
 

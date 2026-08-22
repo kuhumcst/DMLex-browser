@@ -1,11 +1,11 @@
-(ns dk.cst.dmlex-viewer.appledict-test
+(ns dk.cst.dmlex-browser.appledict-test
   "Tests of the XML emission and entry rendering of the Apple Dictionary
   export."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.appledict :as appledict]
-            [dk.cst.dmlex-viewer.build :as build]
-            [dk.cst.dmlex-viewer.build-test :as build-test]))
+            [dk.cst.dmlex-browser.appledict :as appledict]
+            [dk.cst.dmlex-browser.build :as build]
+            [dk.cst.dmlex-browser.build-test :as build-test]))
 
 (deftest hiccup->xml-test
   (testing "elements, attributes and the d: prefix convention"

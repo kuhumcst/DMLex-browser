@@ -1,5 +1,5 @@
-(ns dk.cst.dmlex-viewer.i18n
-  "Gettext tooling for the translatable UI chrome of the viewer.
+(ns dk.cst.dmlex-browser.i18n
+  "Gettext tooling for the translatable UI chrome of the project.
 
   Extracts every key the views pass to the hiccup/tr alias, to tr or
   to en into the template i18n/template.pot, which translators load
@@ -18,9 +18,9 @@
 
 (def source-files
   "The namespaces whose chrome strings the template carries."
-  ["src/dk/cst/dmlex_viewer/views.cljc"
-   "src/dk/cst/dmlex_viewer/build.clj"
-   "src/dk/cst/dmlex_viewer/appledict.clj"])
+  ["src/dk/cst/dmlex_browser/views.cljc"
+   "src/dk/cst/dmlex_browser/build.clj"
+   "src/dk/cst/dmlex_browser/appledict.clj"])
 
 (def template-file
   "The gettext template of the UI chrome, committed with the source."

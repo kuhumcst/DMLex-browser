@@ -1,9 +1,9 @@
-(ns dk.cst.dmlex-viewer.appledict
+(ns dk.cst.dmlex-browser.appledict
   "Convert a DMLex 1.0 JSON file, or a zip export containing one, into
   an Apple Dictionary source project.
 
-  Renders the same resolved entry maps that dk.cst.dmlex-viewer.build
-  writes for the web viewer as the d:dictionary XML of the Dictionary
+  Renders the same resolved entry maps that dk.cst.dmlex-browser.build
+  writes for the web app as the d:dictionary XML of the Dictionary
   Development Kit, next to a stylesheet, an Info.plist and a Makefile.
   A Dublin Core metadata.json next to the DMLex file fills the bundle
   metadata and the front matter. Building the final .dictionary bundle
@@ -14,24 +14,24 @@
   the exact shape that the DDK scripts and WebKit expect, so the emitter
   is a small string-based hiccup renderer rather than clojure.data.xml,
   whose namespace-aware emission cannot reproduce that shape verbatim.
-  replicant.string, which renders the web viewer's own hiccup, is out
+  replicant.string, which renders the web app's own hiccup, is out
   for the same reason: a namespaced keyword tag means an alias to
   Replicant, not a prefixed element, and it self-closes only the void
   HTML elements.
 
-  The view functions mirror dk.cst.dmlex-viewer.views by hand. They
+  The view functions mirror dk.cst.dmlex-browser.views by hand. They
   differ in x-dictionary links without a target, d:priority on
   secondary content, chrome text in CSS content so that Look Up cannot
-  search it, and none of the web viewer's ARIA or focus wiring.
+  search it, and none of the web app's ARIA or focus wiring.
 
   Usage (from the project root, which anchors the stylesheet paths):
   clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]"
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [dk.cst.dmlex-viewer.build :as build]
-            [dk.cst.dmlex-viewer.presentation :as presentation]
-            [dk.cst.dmlex-viewer.shared :as shared]
-            [dk.cst.dmlex-viewer.translations :as translations]))
+            [dk.cst.dmlex-browser.build :as build]
+            [dk.cst.dmlex-browser.presentation :as presentation]
+            [dk.cst.dmlex-browser.shared :as shared]
+            [dk.cst.dmlex-browser.translations :as translations]))
 
 (defn escape
   "Escape `s` for use as XML text content or an attribute value."
@@ -88,7 +88,7 @@
 (defn linked
   "The hiccup `x`, linked to `uri` when the dataset supplies one.
 
-  Unlike the web viewer's links, no target: Dictionary.app has no tabs."
+  Unlike the web app's links, no target: Dictionary.app has no tabs."
   [uri x]
   (if uri
     [:a {:href uri} x]
@@ -357,7 +357,7 @@
   The stylesheet shows the panel when the view has room beside the
   entry column, else the disclosure. Dictionary.app runs no scripts
   and no sticky positioning, so the panel scrolls with its entry and
-  the marking of the web viewer stays web-only. Nothing renders for
+  the marking of the web app stays web-only. Nothing renders for
   at most one sense.
 
   The summary text lives in CSS content so that Dictionary.app cannot
@@ -389,7 +389,7 @@
           [:d/index {:d/value text :d/title (str text " (" headword ")")}])))
 
 (defn ->entry
-  "One d:entry of the resolved `entry` map of dk.cst.dmlex-viewer.build:
+  "One d:entry of the resolved `entry` map of dk.cst.dmlex-browser.build:
   the index terms, the header, the senses and the entry-level relations.
 
   Everything but the headword, the pos and the definitions carries
@@ -496,7 +496,7 @@
     (hiccup->xml (front-matter ui info))))
 
 (defn drop-first-sense-anchors
-  "Match the web viewer's arrival rule in the resolved display `entry`:
+  "Match the web app's arrival rule in the resolved display `entry`:
   a cross-entry member link to the first sense of its target opens the
   entry from the top, headword in view, so its anchor is dropped; a
   same-entry link keeps its anchor and scrolls. `first-sense?` answers

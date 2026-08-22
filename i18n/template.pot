@@ -2,139 +2,139 @@ msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Show or hide the rest."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "contents"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "preferences"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "interface"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "The language of the interface."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "alphabetical"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Strictly alphabetical, without the dataset's ranking."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "custom"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "The dataset's own presentation."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "No matches"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "matches: {n}"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Search results"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Search failed to load. Reload the page."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "publisher"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "licence"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "rights"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "sources & licences"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "sources"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "language"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "entries"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "senses"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "relations"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Search the dictionary"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Type a word to look it up."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "The page failed to load."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Go to the front page."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/build.clj
+#: src/dk/cst/dmlex_browser/build.clj
 msgid "Searching needs JavaScript."
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "label"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "{n} entries"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "related"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "form"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "all forms"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/views.cljc src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "about the word"
 msgstr ""
 
-#: src/dk/cst/dmlex_viewer/appledict.clj
+#: src/dk/cst/dmlex_browser/appledict.clj
 msgid "About {title}"
 msgstr ""
 

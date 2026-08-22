@@ -2,16 +2,16 @@
  :builds   {:app  {:target     :browser
                    :output-dir "public/js"
                    :asset-path "js"
-                   :modules    {:main {:init-fn dk.cst.dmlex-viewer.app/init}}}
+                   :modules    {:main {:init-fn dk.cst.dmlex-browser.app/init}}}
             ;; The frontend tests: npx shadow-cljs compile test
             ;;                     node out/node-tests.js
             :test {:target    :node-test
                    :output-to "out/node-tests.js"}
             ;; The view workbench: npx shadow-cljs watch portfolio
             :portfolio {:target     :portfolio
-                        :runner-ns  dk.cst.dmlex-viewer.portfolio
+                        :runner-ns  dk.cst.dmlex-browser.portfolio
                         :html-file  {:path  "dev-resources/public/index.html"
-                                     :title "DMLex viewer scenes"}
+                                     :title "DMLex browser scenes"}
                         :output-dir "dev-resources/public/js"}}
  :dev-http {8000 "public"
             8001 ["dev-resources/public" "public" "classpath:public"]}}

@@ -1,4 +1,4 @@
-/* The Dictionary.app entry view: the web viewer's design adapted to the
+/* The Dictionary.app entry view: the web app's design adapted to the
    narrow Look Up panel. The appledict export prepends the shared tokens
    from public/css/tokens.css and appends any dataset stylesheet, so this
    file holds only the Dictionary.app rules. */
@@ -85,7 +85,7 @@ summary.contents::after { content: "contents"; }
   border: 0;
 }
 
-/* The sense index: the web viewer's panel when the view has room
+/* The sense index: the web app's panel when the view has room
    beside the entry column, else a floated disclosure at the top
    right of the entry. Dictionary.app runs no scripts and does not
    honour sticky positioning, so the panel scrolls with its entry
@@ -159,7 +159,7 @@ details.sense-index-inline {
 
 /* Dictionary.app stacks the entries that share a headword in one view,
    one after the next and with nothing between them, and it hands each
-   over inline. The hairline of the web viewer's homograph rule
+   over inline. The hairline of the web app's homograph rule
    divides them. */
 .entry { display: block; }
 

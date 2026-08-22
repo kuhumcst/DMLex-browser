@@ -1,8 +1,8 @@
-(ns dk.cst.dmlex-viewer.translations
-  "The bundled UI translations of the viewer, read from the po files
+(ns dk.cst.dmlex-browser.translations
+  "The bundled UI translations of the project, read from the po files
   in i18n/.
 
-  The web viewer inlines the tables at compile time via the
+  The web app inlines the tables at compile time via the
   inline-tables macro and picks one by the langCode of the manifest;
   the data build and the Apple dictionary export read them at build
   and export time. A dataset's own \"ui\" section or ui.po merges

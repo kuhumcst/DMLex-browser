@@ -1,10 +1,10 @@
-(ns dk.cst.dmlex-viewer.build-test
+(ns dk.cst.dmlex-browser.build-test
   "Tests of the pure resolution logic of the data build."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [dk.cst.dmlex-viewer.build :as build]
-            [dk.cst.dmlex-viewer.presentation :as presentation]
-            [dk.cst.dmlex-viewer.shared :as shared])
+            [dk.cst.dmlex-browser.build :as build]
+            [dk.cst.dmlex-browser.presentation :as presentation]
+            [dk.cst.dmlex-browser.shared :as shared])
   (:import [java.io File]
            [java.util.zip ZipEntry ZipOutputStream]))
 

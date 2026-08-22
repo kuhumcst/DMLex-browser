@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "viewer",
+      "name": "app",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8000", "-d", "public"],
       "port": 8000

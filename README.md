@@ -1,17 +1,17 @@
-# dmlex-viewer
+# DMLex browser
 
-<img src="web-viewer.png" align="right" width="340"
-     alt="The viewer shows the entry for the Danish word æblesort (apple
+<img src="web-app.png" align="right" width="340"
+     alt="The app shows the entry for the Danish word æblesort (apple
           cultivar) as a white page on a grey background: the search field,
           the headword, the affixed inflected forms, a definition, the
           classification, and a panel of related words.">
 
-A generic viewer for [DMLex 1.0](https://docs.oasis-open.org/lexidma/dmlex/v1.0/os/dmlex-v1.0-os.html)
-lexicographic resources. The viewer shows a DMLex file as a dictionary.
+A generic browser for [DMLex 1.0](https://docs.oasis-open.org/lexidma/dmlex/v1.0/os/dmlex-v1.0-os.html)
+lexicographic resources. The app shows a DMLex file as a dictionary.
 It has one search field, hyperlink navigation, and a typography-first
 entry display in black, white and grey.
 
-The viewer is a static site with no server and no database. A build step
+The app is a static site with no server and no database. A build step
 shards the single-file DMLex JSON serialization into small data files
 and pre-renders one page per entry. Every page reads without
 JavaScript; the app then takes it over, and the browser fetches only
@@ -41,7 +41,7 @@ needs no unpacking.
 The build writes three kinds of data file into `public/data/`:
 
 - `manifest.json` holds the resource metadata. A Dublin Core
-  `metadata.json` next to the DMLex file merges in. The viewer shows
+  `metadata.json` next to the DMLex file merges in. The app shows
   the description, rights, license and sources on the front page.
 - `index.json` holds the search index, sorted with the collation of the
   resource language.
@@ -53,7 +53,7 @@ views that the browser renders:
 - `public/index.html` is the front page, titled with the resource and
   carrying its front matter.
 - `public/entry/<id>/index.html` is the page of one homograph group.
-  Its URL is the one the viewer navigates to, so a reader without
+  Its URL is the one the app navigates to, so a reader without
   JavaScript, and a crawler, see the entry that a reader with
   JavaScript sees.
 
@@ -70,12 +70,12 @@ The build resolves the display data before the frontend runs:
 
 - Labels, label types, parts of speech, relation types, and example
   sources carry the description and the `sameAs` URI of their
-  inventory tag. The viewer shows the URI as a link.
+  inventory tag. The app shows the URI as a link.
 - Inflected forms carry the description of their `inflectedFormTag`
   and a computed affix, for example `-t` for the form *mennesket*.
 - Definition and example texts carry their stand-off
   `headwordMarkers` and `collocateMarkers` as display runs. The
-  viewer shows the marked headword in bold and a collocate with its
+  app shows the marked headword in bold and a collocate with its
   lemma as the tooltip.
 - The labels of an example follow it in parentheses. The
   `headwordTranslations` of a sense form one line of equivalents,
@@ -86,7 +86,7 @@ The build resolves the display data before the frontend runs:
   relation instance, then of its role's memberType, then of its
   relation type. A member whose memberType hints `"none"` stays out.
 - Entries that share a headword and a part of speech carry the files
-  of the whole group as `homographs`. The web viewer merges the group
+  of the whole group as `homographs`. The web app merges the group
   into one page and offers one search suggestion for it.
 
 ## Describe the data
@@ -106,7 +106,7 @@ DMLex file.
 | `dc:description` | A description for the front page: a string, or a map of language codes to strings. The build reads the resource language and falls back to English. |
 | `dc:publisher` | The publishing institution. |
 | `dc:rights` | A rights statement. |
-| `dc:license` | The license URL. The viewer shows a Creative Commons URL as its short name, for example CC BY-SA 4.0. |
+| `dc:license` | The license URL. The app shows a Creative Commons URL as its short name, for example CC BY-SA 4.0. |
 | `dc:issued` | The version of the Apple dictionary bundle. |
 | `dc:source` | The source works, as a list of maps. Each map has an optional `dc:title`, `dc:identifier` (the home URI) and `dc:license`. A title like `DDO (Den Danske Ordbog)` splits into the abbreviation and the full name. |
 
@@ -115,12 +115,12 @@ DMLex file.
 A dataset can ship its taste as a small `presentation.json` file next
 to its DMLex JSON. The file can hide, rename, reorder and group the
 label types and the relation types, and it can rename the relation
-roles. The keys are the dataset's own tags. The viewer applies the
+roles. The keys are the dataset's own tags. The app applies the
 operations and never has to know what a tag means. Without the file,
-the viewer shows the dataset's own names and order. It ignores unknown
+the app shows the dataset's own names and order. It ignores unknown
 sections and unknown tags. The data build carries the file into
 `public/data/`, and the Apple dictionary export reads it next to its
-input file. On an entry page, the web viewer has a checkbox that
+input file. On an entry page, the web app has a checkbox that
 turns the config off, to show the neutral default view. The browser
 remembers the choice per dataset.
 
@@ -147,7 +147,7 @@ remembers the choice per dataset.
   "linkResolver":  "https://wordnet.dk/dannet/external?subject=",
   "css":           "extra.css",
 
-  // Translations of the viewer chrome into the dataset's language.
+  // Translations of the app's chrome into the dataset's language.
   "ui": {
     "all forms":   "alle former",
     "{n} entries": "{n} ord"
@@ -174,7 +174,7 @@ instead of one string:
 "rename": {"domain": {"da": "emne", "en": "subject"}}
 ```
 
-The viewer resolves the name to the language the reader picked, then
+The app resolves the name to the language the reader picked, then
 to the language of the resource. English stands in for a language the
 config does not name, and the first name in the order of the language
 codes stands in for that, so a name is never lost.
@@ -243,7 +243,7 @@ With `"listing"` (the default) the members of a relation row keep the
 listing order of the dataset. `"collation"` sorts them by the
 `obverseListingOrder` of each member first, then by the headword in
 the collation of the resource language. A member without an order
-sorts after every member with one. The web viewer also has a checkbox
+sorts after every member with one. The web app also has a checkbox
 that forces a strictly alphabetical order, whatever `memberOrder`
 says. The checkbox starts unchecked, and the browser remembers the
 choice per dataset. The Apple dictionary has no checkbox, so there
@@ -267,18 +267,18 @@ before the `appledict` stylesheet.
 
 ### `ui`
 
-The viewer's own interface strings are English. The `ui` section
+The app's own interface strings are English. The `ui` section
 translates them in the gettext style: the English string is its own
 key, `{n}` carries a count, and singular and plural are separate keys
 (`"1 match shown"`, `"{n} matches shown"`). An untranslated string
 stays English and keeps its `lang="en"` marker for assistive
-technology. The viewer treats a translated string as text in the
+technology. The app treats a translated string as text in the
 language of the resource. The Apple dictionary export applies the
 same table at export time. This also covers the strings that its
 stylesheet shows as CSS content.
 
-The viewer bundles a Danish translation ([i18n/da.po](i18n/da.po))
-and picks it by the `langCode` of the resource. The web viewer also
+The app bundles a Danish translation ([i18n/da.po](i18n/da.po))
+and picks it by the `langCode` of the resource. The web app also
 has a dropdown that switches the UI language. The browser remembers
 the choice per dataset. A dataset can override or extend the bundled
 table with its own `ui` section. It can also ship the translations as
@@ -328,7 +328,7 @@ For a production host:
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Cache-Control` | `no-cache` for `index.html`, `entry/`, `js/main.js` and `data/` |
 
-The viewer loads no third-party resources, so the strict policy is safe.
+The app loads no third-party resources, so the strict policy is safe.
 The file names do not change between builds, so `no-cache` makes the
 browser revalidate each file.
 
@@ -355,7 +355,7 @@ clojure -J-Xmx8g -M:appledict datasets/your-dmlex.json
 
 The export writes an Apple Dictionary source project into
 `export/appledict/`: the dictionary XML, the stylesheet, an Info.plist
-and a Makefile. The entries show the same content as the web viewer.
+and a Makefile. The entries show the same content as the web app.
 The entry shows the short inflected forms, and the search index holds
 the full forms. If a Dublin Core `metadata.json` sits next to the DMLex
 file, its fields fill the bundle metadata and the front matter. A zip
@@ -396,11 +396,11 @@ The views have a scene workbench, which needs no dataset:
 npx shadow-cljs watch portfolio
 ```
 
-It serves the scenes of `dk.cst.dmlex-viewer.views-scenes` at
+It serves the scenes of `dk.cst.dmlex-browser.views-scenes` at
 <http://localhost:8001>, over hand-made DMLex shapes that a real
 dataset produces rarely. Each scene renders into
 [dev-resources/public/canvas.html](dev-resources/public/canvas.html),
-which gives it the viewer's own page sheet.
+which gives it the app's own page sheet.
 
 The resolution logic of the data build has JVM tests:
 
@@ -416,10 +416,10 @@ tests:
 npx shadow-cljs compile test && node out/node-tests.js
 ```
 
-The translatable strings of the viewer live in
+The translatable strings of the app live in
 [i18n/template.pot](i18n/template.pot). The command `clojure -M:i18n`
 regenerates the template from the source. A new UI language is one
 more po file in [i18n/](i18n/) and its entry in
-`dk.cst.dmlex-viewer.translations`. The JVM tests compare the template
+`dk.cst.dmlex-browser.translations`. The JVM tests compare the template
 and every bundled po file against a fresh extraction, so neither can
 drift from the code.

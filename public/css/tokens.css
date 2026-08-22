@@ -1,5 +1,5 @@
 /* The shared design tokens: the palette and the font stacks of both the
-   web viewer (style.css) and the Apple Dictionary export, which prepends
+   web app (style.css) and the Apple Dictionary export, which prepends
    this file to resources/appledict/style.css. Editing a token restyles
    both outputs. --faint, --visited and --key-col only occur in the web
    stylesheet. */

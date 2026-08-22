@@ -4,12 +4,12 @@
            brightin/pottery       {:mvn/version "1.0.2"}
            no.cjohansen/replicant {:mvn/version "2026.07.1"}}
  :aliases {;; The data build: clojure -J-Xmx8g -M:build <dmlex.json|zip> [<out-dir>]
-           :build  {:main-opts ["-m" "dk.cst.dmlex-viewer.build"]}
+           :build  {:main-opts ["-m" "dk.cst.dmlex-browser.build"]}
            ;; The Apple Dictionary export:
            ;; clojure -J-Xmx8g -M:appledict <dmlex.json|zip> [<out-dir>] [<ddk-dir>]
-           :appledict {:main-opts ["-m" "dk.cst.dmlex-viewer.appledict"]}
+           :appledict {:main-opts ["-m" "dk.cst.dmlex-browser.appledict"]}
            ;; Regenerate the translation template: clojure -M:i18n
-           :i18n   {:main-opts ["-m" "dk.cst.dmlex-viewer.i18n"]}
+           :i18n   {:main-opts ["-m" "dk.cst.dmlex-browser.i18n"]}
            ;; The tests: clojure -M:test
            :test   {:extra-paths ["test"]
                     :extra-deps  {io.github.cognitect-labs/test-runner
