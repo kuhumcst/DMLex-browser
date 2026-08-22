@@ -22,7 +22,8 @@ JSON file and holds no DanNet knowledge. The frontend uses ClojureScript
 and [Replicant](https://github.com/cjohansen/replicant), without React.
 
 A first run is three sections in this order: build the data, build the
-frontend, and serve.
+frontend, and serve. An [Apple dictionary](#build-an-apple-dictionary)
+is a separate, single-step export from the same DMLex file.
 
 ## Build the data
 
@@ -47,8 +48,8 @@ The build writes three kinds of data file into `public/data/`:
   resource language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
 
-It also writes the pages of the site next to the data, through the same
-views that the browser renders:
+The build also writes the pages of the site next to the data, through
+the same views that the browser renders:
 
 - `public/index.html` is the front page, titled with the resource and
   carrying its front matter.
@@ -66,14 +67,14 @@ arrive fully resolved: tags, affixes, markers and relation rows all
 carry their display data. The reasons are in
 [doc/design.md](doc/design.md).
 
-## Describe the data
+### Describe the data
 
 A Dublin Core `metadata.json` next to the DMLex file describes the
 resource: the title, the description, the rights, the license and
 the sources. Every field is optional, and so is the file itself.
 [doc/metadata.md](doc/metadata.md) lists the fields.
 
-## Present the data
+### Present the data
 
 A dataset can ship a small `presentation.json` file next to its
 DMLex JSON. The file can hide, rename, reorder and group what the
