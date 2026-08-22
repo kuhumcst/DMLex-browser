@@ -53,7 +53,7 @@ views that the browser renders:
 - `public/index.html` is the front page, titled with the resource and
   carrying its front matter.
 - `public/entry/<id>/index.html` is the page of one homograph group.
-  Its URL is the one the app navigates to, so a reader without
+  Its URL is the one the app navigates to. A reader without
   JavaScript, and a crawler, see the entry that a reader with
   JavaScript sees.
 
@@ -61,33 +61,10 @@ Both are generated, so neither is in the repository. Build the data
 before serving the site.
 
 The build clears `public/data/entries/` and `public/entry/` before it
-writes them, so no stale entry survives a rename. It is also much
-faster than rewriting them in place: on a copy-on-write filesystem,
-overwriting a file costs several times what creating one does, which
-for DanNet is the difference between two minutes and eleven.
-
-The build resolves the display data before the frontend runs:
-
-- Labels, label types, parts of speech, relation types, and example
-  sources carry the description and the `sameAs` URI of their
-  inventory tag. The app shows the URI as a link.
-- Inflected forms carry the description of their `inflectedFormTag`
-  and a computed affix, for example `-t` for the form *mennesket*.
-- Definition and example texts carry their stand-off
-  `headwordMarkers` and `collocateMarkers` as display runs. The
-  app shows the marked headword in bold and a collocate with its
-  lemma as the tooltip.
-- The labels of an example follow it in parentheses. The
-  `headwordTranslations` of a sense form one line of equivalents,
-  grouped by language.
-- Each relation attaches to its member entries and senses as display
-  rows. Rows with the same relation type and the same direction merge
-  into one row. The tooltip of a row prefers the description of its
-  relation instance, then of its role's memberType, then of its
-  relation type. A member whose memberType hints `"none"` stays out.
-- Entries that share a headword and a part of speech carry the files
-  of the whole group as `homographs`. The web app merges the group
-  into one page and offers one search suggestion for it.
+writes them, so no stale entry survives a rename. The entry files
+arrive fully resolved: tags, affixes, markers and relation rows all
+carry their display data. The reasons are in
+[doc/design.md](doc/design.md).
 
 ## Describe the data
 
@@ -118,7 +95,7 @@ Point a static file server at `public/`:
 python3 -m http.server 8000 -d public
 ```
 
-The host has to serve `index.html` for a directory URL, which every
+The host must serve `index.html` for a directory URL, which every
 static host does. Nothing else is needed: entry URLs are real files.
 
 ## Deploy
