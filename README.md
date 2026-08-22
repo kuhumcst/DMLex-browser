@@ -24,6 +24,10 @@ A first run is three sections in this order: build the data, build the
 frontend, and serve. An [Apple dictionary](#build-an-apple-dictionary)
 is a separate, single-step export from the same DMLex file.
 
+The build commands run on the Clojure CLI. The official
+[install guide](https://clojure.org/guides/install_clojure) covers
+macOS, Linux and Windows, and the Java that Clojure needs.
+
 ## Build the data
 
 1. Copy your DMLex JSON file, or a zip export that contains it, into
@@ -89,14 +93,16 @@ section of the file.
 
 ## Serve
 
-Point a static file server at `public/`:
+Point a static file server at `public/`. The JDK that runs the build
+brings one (`jwebserver` needs JDK 18 or newer):
 
 ```sh
-python3 -m http.server 8000 -d public
+jwebserver -d "$PWD/public"
 ```
 
-The host must serve `index.html` for a directory URL, which every
-static host does. Nothing else is needed: entry URLs are real files.
+The server answers on <http://localhost:8000>. The host must serve
+`index.html` for a directory URL, which `jwebserver` and every static
+host do. Nothing else is needed: entry URLs are real files.
 
 The same directory deploys to any production host.
 [doc/deploy.md](doc/deploy.md) lists the recommended headers and the
