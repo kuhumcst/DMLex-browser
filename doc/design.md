@@ -158,7 +158,9 @@ subdirectory. Absolute paths fix it to one location.
 Replicant has no hydration: the first client render replaces the
 served markup with an identical rebuild. The app therefore waits for
 the manifest and the first route before it renders. The reader never
-sees a half-loaded page flash over the rendered one.
+sees a half-loaded page flash over the rendered one. The fade of the
+desk column waits for the same reason: the rebuild would run it a
+second time.
 
 The JSON data files remain the machine-readable interface. Entry ids
 come from the dataset, so entry URLs are stable. The site has no

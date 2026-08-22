@@ -490,7 +490,16 @@
         (reset! rendered-ui ui)
         (r/render el
                   (views/app (assoc state :ui ui :languages ui-languages))
-                  {:alias-data {:ui ui}})))))
+                  {:alias-data {:ui ui}})
+        ;; Enables the desk fade in style.css. Two frames later, so the
+        ;; render above paints before the class lands: with it, the
+        ;; rebuilt desk would fade in over the fade of the served page.
+        (when-not (.. js/document.documentElement -classList (contains "booted"))
+          (js/requestAnimationFrame
+           (fn [_]
+             (js/requestAnimationFrame
+              (fn [_]
+                (.. js/document.documentElement -classList (add "booted")))))))))))
 
 (defn init
   "Start the app: install the dispatch, the render loop and the routing,

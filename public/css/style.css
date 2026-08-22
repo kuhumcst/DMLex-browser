@@ -268,6 +268,12 @@ p.pos { margin: 0 0 0.4rem; }
   transition-behavior: allow-discrete;
 }
 
+/* No fade while the page boots. The served page paints first and the
+   first client render rebuilds it, so the fade would run twice: a
+   double flash. The app adds `booted` after that render has painted,
+   and the column then fades only when the viewport crosses 69rem. */
+html:not(.booted) .desk-anchor { transition: none; }
+
 /* The zero-height anchor is the sheet's first block and carries the
    sticky, because Firefox does not pin floats. The offsets cancel
    the sheet's 3.25rem top padding and 3px band, so the column spawns
