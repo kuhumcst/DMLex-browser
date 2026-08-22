@@ -6,7 +6,7 @@ Dictionary bundle) show the output of one resolution step. This
 document records the decisions and principles that shape the code. It
 leaves out anything that a code change can falsify. Function-level
 detail lives in docstrings, the tests pin the tricky semantics, and
-the how-to lives in the README.
+the how-to lives in the README and the pages it links.
 
 ## One resolution, dumb displays
 
@@ -163,7 +163,8 @@ sees a half-loaded page flash over the rendered one.
 The JSON data files remain the machine-readable interface. Entry ids
 come from the dataset, so entry URLs are stable. The site has no
 cookies, no analytics and no third-party requests, and therefore needs
-no consent machinery. The README lists the production headers.
+no consent machinery. [deploy.md](deploy.md) lists the production
+headers.
 
 ## Data in, hiccup out
 
@@ -395,7 +396,7 @@ The last audit against
 2026-08-14. A future audit needs only the delta since then (the
 changelog feed is at `https://specification.website/changelog/rss.xml`).
 Three items are declined, with reasons: a skip link (only one control
-precedes the main content), fingerprinted asset names (the README
+precedes the main content), fingerprinted asset names ([deploy.md](deploy.md)
 tells hosts to use `no-cache` instead), and JSON-LD (the data files
 serve agents better). Server-side rendering, once declined for hash
 routing, is now what the data build writes. Five items wait until the

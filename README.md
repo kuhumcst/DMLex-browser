@@ -9,7 +9,7 @@
 A generic browser for [DMLex 1.0](https://docs.oasis-open.org/lexidma/dmlex/v1.0/os/dmlex-v1.0-os.html)
 lexicographic resources. The app shows a DMLex file as a dictionary.
 It has one search field, hyperlink navigation, and a typography-first
-entry display in black, white and grey.
+presentation using black, grey, and red for details.
 
 The app is a static site with no server and no database. A build step
 shards the single-file DMLex JSON serialization into small data files
@@ -18,8 +18,7 @@ JavaScript. The app then takes it over, and the browser fetches only
 the entry that it shows.
 
 The project began as a side project of DanNet. It works on any DMLex 1.0
-JSON file and holds no DanNet knowledge. The frontend uses ClojureScript
-and [Replicant](https://github.com/cjohansen/replicant), without React.
+JSON file and holds no DanNet-specific knowledge.
 
 A first run is three sections in this order: build the data, build the
 frontend, and serve. An [Apple dictionary](#build-an-apple-dictionary)
@@ -99,34 +98,9 @@ python3 -m http.server 8000 -d public
 The host must serve `index.html` for a directory URL, which every
 static host does. Nothing else is needed: entry URLs are real files.
 
-## Deploy
-
-The `public/` directory is a complete static site. Any static host can
-serve it.
-
-For a production host:
-
-1. Serve every file over HTTPS. Redirect plain HTTP to HTTPS.
-2. Compress text responses with brotli or gzip.
-3. Set these response headers:
-
-| Header | Value |
-|---|---|
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
-| `X-Content-Type-Options` | `nosniff` |
-| `Content-Security-Policy` | `default-src 'self'` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Cache-Control` | `no-cache` for `index.html`, `entry/`, `js/main.js` and `data/` |
-
-The app loads no third-party resources, so the strict policy is safe.
-The file names do not change between builds, so `no-cache` makes the
-browser revalidate each file.
-
-Some files stay out of the repository until the site has a stable public
-URL: a custom 404 page, the Open Graph tags, a `rel="canonical"` link,
-a `sitemap.xml`, and an `llms.txt` for AI agents. The reasons are in
-[doc/design.md](doc/design.md), with the record of the audit against
-[The Website Specification](https://specification.website/).
+The same directory deploys to any production host.
+[doc/deploy.md](doc/deploy.md) lists the recommended headers and the
+hardening steps.
 
 ## Build an Apple dictionary
 
