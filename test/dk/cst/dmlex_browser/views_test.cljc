@@ -70,9 +70,11 @@
     (is (= "en stor hund" (views/runs-view "en stor hund" nil)))))
 
 (deftest result-headword-test
-  (testing "the matched prefix is marked"
-    (is (= (list [:mark "ab"] "ekat")
+  (testing "the completion after the matched prefix is emphasised"
+    (is (= (list "ab" [:b "ekat"])
            (views/result-headword "abekat" "ab"))))
+  (testing "an exact match carries no emphasis"
+    (is (= "abe" (views/result-headword "abe" "abe"))))
   (testing "a query longer than the headword marks nothing"
     (is (= "abe" (views/result-headword "abe" "abekat")))))
 

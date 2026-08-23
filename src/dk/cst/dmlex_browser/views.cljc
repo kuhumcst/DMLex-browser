@@ -227,12 +227,14 @@
   the `definitions` and the `cites` that the config moved here.
 
   The first cite that points anywhere links the definitions; any other
-  follows them."
+  follows them. A sense without definitions renders no definitions
+  element and keeps every cite visible, so the CSS divider after the
+  indicator has something to sit on or stays away."
   [tag indicator definitions cites]
-  (let [source (first (filter :uri cites))]
+  (let [source (when (seq definitions) (first (filter :uri cites)))]
     [tag
      (when indicator [:span.indicator indicator])
-     (definitions-view definitions source)
+     (when (seq definitions) (definitions-view definitions source))
      (map cite-view (remove #(= % source) cites))]))
 
 (defn sense-view
@@ -518,12 +520,15 @@
           index)))
 
 (defn result-headword
-  "The `headword` of one search result, with the matched `query` prefix
-  marked."
+  "The `headword` of one search result, with the completion after the
+  matched `query` prefix emphasised.
+
+  The prefix is what every row shares, so the emphasis falls on the
+  part that tells the rows apart."
   [headword query]
   (let [n (count query)]
-    (if (and (pos? n) (<= n (count headword)))
-      (list [:mark (subs headword 0 n)] (subs headword n))
+    (if (and (pos? n) (< n (count headword)))
+      (list (subs headword 0 n) [:b (subs headword n)])
       headword)))
 
 (defn results-view

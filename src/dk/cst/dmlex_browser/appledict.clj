@@ -300,10 +300,10 @@
               relation-groups cite-labels]}]
   [:li (cond-> {:class "sense"}
          id (assoc :id id))
-   (let [source (first (filter :uri cite-labels))]
+   (let [source (when (seq definitions) (first (filter :uri cite-labels)))]
      [:p {:class "meaning"}
       (when indicator [:span {:class "indicator"} indicator])
-      (definitions-view definitions source)
+      (when (seq definitions) (definitions-view definitions source))
       (map cite-view (remove #(= % source) cite-labels))])
    (map example-view examples)
    (labels-view ui "sense-labels" labels)

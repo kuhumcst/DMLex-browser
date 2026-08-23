@@ -71,6 +71,19 @@ summary.contents::after { content: "contents"; }
   font-style: normal;
 }
 
+/* The metadata voice keeps its links quiet, like the definition
+   source: the underline waits for the pointer. Relation members keep
+   theirs; they are the page's navigation. */
+.pos-list a, .labels dt a, .labels dd a, .relations dt a,
+.example cite a, .cite-label a {
+  text-decoration: none;
+}
+
+.pos-list a:hover, .labels dt a:hover, .labels dd a:hover,
+.relations dt a:hover, .example cite a:hover, .cite-label a:hover {
+  text-decoration: underline;
+}
+
 .form-label { font-size: 0.8em; }
 
 .visually-hidden {
@@ -260,13 +273,18 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .indicator { color: var(--grey); font-weight: 700; }
 
 /* The indicator's divider lives in CSS, so assistive tech never
-   announces it. */
-.indicator::after {
+   announces it. It sits on what follows the indicator, so an
+   indicator with nothing after it carries no dangling bar. */
+.indicator + :is(.definitions:not(:empty), .definition-source,
+                 .cite-label)::before {
   content: "|";
   color: var(--rule);
   font-weight: 400;
   margin: 0 0.45em;
 }
+
+/* The divider's own margin spaces a cite that opens the line. */
+.indicator + .cite-label { margin-left: 0; }
 
 .example { color: var(--dark); font-style: italic; margin: 0.35rem 0 0; }
 .example blockquote, .example p { display: inline; }

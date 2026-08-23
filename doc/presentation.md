@@ -3,7 +3,8 @@
 A dataset can ship a small `presentation.json` file next to its
 DMLex JSON. The file holds the presentation choices of the dataset.
 It can hide, rename, reorder and group the label types and the
-relation types, and it can rename the relation roles. The keys are
+relation types, it can rename the relation roles, and it can trim
+the run-in inflection line. The keys are
 the dataset's own tags. The app applies the operations and never has
 to know what a tag means.
 
@@ -34,6 +35,7 @@ neutral default view. The browser remembers the choice per dataset.
   },
   "roles":         {"rename": {"hypernym": {"da": "overbegreb",
                                             "en": "broader"}}},
+  "inflectionLine": {"hide": ["104", "114"]},
   "memberOrder":   "collation",      // or "listing" (the default)
   "linkResolver":  "https://wordnet.dk/dannet/external?subject=",
   "css":           "extra.css",
@@ -129,6 +131,14 @@ Relation types take one more:
 
 `rename` maps a relation role to its displayed name, the same way as
 a tag rename.
+
+## `inflectionLine`
+
+`hide` lists the inflected-form tags that the run-in line under the
+headword leaves out. The paradigm table behind "all forms" and the
+search terms of the Apple dictionary keep every form. DanNet, for
+example, hides its fully regular genitives here. Without that, the
+genitives double the length of the line and tell the reader nothing.
 
 ## `memberOrder`
 

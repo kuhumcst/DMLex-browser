@@ -100,10 +100,12 @@
   shows: one representative per paradigm slot, or nil when none remain.
 
   The representative is the form with a reduced short when its slot
-  has one; variant spellings and forms spelled like the headword stay
-  in the paradigm table and the search index."
+  has one; variant spellings, forms spelled like the headword and the
+  forms the presentation config marks :line-hidden stay in the
+  paradigm table and the search index."
   [headword forms]
-  (->> (partition-by #(or (paradigm-slot %) (:text %)) forms)
+  (->> (remove :line-hidden forms)
+       (partition-by #(or (paradigm-slot %) (:text %)))
        (map (fn [slot-forms]
               (or (first (filter :short slot-forms))
                   (first slot-forms))))

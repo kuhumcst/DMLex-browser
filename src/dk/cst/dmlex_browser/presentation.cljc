@@ -190,6 +190,13 @@
   [cite scope]
   (move-labels :cite-labels cite scope))
 
+(defn hide-inflections
+  "Mark the inflected `forms` whose tag the `hide` set lists with
+  :line-hidden, which keeps them off the run-in inflection line while
+  the paradigm table and the search terms keep every form."
+  [hide forms]
+  (mapv #(cond-> % (hide (:tag %)) (assoc :line-hidden true)) forms))
+
 (defn swallowed-types
   "The `types` that the `ops` of one config section drop without naming
   them: the unlisted ones, when \"unlisted\" is \"hide\".
@@ -272,6 +279,8 @@
   :cite-labels of the entry and of each sense, for the line that heads
   each of them. When the config declares relation \"groups\",
   :relations becomes :relation-groups.
+  An \"inflectionLine\" section marks the forms its \"hide\" vector
+  lists as :line-hidden, which trims the run-in inflection line.
   A \"linkResolver\" reroutes every sameAs-derived URI through the
   dataset's resource browser. An empty `config` returns `entry`
   unchanged."
@@ -285,6 +294,7 @@
           groups    (get rel-ops "groups")
           role-of   (get-in config ["roles" "rename"])
           resolver  (get config "linkResolver")
+          line-hide (not-empty (set (get-in config ["inflectionLine" "hide"])))
           labels*   (fn [labels]
                       (->> labels
                            (show-labels (get label-ops "show"))
@@ -317,7 +327,10 @@
                                  (:labels entry) (update :labels labels*)
                                  (:relations entry) (update :relations rels*)
                                  (:senses entry) (update :senses
-                                                        #(mapv sense* %)))
+                                                        #(mapv sense* %))
+                                 (and line-hide (:inflectedForms entry))
+                                 (update :inflectedForms
+                                         (partial hide-inflections line-hide)))
                                (section*))
                            (cite-labels cite)
                            (inline-labels inline)))]

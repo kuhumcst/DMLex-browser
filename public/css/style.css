@@ -62,6 +62,12 @@ a {
 a:hover { text-decoration-color: var(--accent); }
 a:visited { color: var(--visited); }
 
+/* Cross-references are navigation, not history: a browsed synonym
+   list stays one colour. */
+.relations a:visited,
+.sense-index a:visited,
+.sense-index-inline a:visited { color: inherit; }
+
 /* Wherever extra information hides behind a title attribute, the help
    cursor says so. Links keep their pointer, and the controls inside
    the titled toggle labels keep their native cursors. */
@@ -69,7 +75,6 @@ a:visited { color: var(--visited); }
 [title] :is(select, input) { cursor: auto; }
 
 dfn { font-style: normal; }
-mark { background: none; font-weight: 700; color: inherit; }
 
 summary {
   cursor: pointer;
@@ -84,6 +89,19 @@ summary {
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
   color: var(--grey);
+}
+
+/* The metadata voice keeps its links quiet, like the definition
+   source: the underline waits for the pointer. Relation members keep
+   theirs; they are the page's navigation. */
+.pos-list a, .labels dt a, .labels dd a, .relations dt a,
+.example cite a, .cite-label a {
+  text-decoration: none;
+}
+
+.pos-list a:hover, .labels dt a:hover, .labels dd a:hover,
+.relations dt a:hover, .example cite a:hover, .cite-label a:hover {
+  text-decoration: underline;
 }
 
 .form-label { font-size: 0.8em; }
@@ -175,7 +193,9 @@ search input:focus {
    the tab order, so it never needs a visible ring. */
 .headword:focus { outline: none; }
 
-sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
+/* 45% suits the headword; the floor keeps the numeral legible at the
+   1rem of the sense index. */
+sup.hom { font-size: max(45%, 0.65rem); font-weight: 400; color: var(--grey); }
 
 .pos { font-style: italic; color: var(--dark); }
 p.pos { margin: 0 0 0.4rem; }
@@ -634,13 +654,18 @@ summary.meaning:hover .fold-mark::before { border-top-color: var(--accent); }
 .indicator { color: var(--grey); font-weight: 700; }
 
 /* The indicator's divider lives in CSS, so assistive tech never
-   announces it. */
-.indicator::after {
+   announces it. It sits on what follows the indicator, so an
+   indicator with nothing after it carries no dangling bar. */
+.indicator + :is(.definitions:not(:empty), .definition-source,
+                 .cite-label)::before {
   content: "|";
   color: var(--rule);
   font-weight: 400;
   margin: 0 0.45em;
 }
+
+/* The divider's own margin spaces a cite that opens the line. */
+.indicator + .cite-label { margin-left: 0; }
 
 .example { color: var(--dark); font-style: italic; margin: 0.5rem 0 0; }
 .example blockquote, .example p { display: inline; }
