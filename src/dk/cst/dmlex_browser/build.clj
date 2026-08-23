@@ -63,6 +63,11 @@
               :typeUri         (first (:sameAs type-tag))
               :uri             (first sameAs)})))
 
+(defn- overlap
+  "The length of the common prefix of the char seqs `a` and `b`."
+  [a b]
+  (count (take-while true? (map = a b))))
+
 (defn affix
   "The short display form of the inflected `form` of `headword`,
   e.g. -t for mennesket.
@@ -75,22 +80,20 @@
   inflects internally fails those checks by itself, so one that merely
   extends its last word still reduces."
   [headword form]
-  (let [lcp    (count (take-while identity (map = headword form)))
-        lcs    (count (take-while identity (map = (reverse headword)
-                                                 (reverse form))))
-        tail   (subs form lcp)
-        head   (subs form 0 (- (count form) lcs))
-        ok?    (fn [remainder]
-                 (and (not (str/includes? remainder " "))
-                      (not (str/ends-with? remainder "-"))
-                      (re-find #"\p{L}" remainder)))
-        suffix (when (and (>= lcp (max 2 (quot (inc (count headword)) 2)))
-                          (ok? tail))
-                 (str "-" tail))
-        prefix (when (and (> lcs lcp)
-                          (>= lcs (max 3 (quot (* 2 (count headword)) 3)))
-                          (ok? head))
-                 (str head "-"))]
+  (let [lcp        (overlap headword form)
+        lcs        (overlap (reverse headword) (reverse form))
+        tail       (subs form lcp)
+        head       (subs form 0 (- (count form) lcs))
+        min-prefix (max 2 (quot (inc (count headword)) 2)) ; half, rounded up
+        min-suffix (max 3 (quot (* 2 (count headword)) 3)) ; two thirds
+        ok?        (fn [remainder]
+                     (and (not (str/includes? remainder " "))
+                          (not (str/ends-with? remainder "-"))
+                          (re-find #"\p{L}" remainder)))
+        suffix     (when (and (>= lcp min-prefix) (ok? tail))
+                     (str "-" tail))
+        prefix     (when (and (> lcs lcp) (>= lcs min-suffix) (ok? head))
+                     (str head "-"))]
     (or suffix prefix)))
 
 (defn ->inflected-form
@@ -125,9 +128,10 @@
           (recur endIndex (rest markers)
                  (cond-> runs
                    (< pos startIndex) (conj {:text (subs text pos startIndex)})
-                   true (conj (compact {:text   (subs text startIndex endIndex)
-                                        :marker marker
-                                        :lemma  lemma}))))
+                   :always
+                   (conj (compact {:text   (subs text startIndex endIndex)
+                                   :marker marker
+                                   :lemma  lemma}))))
           (recur pos (rest markers) runs))
         (cond-> runs
           (< pos (count text)) (conj {:text (subs text pos)}))))))
@@ -166,52 +170,61 @@
 
 ;; TODO: no known dataset exercises the relation :note, the role description
 ;; or the "none" hint yet; only unit-tested.
+(defn- member-rows
+  "One flat row per relatum of `ref` across the relations it is a
+  member of, keyed for merging by [type own-roles role].
+
+  own-roles are the roles `ref` itself plays in a relation. In a
+  relation with more than one role, the members sharing one of them
+  are co-members of `ref` rather than its relata, so they are left
+  out; so is any member whose memberType hints \"none\" or whose ref
+  resolves to nothing."
+  [{:keys [relations reltype-of resolve-ref ref->idxs]} ref]
+  (for [i (ref->idxs ref)
+        :let [{:keys [type members description]} (nth relations i)
+              member-type-of (index-by :role (:memberTypes (reltype-of type)))
+              own-roles      (into #{} (comp (filter #(= ref (:ref %)))
+                                             (map :role))
+                                   members)
+              multi-role?    (> (count (distinct (map :role members))) 1)
+              none-hint?     #(= "none" (:hint (member-type-of (:role %))))
+              others         (cond->> (remove #(= ref (:ref %)) members)
+                               multi-role? (remove (comp own-roles :role))
+                               :always     (remove none-hint?))]
+        {:keys [role] :as m} others
+        :let [target (resolve-ref (:ref m))]
+        :when target]
+    {:key    [type own-roles role]
+     :type   type
+     :role   role
+     :note   description
+     :order  (:obverseListingOrder m)
+     :target target}))
+
 (defn relation-rows
   "The display rows for the object `ref` under the lookups of `env`.
 
-  Each row holds the members of one other role, merged across the
-  relations that share the relation type, the roles of `ref` inside it,
-  and the member role, in the listing order of the dataset and with the
-  `obverseListingOrder` of each member as its `:order`, so the displays
-  can collate. The description of a relation instance becomes the row's
-  `:note` and the description of the role's memberType its
-  `:roleDescription`. In a relation with more than one role, the members
-  that share the role of `ref` are its co-members rather than its
-  relata, so they are left out — as is any member whose memberType hints
-  \"none\"."
-  [{:keys [relations reltype-of resolve-ref ref->idxs]} ref]
-  (let [rows (for [i (ref->idxs ref)
-                   :let [{:keys [type members description]} (nth relations i)
-                         mt-of  (index-by :role (:memberTypes (reltype-of type)))
-                         own    (into #{} (comp (filter #(= ref (:ref %)))
-                                                (map :role))
-                                      members)
-                         multi? (> (count (distinct (map :role members))) 1)
-                         others (cond->> (remove #(= ref (:ref %)) members)
-                                  multi?  (remove (comp own :role))
-                                  :always (remove #(= "none" (:hint (mt-of (:role %))))))]
-                   {:keys [role] :as m} others
-                   :let [target (resolve-ref (:ref m))]
-                   :when target]
-               {:key    [type own role]
-                :type   type
-                :role   role
-                :note   description
-                :order  (:obverseListingOrder m)
-                :target target})]
-    (for [[[type _ role] ms] (group-by :key rows)
-          :let [{:keys [description sameAs memberTypes]} (reltype-of type)]]
-      (compact {:type            type
-                :role            role
-                :description     description
-                :roleDescription (:description ((index-by :role memberTypes) role))
-                :note            (some :note ms)
-                :uri             (first sameAs)
-                :members         (->> ms
-                                      (map (fn [{:keys [order target]}]
-                                             (compact (assoc target :order order))))
-                                      (shared/distinct-by #(dissoc % :order))
-                                      (vec))}))))
+  The rows of `member-rows`, merged across the relations that share
+  the relation type, the roles of `ref` inside it, and the member
+  role, in the listing order of the dataset and with the
+  `obverseListingOrder` of each member as its `:order`, so the
+  displays can collate. The description of a relation instance becomes
+  the row's `:note` and the description of the role's memberType its
+  `:roleDescription`."
+  [{:keys [reltype-of] :as env} ref]
+  (for [[[type _ role] ms] (group-by :key (member-rows env ref))
+        :let [{:keys [description sameAs memberTypes]} (reltype-of type)]]
+    (compact {:type            type
+              :role            role
+              :description     description
+              :roleDescription (:description ((index-by :role memberTypes) role))
+              :note            (some :note ms)
+              :uri             (first sameAs)
+              :members         (->> ms
+                                    (map (fn [{:keys [order target]}]
+                                           (compact (assoc target :order order))))
+                                    (shared/distinct-by #(dissoc % :order))
+                                    (vec))})))
 
 (defn ->entry-file
   "The fully resolved display map of `entry` under the lookups of `env`.
@@ -412,14 +425,6 @@
   [content-of filename]
   (some-> (content-of filename) (json/read-str)))
 
-(defn localized
-  "The string `s` itself, or the entry of `lang` (falling back to English,
-  then to anything) when `s` is a language-keyed map."
-  [s lang]
-  (if (map? s)
-    (or (get s lang) (get s "en") (first (vals s)))
-    s))
-
 (defn read-ui
   "The \"ui\" translation table of the input, read through `content-of`.
 
@@ -475,7 +480,8 @@
     (compact {:title       (or (get metadata "dc:title") title)
               :uri         (or (get metadata "dc:identifier") uri)
               :langCode    lang
-              :description (localized (get metadata "dc:description") lang)
+              :description (presentation/localized
+                             [lang] (get metadata "dc:description"))
               :publisher   (get metadata "dc:publisher")
               :rights      (get metadata "dc:rights")
               :license     license
@@ -508,9 +514,9 @@
   "The hiccup `body` rendered to HTML, its chrome translated by the UI
   table `ui`.
 
-  replicant.string escapes a double quote as &#39;, an apostrophe, and
-  nothing else in its output makes that entity; the repair keeps quoted
-  example text intact."
+  replicant.string escapes a double quote in text as &#39; (the
+  apostrophe entity) and nothing else in its output produces that
+  entity, so replacing it with &quot; restores quoted example text."
   [ui body]
   (-> (replicant/render body {:alias-data {:ui ui}})
       (str/replace "&#39;" "&quot;")))

@@ -24,7 +24,12 @@
          :active        nil
          :raw-entries   nil
          :entries       nil
-         :nav           {}
+         :nav           {:file    nil  ; the shown entry's file basename
+                         :current nil  ; the sense the navigation targeted
+                         :spy     nil  ; the sense on screen (scroll-spy)
+                         :reveal  nil} ; a pending scroll-and-focus (->reveal)
+         ;; The ids of the senses the reader folded shut, so a re-render
+         ;; restores the fold; views/app merges the set into :nav.
          :folded        #{}
          :error         nil
          :routed?       false
@@ -149,16 +154,17 @@
   group, the entry when the target is the first sense of an entry
   arrived at from elsewhere, and otherwise the target itself."
   [entries {:keys [file senses]} sense same-entry? same-group?]
-  (let [sense  (when (some (comp #{sense} :id) senses) sense)
-        entry? (or (nil? sense)
-                   (and (= sense (:id (first senses))) (not same-entry?)))
-        top?   (and (= file (:file (first entries))) (not same-group?))]
+  (let [sense         (when (some (comp #{sense} :id) senses) sense)
+        sense-scroll? (and sense (or same-entry?
+                                     (not= sense (:id (first senses)))))
+        top-scroll?   (and (= file (:file (first entries)))
+                           (not same-group?))]
     {:file   file
      :sense  sense
      :scroll (cond
-               (not entry?) :sense
-               top?         :top
-               :else        :entry)}))
+               sense-scroll? :sense
+               top-scroll?   :top
+               :else         :entry)}))
 
 (defn update-title!
   "Set the document title from the current entry and the manifest title."

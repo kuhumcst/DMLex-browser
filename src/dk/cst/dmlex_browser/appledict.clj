@@ -50,6 +50,26 @@
     (str prefix ":" (name k))
     (name k)))
 
+(declare hiccup->xml)
+
+(defn- element->xml
+  "Render one hiccup element `[tag attrs? & children]` as an XML string.
+
+  A nil attribute renders as nothing, and a childless element
+  self-closes."
+  [[tag & more]]
+  (let [[attrs children] (if (map? (first more))
+                           [(first more) (rest more)]
+                           [nil more])
+        attrs' (str/join (for [[k v] attrs
+                               :when (some? v)]
+                           (str " " (xml-name k) "=\"" (escape v) "\"")))]
+    (if (empty? children)
+      (str "<" (xml-name tag) attrs' "/>")
+      (str "<" (xml-name tag) attrs' ">"
+           (str/join (map hiccup->xml children))
+           "</" (xml-name tag) ">"))))
+
 (defn hiccup->xml
   "Render the hiccup `x` — nil, a string, a [tag attrs? & children] vector
   or a seq of hiccup — as an XML string.
@@ -59,22 +79,10 @@
   other sequential value is a seq of hiccup."
   [x]
   (cond
-    (nil? x) ""
+    (nil? x)    ""
     (string? x) (escape x)
     (and (vector? x)
-         (keyword? (first x))) (let [[tag & more] x
-                                     [attrs children] (if (map? (first more))
-                                                        [(first more) (rest more)]
-                                                        [nil more])
-                                     attrs' (str/join (for [[k v] attrs
-                                                            :when (some? v)]
-                                                        (str " " (xml-name k)
-                                                             "=\"" (escape v) "\"")))]
-                                 (if (empty? children)
-                                   (str "<" (xml-name tag) attrs' "/>")
-                                   (str "<" (xml-name tag) attrs' ">"
-                                        (str/join (map hiccup->xml children))
-                                        "</" (xml-name tag) ">")))
+         (keyword? (first x))) (element->xml x)
     (seqable? x) (str/join (map hiccup->xml x))
     :else (escape x)))
 
@@ -449,7 +457,8 @@
      :version     (or (get metadata "dc:issued") "1.0")
      :lang        lang
      :uri         (or (get metadata "dc:identifier") uri)
-     :description (build/localized (get metadata "dc:description") lang)
+     :description (presentation/localized [lang]
+                                          (get metadata "dc:description"))
      :publisher   (get metadata "dc:publisher")
      :rights      (get metadata "dc:rights")
      :license     (get metadata "dc:license")
@@ -637,7 +646,7 @@
                          (when (and entries (str/starts-with? entries "{n}"))
                            (str ".relations summary::after"
                                 " { content: attr(data-count) \""
-                                (subs entries 3) "\"; }"))])]
+                                (subs entries (count "{n}")) "\"; }"))])]
     (when (seq rules)
       (str/join "\n" rules))))
 

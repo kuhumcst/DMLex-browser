@@ -507,7 +507,10 @@
    " " (shared/tr ui "custom")])
 
 (defn matches
-  "The first 100 rows of `index` whose headword begins with `query`."
+  "The first 100 rows of `index` whose headword begins with `query`.
+
+  The :lower of each row is the lowercased headword that the app's
+  load-index! caches when it fetches the index."
   [index query]
   (let [q (str/lower-case query)]
     (into [] (comp (filter #(str/starts-with? (:lower %) q))

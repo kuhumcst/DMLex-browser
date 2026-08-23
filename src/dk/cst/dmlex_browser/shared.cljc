@@ -104,9 +104,9 @@
   in the paradigm table and the search index."
   [headword forms]
   (->> (partition-by #(or (paradigm-slot %) (:text %)) forms)
-       (map (fn [slot]
-              (or (first (filter :short slot))
-                  (first slot))))
+       (map (fn [slot-forms]
+              (or (first (filter :short slot-forms))
+                  (first slot-forms))))
        (remove #(= headword (:text %)))
        (distinct-by #(or (:short %) (:text %)))
        (not-empty)))

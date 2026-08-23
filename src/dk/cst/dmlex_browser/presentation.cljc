@@ -96,6 +96,12 @@
                                   (str/join ", " (map :tag qs)))
                      label)))))))
 
+(defn rank-of
+  "The `types` as a map of type -> list position, for rank sorting and
+  membership tests."
+  [types]
+  (into {} (map-indexed (fn [i t] [t i]) types)))
+
 (defn present
   "Apply the `ops` map of one config section to the maps `xs` keyed by
   `k`: drop the hidden, stable-sort listed keys first in order, and
@@ -107,12 +113,12 @@
   to a vector."
   [{:strs [order hide rename unlisted]} k xs]
   (let [hidden? (set hide)
-        pos     (into {} (map-indexed (fn [i t] [t i]) order))
+        rank    (rank-of order)
         after   (count order)]
     (cond->> xs
       :always (remove (comp hidden? k))
-      (= unlisted "hide") (filter (comp pos k))
-      :always (sort-by #(pos (k %) after))
+      (= unlisted "hide") (filter (comp rank k))
+      :always (sort-by #(rank (k %) after))
       rename (map #(if-let [d (get rename (k %))]
                      (assoc % :display d)
                      %))
@@ -133,11 +139,10 @@
         unclaimed (vec (remove (comp claimed :type) rows))
         section   (fn [{:strs [title description types]}]
                     (let [rs (if types
-                               (let [pos (into {} (map-indexed
-                                                    (fn [i t] [t i]) types))]
+                               (let [rank (rank-of types)]
                                  (->> rows
-                                      (filter (comp pos :type))
-                                      (sort-by (comp pos :type))
+                                      (filter (comp rank :type))
+                                      (sort-by (comp rank :type))
                                       (vec)))
                                unclaimed)]
                       (when (seq rs)
@@ -149,6 +154,19 @@
                 (conj {:relations unclaimed}))
         (not-empty))))
 
+(defn move-labels
+  "Move the labels whose type `types` lists from the :labels of `scope`
+  to the key `k`, in the vector's order."
+  [k types {:keys [labels] :as scope}]
+  (let [rank     (rank-of types)
+        [in out] ((juxt filter remove) (comp rank :type) labels)]
+    (if (empty? in)
+      scope
+      (cond-> (-> scope
+                  (dissoc :labels)
+                  (assoc k (vec (sort-by (comp rank :type) in))))
+        (seq out) (assoc :labels (vec out))))))
+
 (defn inline-labels
   "Move the labels whose type the `inline` vector lists from the
   :labels of the presented `entry` to :inline-labels, in the vector's
@@ -157,15 +175,8 @@
   The views render them run-in on the part-of-speech line. Only the
   entry moves labels — a sense has no such line — and the ordinary
   label ops run first, so hide beats inline and renames carry over."
-  [inline {:keys [labels] :as entry}]
-  (let [pos (into {} (map-indexed (fn [i t] [t i]) inline))
-        [in out] ((juxt filter remove) (comp pos :type) labels)]
-    (if (empty? in)
-      entry
-      (cond-> (-> entry
-                  (dissoc :labels)
-                  (assoc :inline-labels (vec (sort-by (comp pos :type) in))))
-        (seq out) (assoc :labels (vec out))))))
+  [inline entry]
+  (move-labels :inline-labels inline entry))
 
 (defn cite-labels
   "Move the labels whose type the `cite` vector lists from the :labels
@@ -176,15 +187,8 @@
   scope: the part-of-speech line of an entry, the meaning line of a
   sense. The ordinary label ops run first, so hide beats cite and
   renames carry over."
-  [cite {:keys [labels] :as scope}]
-  (let [pos      (into {} (map-indexed (fn [i t] [t i]) cite))
-        [in out] ((juxt filter remove) (comp pos :type) labels)]
-    (if (empty? in)
-      scope
-      (cond-> (-> scope
-                  (dissoc :labels)
-                  (assoc :cite-labels (vec (sort-by (comp pos :type) in))))
-        (seq out) (assoc :labels (vec out))))))
+  [cite scope]
+  (move-labels :cite-labels cite scope))
 
 (defn swallowed-types
   "The `types` that the `ops` of one config section drop without naming
@@ -215,9 +219,8 @@
   that constructs text, and deliberately the least expressive one: a
   fixed prefix plus one percent-encoded value, no templates."
   [resolver entry]
-  (let [origin  (let [i (str/index-of resolver "://")
-                      j (when i (str/index-of resolver "/" (+ i 3)))]
-                  (if j (subs resolver 0 j) resolver))
+  (let [;; scheme://host, or the whole resolver when no path follows
+        origin  (or (re-find #"^.*?://[^/]*" resolver) resolver)
         reroute (fn [uri]
                   (if (str/starts-with? uri origin)
                     uri
@@ -281,6 +284,7 @@
           rel-ops   (get config "relationTypes")
           groups    (get rel-ops "groups")
           role-of   (get-in config ["roles" "rename"])
+          resolver  (get config "linkResolver")
           labels*   (fn [labels]
                       (->> labels
                            (show-labels (get label-ops "show"))
@@ -307,16 +311,18 @@
                                  (:labels sense) (update :labels labels*)
                                  (:relations sense) (update :relations rels*))
                                (section*))
-                           (cite-labels cite)))]
-      (cond->> (inline-labels inline
-                              (cite-labels cite
-                                           (-> (cond-> entry
-                                    (:labels entry) (update :labels labels*)
-                                    (:relations entry) (update :relations rels*)
-                                    (:senses entry) (update :senses #(mapv sense* %)))
-                                  (section*))))
-        (get config "linkResolver")
-        (resolve-links (get config "linkResolver"))))))
+                           (cite-labels cite)))
+          entry*    (fn [entry]
+                      (->> (-> (cond-> entry
+                                 (:labels entry) (update :labels labels*)
+                                 (:relations entry) (update :relations rels*)
+                                 (:senses entry) (update :senses
+                                                        #(mapv sense* %)))
+                               (section*))
+                           (cite-labels cite)
+                           (inline-labels inline)))]
+      (cond->> (entry* entry)
+        resolver (resolve-links resolver)))))
 
 (defn present-entries
   "The homograph group `entries` presented under `config`, with the
@@ -326,13 +332,14 @@
   Presenting walks and sorts a whole group, so the result belongs in
   the app state rather than in the render path."
   [config order-mode lang-code entries]
-  (let [compare* (when order-mode (shared/collation lang-code))
-        order    (case order-mode
-                   :alpha     (shared/alphabetical-order compare*)
-                   :collation (shared/member-order compare*)
-                   nil)]
+  (let [compare-headwords (when order-mode (shared/collation lang-code))
+        compare-members   (case order-mode
+                            :alpha     (shared/alphabetical-order
+                                         compare-headwords)
+                            :collation (shared/member-order compare-headwords)
+                            nil)]
     (mapv #(cond->> (present-entry config %)
-             order (collate-members order))
+             compare-members (collate-members compare-members))
           entries)))
 
 (defn present-state
