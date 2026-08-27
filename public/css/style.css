@@ -60,13 +60,10 @@ a {
 }
 
 a:hover { text-decoration-color: var(--accent); }
-a:visited { color: var(--visited); }
 
-/* Cross-references are navigation, not history: a browsed synonym
-   list stays one colour. */
-.relations a:visited,
-.sense-index a:visited,
-.sense-index-inline a:visited { color: inherit; }
+/* Links are navigation, not history, so no visited colour anywhere:
+   a dictionary is revisited constantly, a browsed page would end up
+   mottled, and "seen" means nothing for a metadata value. */
 
 /* Wherever extra information hides behind a title attribute, the help
    cursor says so. Links keep their pointer, and the controls inside
@@ -91,16 +88,22 @@ summary {
   color: var(--grey);
 }
 
+/* The key/value sections colour by field role, the way a print
+   dictionary does: the keys borrow the accent and the values stay
+   ink, whether they link or not. */
+.labels dt, .relations dt { color: var(--accent); }
+
 /* The metadata voice keeps its links quiet, like the definition
    source: the underline waits for the pointer. Relation members keep
    theirs; they are the page's navigation. */
 .pos-list a, .labels dt a, .labels dd a, .relations dt a,
-.example cite a, .cite-label a {
+.example cite a, .cite-label a, .inline-label a {
   text-decoration: none;
 }
 
 .pos-list a:hover, .labels dt a:hover, .labels dd a:hover,
-.relations dt a:hover, .example cite a:hover, .cite-label a:hover {
+.relations dt a:hover, .example cite a:hover, .cite-label a:hover,
+.inline-label a:hover {
   text-decoration: underline;
 }
 
@@ -229,7 +232,7 @@ p.pos { margin: 0 0 0.4rem; }
 .labels {
   font-family: var(--sans);
   font-size: 0.9rem;
-  color: var(--grey);
+  color: var(--ink);
   line-height: 1.7;
 }
 
@@ -253,6 +256,23 @@ p.pos { margin: 0 0 0.4rem; }
 
 .labels dd { display: inline; }
 .labels dd + dd::before { content: ", "; }
+
+/* The sense line: the label values the config reads without their
+   field names, dot-separated like the pos line but with more air.
+   Uniformly grey, links included: the sans face sets it off from the
+   serif prose above, the quiet grey from the red keys below. */
+.sense-line {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--grey);
+  /* The example's own gap, so meaning, example and line read as one
+     section; the labels box below keeps its larger gap. */
+  margin: 0.5rem 0 0;
+}
+.sense-line * + .inline-label::before {
+  content: "·";
+  margin: 0 0.5em;
+}
 
 .sense-labels, .translations { margin-top: 0.95rem; }
 .labels + .translations { margin-top: 0; }
@@ -718,10 +738,8 @@ section.titled {
 
 /* The definition of a sense carries the link to its source, so no
    word beside it wraps onto a line of its own. It reads as text until
-   the pointer is on it, visited or not: the definition is the content
-   of the page, and a read source is not news. */
-.definition-source,
-.definition-source:visited {
+   the pointer is on it: the definition is the content of the page. */
+.definition-source {
   color: inherit;
   text-decoration: none;
 }

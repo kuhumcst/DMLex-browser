@@ -97,21 +97,24 @@ Both sections take the same four operations over their tags:
 - `rename` maps a tag to its displayed name. Only the displayed name
   changes. The tag stays the key everywhere else.
 
-Label types take three more:
+Label types take four more:
 
 - `combine` maps a host type to a qualifier type. The values of the
-  qualifier show on the host label as "value (qualifier)", and the
-  labels of the qualifier disappear. A qualifier without a host stays
-  an ordinary label. Nothing disappears by accident.
+  qualifier show on the host label as "value (qualifier)", each
+  linked when it carries a link of its own, and the labels of the
+  qualifier disappear. A qualifier without a host stays an ordinary
+  label. Nothing disappears by accident.
 - `show` maps a type to `"description"`: the labels of that type show
   their description, and the technical tag moves into the tooltip.
   A label without a description keeps its tag.
-- `inline` lists the label types that move out of the entry's labels
-  box and onto the part-of-speech line, in this order. A dot
-  separator comes before each one. The other operations run first,
-  so a hidden type stays hidden and renames carry over. Senses keep
-  these types in their own label lists. When every entry label moves,
-  the labels box disappears.
+- `inline` lists the label types that read without their field name,
+  run-in and dot-separated, in this order. The labels of an entry
+  move out of its labels box and onto the part-of-speech line; the
+  labels of a sense move onto a line of their own below the sense's
+  examples. A label without a link of its own borrows its type's.
+  The other operations run first, so a hidden type stays hidden and
+  renames carry over. When every entry label moves, the labels box
+  disappears.
 - `cite` lists the label types that move out of a sense's labels box
   and onto its meaning line, after the definitions, as a citation.
   Each shows the displayed name of its type, linked to whatever the

@@ -55,8 +55,8 @@
    {:tag "b1" :type "beta"}])
 
 (deftest combine-labels-test
-  (testing "a host absorbs its qualifier's values"
-    (is (= [{:tag "Neutral" :type "pol" :qualifier "0"}
+  (testing "a host absorbs its qualifier's labels"
+    (is (= [{:tag "Neutral" :type "pol" :qualifier [{:tag "0" :type "val"}]}
             {:tag "b1" :type "beta"}]
            (presentation/combine-labels {"pol" "val"} sentiments))))
   (testing "a qualifier without a host stays an ordinary label"
@@ -64,7 +64,7 @@
            (presentation/combine-labels {"pol" "val"}
                                         [{:tag "0" :type "val"}]))))
   (testing "combining applies before the other ops"
-    (is (= [["Neutral" "0"]]
+    (is (= [["Neutral" [{:tag "0" :type "val"}]]]
            (map (juxt :tag :qualifier)
                 (:labels (presentation/present-entry
                            {"labelTypes" {"order"    ["pol"]
@@ -155,19 +155,20 @@
   (testing "without a matching type the entry passes through"
     (is (= {:labels labels}
            (presentation/inline-labels nil {:labels labels}))))
-  (testing "present-entry inlines only the entry's labels, after the ops"
+  (testing "present-entry inlines the entry and its senses, after the ops"
     (let [e (presentation/present-entry
               {"labelTypes" {"inline"  ["pol"]
                              "combine" {"pol" "val"}}}
               {:labels sentiments
                :senses [{:labels sentiments}]})]
-      (is (= [{:tag "Neutral" :type "pol" :qualifier "0"}]
+      (is (= [{:tag "Neutral" :type "pol" :qualifier [{:tag "0" :type "val"}]}]
              (:inline-labels e))
           "the combined qualifier carries over")
       (is (= [{:tag "b1" :type "beta"}] (:labels e))
           "other labels stay in the block")
-      (is (nil? (get-in e [:senses 0 :inline-labels]))
-          "a sense has no part-of-speech line to inline onto")))
+      (is (= [{:tag "Neutral" :type "pol" :qualifier [{:tag "0" :type "val"}]}]
+             (get-in e [:senses 0 :inline-labels]))
+          "a sense's labels inline onto its own line")))
   (testing "hide beats inline"
     (is (nil? (:inline-labels
                 (presentation/present-entry

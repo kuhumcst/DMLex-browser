@@ -49,25 +49,45 @@
          runs)
     text))
 
+(defn qualifier-view
+  "The combined :qualifier labels of the host `label`, each linked when
+  it carries a URI, trailing the host's value in parentheses."
+  [{:keys [qualifier]}]
+  (when (seq qualifier)
+    (list " ("
+          (interpose ", " (map (fn [{:keys [tag description uri]}]
+                                 (linked uri (tagged tag description)))
+                               qualifier))
+          ")")))
+
 (defn label-dd
   "The dd of one label: its tag, linked when the label carries a URI,
-  with any combined `:qualifier` values in parentheses."
-  [{:keys [tag description uri qualifier]}]
+  with any combined `:qualifier` labels in parentheses."
+  [{:keys [tag description uri] :as label}]
   [:dd (linked uri (tagged tag description))
-   (when qualifier (str " (" qualifier ")"))])
+   (qualifier-view label)])
 
 (defn inline-label-view
-  "One of the `labels` the config moves onto the part-of-speech line:
-  its tag, linked and with any combined `:qualifier` in parentheses.
+  "One of the :inline-labels of an entry or sense: its tag, linked and
+  with any combined `:qualifier` in parentheses.
 
-  The display name of the type stays in the markup for assistive
-  tech; the dot separator lives in CSS, so it is never announced."
-  [{:keys [tag uri qualifier type display] :as label}]
+  A label without a link of its own borrows its type's, so a plain
+  text value still reaches the metadata of its field. The display
+  name of the type stays in the markup for assistive tech; the dot
+  separator lives in CSS, so it is never announced."
+  [{:keys [tag uri typeUri type display] :as label}]
   (let [attr (or display type)]
     [:span.inline-label
      (when attr [:span.visually-hidden (str attr ": ")])
-     (linked uri (tagged tag (shared/label-title label)))
-     (when qualifier (str " (" qualifier ")"))]))
+     (linked (or uri typeUri) (tagged tag (shared/label-title label)))
+     (qualifier-view label)]))
+
+(defn sense-line-view
+  "The `inline-labels` of one sense as a run-in line below its examples,
+  in the same dot-separated voice as the part-of-speech line."
+  [inline-labels]
+  (when (seq inline-labels)
+    (into [:p.sense-line] (map inline-label-view inline-labels))))
 
 (defn labels-view
   "The `labels` as a definition list grouped by label type, with the
@@ -239,7 +259,8 @@
 
 (defn sense-view
   "The sense at index `i` as a numbered list item: the meaning line, the
-  examples, the labels, the translations and the relations.
+  examples, the inline-label line, the labels, the translations and the
+  relations.
 
   A sense that carries more than its meaning line folds. The meaning
   becomes the summary of a details that opens by default, so a reader
@@ -256,9 +277,10 @@
   [ui
    {:keys [spy current reveal folded]}
    i
-   {:keys [id indicator labels definitions translations examples
-           relations relation-groups cite-labels]}]
+   {:keys [id indicator labels inline-labels definitions translations
+           examples relations relation-groups cite-labels]}]
   (let [body (seq (remove nil? [(seq (map example-view examples))
+                                (sense-line-view inline-labels)
                                 (labels-view "sense-labels" labels)
                                 (translations-view translations)
                                 (relations-view [:div.related] relations

@@ -77,10 +77,11 @@
   "Merge qualifier-type labels into their hosts per the `combine` map of
   host type -> qualifier type, over the `labels` of one scope.
 
-  A host label gains the qualifier's values under :qualifier, rendered
-  by the views as \"value (qualifier)\", and the qualifier's own labels
-  disappear. A qualifier without a host present stays an ordinary
-  label, so nothing is ever silently lost."
+  A host label gains the qualifier's labels under :qualifier, rendered
+  by the views as \"value (qualifier)\" with each qualifier linked when
+  it carries a URI, and the qualifier's own labels disappear. A
+  qualifier without a host present stays an ordinary label, so nothing
+  is ever silently lost."
   [combine labels]
   (if (empty? combine)
     labels
@@ -92,8 +93,7 @@
            (remove (comp absorbed? :type))
            (mapv (fn [{:keys [type] :as label}]
                    (if-let [qs (seq (of-type (get combine type)))]
-                     (assoc label :qualifier
-                                  (str/join ", " (map :tag qs)))
+                     (assoc label :qualifier (vec qs))
                      label)))))))
 
 (defn rank-of
@@ -169,14 +169,15 @@
 
 (defn inline-labels
   "Move the labels whose type the `inline` vector lists from the
-  :labels of the presented `entry` to :inline-labels, in the vector's
-  order.
+  :labels of the presented `scope` — an entry or one of its senses —
+  to :inline-labels, in the vector's order.
 
-  The views render them run-in on the part-of-speech line. Only the
-  entry moves labels — a sense has no such line — and the ordinary
-  label ops run first, so hide beats inline and renames carry over."
-  [inline entry]
-  (move-labels :inline-labels inline entry))
+  The views render them run-in and dot-separated: on the entry's
+  part-of-speech line, and on a sense's own line below its examples.
+  The ordinary label ops run first, so hide beats inline and renames
+  carry over."
+  [inline scope]
+  (move-labels :inline-labels inline scope))
 
 (defn cite-labels
   "Move the labels whose type the `cite` vector lists from the :labels
@@ -274,10 +275,11 @@
   :display; relation roles are renamed via :display-role — on the entry
   and on each of its senses. Combined label types merge first, so a
   qualifier needs no place of its own in the order. Label types listed
-  as \"inline\" move to the entry's :inline-labels for the
-  part-of-speech line, and those listed as \"cite\" move to the
-  :cite-labels of the entry and of each sense, for the line that heads
-  each of them. When the config declares relation \"groups\",
+  as \"inline\" move to the :inline-labels of the entry and of each
+  sense — the entry's for the part-of-speech line, a sense's for its
+  own line below the examples — and those listed as \"cite\" move to
+  the :cite-labels of the entry and of each sense, for the line that
+  heads each of them. When the config declares relation \"groups\",
   :relations becomes :relation-groups.
   An \"inflectionLine\" section marks the forms its \"hide\" vector
   lists as :line-hidden, which trims the run-in inflection line.
@@ -321,7 +323,8 @@
                                  (:labels sense) (update :labels labels*)
                                  (:relations sense) (update :relations rels*))
                                (section*))
-                           (cite-labels cite)))
+                           (cite-labels cite)
+                           (inline-labels inline)))
           entry*    (fn [entry]
                       (->> (-> (cond-> entry
                                  (:labels entry) (update :labels labels*)

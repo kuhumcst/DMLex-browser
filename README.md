@@ -105,10 +105,12 @@ Point a static file server at `public/`. The JDK that runs the build
 brings one (`jwebserver` needs JDK 18 or newer):
 
 ```sh
-jwebserver -d "$PWD/public"
+jwebserver -d "$PWD/public" -p 8080
 ```
 
-The server answers on <http://localhost:8000>. The host must serve
+The server answers on <http://localhost:8080>; port 8000 is left to
+the shadow-cljs dev server, which serves the same directory during
+development. The host must serve
 `index.html` for a directory URL, which `jwebserver` and every static
 host do. Nothing else is needed: entry URLs are real files.
 

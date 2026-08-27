@@ -117,7 +117,7 @@
     (is (str/includes?
           (appledict/hiccup->xml
             (appledict/label-dd {:tag "Neutral" :type "sentiment"
-                                 :qualifier "0"}))
+                                 :qualifier [{:tag "0"}]}))
           "Neutral (0)"))
     (is (= (str "<span class=\"inline-label\">"
                 "<span class=\"visually-hidden\">valør: </span>"
@@ -128,7 +128,7 @@
                                            :type        "sentiment"
                                            :display     "valør"
                                            :description "Positive"
-                                           :qualifier   "1"}))))))
+                                           :qualifier   [{:tag "1"}]}))))))
 
 (deftest sense-index-test
   (testing "senses link by x-dictionary ref, labelled by indicator"

@@ -151,7 +151,7 @@
                           :inline-labels [{:tag       "positiv"
                                            :type      "sentiment"
                                            :display   "valør"
-                                           :qualifier "1"}]
+                                           :qualifier [{:tag "1"}]}]
                           :labels        [{:tag "zoo" :type "domain"}]
                           :senses        []}))]
     (testing "inline labels join the part-of-speech line"
@@ -195,6 +195,21 @@
       (is (str/includes? rendered "<details class=\"sense-body\">")
           "so a re-render restores the fold instead of springing it open")
       (is (not (str/includes? rendered "<details open")))))
+  (testing "sense inline labels form their own line below the examples"
+    (let [rendered (html (views/entry-view
+                           nil {} {:file   "x"
+                                   :senses [{:id            "s1"
+                                             :definitions   [{:text "at sejle"}]
+                                             :examples      [{:text "han sejler"}]
+                                             :inline-labels [{:tag     "zoo"
+                                                              :type    "domain"
+                                                              :typeUri "https://x.dk/subject"}]}]}))]
+      (is (str/includes? rendered "class=\"sense-line\""))
+      (is (< (str/index-of rendered "class=\"example\"")
+             (str/index-of rendered "class=\"sense-line\""))
+          "the line follows the examples")
+      (is (str/includes? rendered "href=\"https://x.dk/subject\"")
+          "a plain text value borrows the link of its type")))
   (testing "a sense of nothing but a meaning line stays a paragraph"
     (let [rendered (html (views/entry-view
                            nil {} {:file   "x"

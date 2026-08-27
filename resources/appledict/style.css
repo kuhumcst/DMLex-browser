@@ -71,16 +71,22 @@ summary.contents::after { content: "contents"; }
   font-style: normal;
 }
 
+/* The key/value sections colour by field role, the way a print
+   dictionary does: the keys borrow the accent and the values stay
+   ink, whether they link or not. */
+.labels dt, .relations dt { color: var(--accent); }
+
 /* The metadata voice keeps its links quiet, like the definition
    source: the underline waits for the pointer. Relation members keep
    theirs; they are the page's navigation. */
 .pos-list a, .labels dt a, .labels dd a, .relations dt a,
-.example cite a, .cite-label a {
+.example cite a, .cite-label a, .inline-label a {
   text-decoration: none;
 }
 
 .pos-list a:hover, .labels dt a:hover, .labels dd a:hover,
-.relations dt a:hover, .example cite a:hover, .cite-label a:hover {
+.relations dt a:hover, .example cite a:hover, .cite-label a:hover,
+.inline-label a:hover {
   text-decoration: underline;
 }
 
@@ -228,7 +234,7 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .labels {
   font-family: var(--sans);
   font-size: 0.8rem;
-  color: var(--grey);
+  color: var(--ink);
   line-height: 1.7;
   margin-top: 0.5rem;
 }
@@ -239,6 +245,23 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .labels dt, .relations dt { display: inline; margin-right: 0.4em; }
 .labels dd, .relations dd { display: inline; }
 .labels dd + dd::before { content: ", "; }
+
+/* The sense line: the label values the config reads without their
+   field names, dot-separated like the pos line but with more air.
+   Uniformly grey, links included: the sans face sets it off from the
+   serif prose above, the quiet grey from the red keys below. */
+.sense-line {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--grey);
+  /* The example's own gap, so meaning, example and line read as one
+     section; the labels box below keeps its larger gap. */
+  margin: 0.35rem 0 0;
+}
+.sense-line * + .inline-label::before {
+  content: "·";
+  margin: 0 0.5em;
+}
 
 /* Senses */
 
@@ -291,8 +314,7 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .example figcaption { display: inline; margin-left: 0.45rem; }
 .example cite { font-style: normal; font-size: 0.75rem; }
 
-.definition-source,
-.definition-source:visited {
+.definition-source {
   color: inherit;
   text-decoration: none;
 }

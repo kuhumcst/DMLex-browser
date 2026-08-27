@@ -1,7 +1,7 @@
 /* The shared design tokens: the palette and the font stacks of both the
    web app (style.css) and the Apple Dictionary export, which prepends
    this file to resources/appledict/style.css. Editing a token restyles
-   both outputs. --faint, --visited and --key-col only occur in the web
+   both outputs. --faint and --key-col only occur in the web
    stylesheet. */
 
 :root {
@@ -13,7 +13,6 @@
   --faint:   #f5f5f7;   /* the search field */
   --desk:    #e9eaec;   /* the surface behind the page (web only) */
   --accent:  #901a1e;
-  --visited: #8f5f63;
   --key-col: 10.5rem;
   /* The Transitional stack of modernfontstacks.com. Charter is in
      Firefox's base font-visibility list, so even strict tracking
