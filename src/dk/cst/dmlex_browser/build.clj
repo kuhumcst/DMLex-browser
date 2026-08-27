@@ -379,12 +379,12 @@
   "The input interface of the path `in`: either a DMLex JSON file or a
   zip export containing one.
 
-  A map of :dmlex-file, the filename of the DMLex JSON, and
-  :content-of, which returns the content of a named file sitting next
-  to it (in the same directory, or in the same folder of the zip), or
-  nil when the file is absent. In a zip, the DMLex file is the first
-  .json entry that is neither a companion nor a hidden file. A missing
-  `in` throws."
+  A map of :dmlex-file, the filename of the DMLex JSON, :content-of,
+  which returns the content of a named file sitting next to it (in the
+  same directory, or in the same folder of the zip), or nil when the
+  file is absent, and :origin, which names that place for the build
+  report. In a zip, the DMLex file is the first .json entry that is
+  neither a companion nor a hidden file. A missing `in` throws."
   [in]
   (when-not (.exists (io/file in))
     (throw (ex-info (str "No such input file: " in) {:in in})))
@@ -404,6 +404,7 @@
                                      {:names names})))
           folder (.getParent (io/file dmlex))]
       {:dmlex-file (.getName (io/file dmlex))
+       :origin     (str "inside " in)
        :content-of (fn [filename]
                      (with-open [zip (ZipFile. (io/file in))]
                        (when-let [entry (.getEntry zip (if folder
@@ -412,6 +413,7 @@
                          (slurp (.getInputStream zip entry)))))})
     (let [dir (or (.getParent (io/file in)) ".")]
       {:dmlex-file (.getName (io/file in))
+       :origin     (str "in " dir)
        :content-of (fn [filename]
                      (let [f (io/file dir filename)]
                        (when (.exists f) (slurp f))))})))
@@ -630,7 +632,7 @@
   complete set of new ones."
   [in out]
   (println "Reading" in)
-  (let [{:keys [dmlex-file content-of]} (->input in)
+  (let [{:keys [dmlex-file content-of origin]} (->input in)
         resource  (read-resource content-of dmlex-file)
         metadata  (read-companion content-of "metadata.json")
         config    (read-config content-of)
@@ -646,6 +648,12 @@
         ->page    (fn [base file group]
                     (page base (->state ui languages manifest config
                                         file group)))]
+    ;; Name the companions in use: for a plain JSON file they come from its
+    ;; directory, so a stale companion in a shared folder applies silently.
+    (doseq [companion ["metadata.json" "presentation.json" "ui.po"]]
+      (if (content-of companion)
+        (println "Using" companion origin)
+        (println "No" companion origin)))
     ;; Overwriting a file costs several times what creating one does on a
     ;; copy-on-write filesystem: on APFS, rewriting the DanNet output in
     ;; place takes 11 minutes against 2 to clear it and write it afresh.

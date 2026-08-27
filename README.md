@@ -86,6 +86,14 @@ are the dataset's own tags, so the app never has to know what a tag
 means. [doc/presentation.md](doc/presentation.md) describes every
 section of the file.
 
+CAUTION: The build names the companion files it uses. Check these
+lines. A zip brings its own companions, but a plain JSON file takes
+whatever `metadata.json` or `presentation.json` sits in its
+directory, so a stale companion in a shared `datasets/` folder
+applies silently. Note also that `manifest.json` and the copied
+`presentation.json` are written after all of the entries, so the
+generated site is not consistent until the build prints "Done."
+
 ## Build the frontend
 
 1. Install the npm dependencies: `npm install`
