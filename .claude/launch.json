@@ -3,9 +3,15 @@
   "configurations": [
     {
       "name": "app",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8000", "-d", "public"],
-      "port": 8000
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "exec \"$(/usr/libexec/java_home)/bin/jwebserver\" -d \"$PWD/public\" -p 8080"],
+      "port": 8080
+    },
+    {
+      "name": "app-en",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "exec \"$(/usr/libexec/java_home)/bin/jwebserver\" -d \"$PWD/public-en\" -p 8081"],
+      "port": 8081
     }
   ]
 }
