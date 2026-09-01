@@ -48,7 +48,7 @@ The build writes three kinds of data file into `public/data/`:
   `metadata.json` next to the DMLex file merges in. The app shows
   the description, rights, license and sources on the front page.
 - `index.json` holds the search index, sorted with the collation of the
-  resource language.
+  headword language.
 - `entries/<id>.json` holds one pre-resolved file for each entry.
 
 The build also writes the pages of the site next to the data, through

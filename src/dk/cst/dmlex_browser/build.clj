@@ -475,23 +475,28 @@
 
 (defn manifest
   "The metadata and the object counts of `resource`, with the fields of
-  its Dublin Core companion `metadata` merged in for the front page."
+  its Dublin Core companion `metadata` merged in for the front page.
+
+  `dc:language` only replaces the language of the presentation. The
+  DMLex langCode is the language of the headwords and stays available
+  as :headwordLang, which the collations use."
   [{:keys [title uri langCode entries relations] :as resource} metadata]
   (let [lang    (or (get metadata "dc:language") langCode)
         license (get metadata "dc:license")]
-    (compact {:title       (or (get metadata "dc:title") title)
-              :uri         (or (get metadata "dc:identifier") uri)
-              :langCode    lang
-              :description (presentation/localized
-                             [lang] (get metadata "dc:description"))
-              :publisher   (get metadata "dc:publisher")
-              :rights      (get metadata "dc:rights")
-              :license     license
-              :licenseName (license-name license)
-              :sources     (mapv ->source (get metadata "dc:source"))
-              :entries     (count entries)
-              :senses      (count (mapcat :senses entries))
-              :relations   (count relations)})))
+    (compact {:title        (or (get metadata "dc:title") title)
+              :uri          (or (get metadata "dc:identifier") uri)
+              :langCode     lang
+              :headwordLang langCode
+              :description  (presentation/localized
+                              [lang] (get metadata "dc:description"))
+              :publisher    (get metadata "dc:publisher")
+              :rights       (get metadata "dc:rights")
+              :license      license
+              :licenseName  (license-name license)
+              :sources      (mapv ->source (get metadata "dc:source"))
+              :entries      (count entries)
+              :senses       (count (mapcat :senses entries))
+              :relations    (count relations)})))
 
 (defn write-json!
   "Write `data` as JSON to the file `f`, creating its parent directories."

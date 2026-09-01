@@ -241,24 +241,25 @@
                           :relations [{}]}
                          nil)))
   (testing "the Dublin Core companion merges in, winning over the resource"
-    (is (= {:title       "DanNet"
-            :uri         "https://wordnet.dk/dannet/data/"
-            :langCode    "da"
-            :description "Det danske WordNet."
-            :publisher   "CST"
-            :rights      "© DSL & CST"
-            :license     "https://creativecommons.org/licenses/by-sa/4.0/"
-            :licenseName "CC BY-SA 4.0"
-            :sources     [{:title       "COR"
-                           :license     "https://creativecommons.org/publicdomain/zero/1.0/"
-                           :licenseName "CC0 1.0"}
-                          {:title       "DDS"
-                           :full        "Det Danske Sentimentleksikon"
-                           :license     "https://creativecommons.org/licenses/by-sa/4.0/"
-                           :licenseName "CC BY-SA 4.0"}]
-            :entries     0
-            :senses      0
-            :relations   0}
+    (is (= {:title        "DanNet"
+            :uri          "https://wordnet.dk/dannet/data/"
+            :langCode     "da"
+            :headwordLang "da"
+            :description  "Det danske WordNet."
+            :publisher    "CST"
+            :rights       "© DSL & CST"
+            :license      "https://creativecommons.org/licenses/by-sa/4.0/"
+            :licenseName  "CC BY-SA 4.0"
+            :sources      [{:title       "COR"
+                            :license     "https://creativecommons.org/publicdomain/zero/1.0/"
+                            :licenseName "CC0 1.0"}
+                           {:title       "DDS"
+                            :full        "Det Danske Sentimentleksikon"
+                            :license     "https://creativecommons.org/licenses/by-sa/4.0/"
+                            :licenseName "CC BY-SA 4.0"}]
+            :entries      0
+            :senses       0
+            :relations    0}
            (build/manifest
              {:title "ignored" :langCode "da"}
              {"dc:title"       "DanNet"
@@ -271,7 +272,20 @@
               "dc:source"      [{"dc:title"   "COR"
                                  "dc:license" "https://creativecommons.org/publicdomain/zero/1.0/"}
                                 {"dc:title"   "DDS (Det Danske Sentimentleksikon)"
-                                 "dc:license" "https://creativecommons.org/licenses/by-sa/4.0/"}]})))))
+                                 "dc:license" "https://creativecommons.org/licenses/by-sa/4.0/"}]}))))
+  (testing "dc:language replaces the presentation language only"
+    (is (= {:langCode     "en"
+            :headwordLang "da"
+            :description  "The Danish WordNet."
+            :entries      0
+            :senses       0
+            :relations    0}
+           (build/manifest
+             {:langCode "da"}
+             {"dc:language"    "en"
+              "dc:description" {"en" "The Danish WordNet."
+                                "da" "Det danske WordNet."}}))
+        "the headwords keep their own language for the collations")))
 
 (deftest license-name-test
   (is (= "CC BY-SA 4.0"

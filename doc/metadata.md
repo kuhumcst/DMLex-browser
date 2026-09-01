@@ -11,8 +11,8 @@ from the DMLex file.
 |---|---|
 | `dc:title` | The resource title. It replaces the DMLex `title`. |
 | `dc:identifier` | The resource URI. It replaces the DMLex `uri`. |
-| `dc:language` | The resource language. It replaces the DMLex `langCode`. |
-| `dc:description` | A description for the front page: a string, or a map of language codes to strings. The build reads the resource language and falls back to English. |
+| `dc:language` | The language of the presentation: the default interface language and the `lang` of the pages. It replaces the DMLex `langCode` everywhere except the collations, which keep the language of the headwords. |
+| `dc:description` | A description for the front page: a string, or a map of language codes to strings. The build picks the string for `dc:language` and falls back to English. |
 | `dc:publisher` | The publishing institution. |
 | `dc:rights` | A rights statement. |
 | `dc:license` | The license URL. The app shows a Creative Commons URL as its short name, for example CC BY-SA 4.0. |
