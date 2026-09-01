@@ -41,8 +41,8 @@
   tag's name beside the tag rather than in a second file that has to
   be kept in step.
   Those are the renames of label types, relation types and roles, the
-  title and description of a relation group, and the fields of the
-  Apple bundle."
+  title and description of a relation group, the markers of inlined
+  relation types, and the fields of the Apple bundle."
   [langs config]
   (let [name*    (partial localized langs)
         group*   #(cond-> %
@@ -50,6 +50,7 @@
                     (get % "description") (update "description" name*))
         section* #(cond-> %
                     (get % "rename") (update "rename" update-vals name*)
+                    (map? (get % "inline")) (update "inline" update-vals name*)
                     (get % "groups") (update "groups" (partial mapv group*)))]
     (cond-> config
       (get config "labelTypes")    (update "labelTypes" section*)
@@ -154,18 +155,18 @@
                 (conj {:relations unclaimed}))
         (not-empty))))
 
-(defn move-labels
-  "Move the labels whose type `types` lists from the :labels of `scope`
-  to the key `k`, in the vector's order."
-  [k types {:keys [labels] :as scope}]
+(defn move-types
+  "Move the maps whose :type `types` lists from the key `from` of
+  `scope` to the key `to`, in the vector's order."
+  [from to types scope]
   (let [rank     (rank-of types)
-        [in out] ((juxt filter remove) (comp rank :type) labels)]
+        [in out] ((juxt filter remove) (comp rank :type) (get scope from))]
     (if (empty? in)
       scope
       (cond-> (-> scope
-                  (dissoc :labels)
-                  (assoc k (vec (sort-by (comp rank :type) in))))
-        (seq out) (assoc :labels (vec out))))))
+                  (dissoc from)
+                  (assoc to (vec (sort-by (comp rank :type) in))))
+        (seq out) (assoc from (vec out))))))
 
 (defn inline-labels
   "Move the labels whose type the `inline` vector lists from the
@@ -177,7 +178,7 @@
   The ordinary label ops run first, so hide beats inline and renames
   carry over."
   [inline scope]
-  (move-labels :inline-labels inline scope))
+  (move-types :labels :inline-labels inline scope))
 
 (defn cite-labels
   "Move the labels whose type the `cite` vector lists from the :labels
@@ -189,7 +190,61 @@
   sense. The ordinary label ops run first, so hide beats cite and
   renames carry over."
   [cite scope]
-  (move-labels :cite-labels cite scope))
+  (move-types :labels :cite-labels cite scope))
+
+(defn fold-labels
+  "Move the labels whose type the `fold` vector lists from the :labels
+  of the presented `scope` — an entry or one of its senses — to
+  :folded-labels, in the vector's order.
+
+  The views render them behind a closed details disclosure after the
+  visible labels. The ordinary label ops run first, so hide beats
+  fold and renames carry over; cite and inline claim their types
+  before fold does."
+  [fold scope]
+  (move-types :labels :folded-labels fold scope))
+
+(defn fold-definitions
+  "Move the definitions whose definition type the `fold` vector lists
+  from the :definitions of the presented `scope` to
+  :folded-definitions, in the vector's order, so they render inside
+  the same details disclosure as the folded labels.
+
+  This keeps a secondary gloss off the meaning line. The neutral view
+  still shows every definition there."
+  [fold scope]
+  (move-types :definitions :folded-definitions fold scope))
+
+(defn fold-translations
+  "Move the :translations of the presented `scope` to
+  :folded-translations when `fold?` — the \"translations\" config key
+  set to \"fold\" — so they render inside the same closed details as
+  the folded labels."
+  [fold? {:keys [translations] :as scope}]
+  (if (and fold? translations)
+    (-> scope
+        (dissoc :translations)
+        (assoc :folded-translations translations))
+    scope))
+
+(defn inline-relations
+  "Move the relation rows whose type `inline` lists from the :relations
+  of the presented `scope` — an entry or one of its senses — to
+  :inline-relations, in the listed order.
+
+  The views run each row into the line that heads its scope, like
+  the synonym line of a dictionary. `inline` is a vector of types, or
+  a map of type -> marker, where the marker (e.g. \"=\") is shown
+  before the members instead of the role. The move runs before
+  grouping, so a group that lists an inlined type just ends up
+  empty."
+  [inline scope]
+  (let [types  (if (map? inline) (vec (keys inline)) inline)
+        scope' (move-types :relations :inline-relations types scope)]
+    (cond-> scope'
+      (and (map? inline) (:inline-relations scope'))
+      (update :inline-relations
+              (partial mapv #(assoc % :marker (inline (:type %))))))))
 
 (defn hide-inflections
   "Mark the inflected `forms` whose tag the `hide` set lists with
@@ -245,9 +300,10 @@
 
 (defn collate-members
   "Sort the members of every relation row of the presented `entry` — on
-  the entry, its senses and any relation groups — with the member
-  comparator `compare-members` (see dk.cst.dmlex-browser.shared for the
-  ranked and the strictly alphabetical one).
+  the entry, its senses, any relation groups and any inline rows —
+  with the member comparator `compare-members` (see
+  dk.cst.dmlex-browser.shared for the ranked and the strictly
+  alphabetical one).
 
   Without this the members keep the listing order of the dataset; the
   \"memberOrder\" config value \"collation\" and the checkbox of the
@@ -263,6 +319,7 @@
         scope*  (fn [m]
                   (cond-> m
                     (:relations m) (update :relations rows*)
+                    (:inline-relations m) (update :inline-relations rows*)
                     (:relation-groups m) (update :relation-groups groups*)))]
     (cond-> (scope* entry)
       (:senses entry) (update :senses #(mapv scope* %)))))
@@ -279,7 +336,14 @@
   sense — the entry's for the part-of-speech line, a sense's for its
   own line below the examples — and those listed as \"cite\" move to
   the :cite-labels of the entry and of each sense, for the line that
-  heads each of them. When the config declares relation \"groups\",
+  heads each of them. Label types listed as \"fold\", definition
+  types listed under \"definitionTypes\", and the :translations of a
+  sense when the \"translations\" key says \"fold\" move to
+  :folded-labels, :folded-definitions and :folded-translations, which
+  render behind one details disclosure. Relation types listed as
+  \"inline\" under \"relationTypes\" move to :inline-relations,
+  which render on the line that heads their scope.
+  When the config declares relation \"groups\",
   :relations becomes :relation-groups.
   An \"inflectionLine\" section marks the forms its \"hide\" vector
   lists as :line-hidden, which trims the run-in inflection line.
@@ -289,54 +353,64 @@
   [config entry]
   (if (empty? config)
     entry
-    (let [label-ops (get config "labelTypes")
-          inline    (get label-ops "inline")
-          cite      (get label-ops "cite")
-          rel-ops   (get config "relationTypes")
-          groups    (get rel-ops "groups")
-          role-of   (get-in config ["roles" "rename"])
-          resolver  (get config "linkResolver")
-          line-hide (not-empty (set (get-in config ["inflectionLine" "hide"])))
-          labels*   (fn [labels]
-                      (->> labels
-                           (show-labels (get label-ops "show"))
-                           (combine-labels (get label-ops "combine"))
-                           (present label-ops :type)
-                           (not-empty)))
-          rels*     (fn [rels]
-                      (some->> (not-empty (present rel-ops :type rels))
-                               (mapv (fn [row]
-                                       (if-let [d (get role-of (:role row))]
-                                         (assoc row :display-role d)
-                                         row)))))
-          section*  (fn [m]
-                      (if-not (and groups (:relations m))
-                        m
-                        (-> m
-                            (dissoc :relations)
-                            (assoc :relation-groups
-                                   (group-relations groups
-                                                    (get rel-ops "unlisted")
-                                                    (:relations m))))))
-          sense*    (fn [sense]
-                      (->> (-> (cond-> sense
-                                 (:labels sense) (update :labels labels*)
-                                 (:relations sense) (update :relations rels*))
-                               (section*))
-                           (cite-labels cite)
-                           (inline-labels inline)))
-          entry*    (fn [entry]
-                      (->> (-> (cond-> entry
-                                 (:labels entry) (update :labels labels*)
-                                 (:relations entry) (update :relations rels*)
-                                 (:senses entry) (update :senses
-                                                        #(mapv sense* %))
-                                 (and line-hide (:inflectedForms entry))
-                                 (update :inflectedForms
-                                         (partial hide-inflections line-hide)))
-                               (section*))
-                           (cite-labels cite)
-                           (inline-labels inline)))]
+    (let [label-ops  (get config "labelTypes")
+          inline     (get label-ops "inline")
+          cite       (get label-ops "cite")
+          fold       (get label-ops "fold")
+          rel-ops    (get config "relationTypes")
+          rel-inline (get rel-ops "inline")
+          groups     (get rel-ops "groups")
+          def-fold   (get-in config ["definitionTypes" "fold"])
+          trans-fold? (= "fold" (get config "translations"))
+          role-of    (get-in config ["roles" "rename"])
+          resolver   (get config "linkResolver")
+          line-hide  (not-empty (set (get-in config ["inflectionLine" "hide"])))
+          labels*    (fn [labels]
+                       (->> labels
+                            (show-labels (get label-ops "show"))
+                            (combine-labels (get label-ops "combine"))
+                            (present label-ops :type)
+                            (not-empty)))
+          rels*      (fn [rels]
+                       (some->> (not-empty (present rel-ops :type rels))
+                                (mapv (fn [row]
+                                        (if-let [d (get role-of (:role row))]
+                                          (assoc row :display-role d)
+                                          row)))))
+          section*   (fn [m]
+                       (if-not (and groups (:relations m))
+                         m
+                         (-> m
+                             (dissoc :relations)
+                             (assoc :relation-groups
+                                    (group-relations groups
+                                                     (get rel-ops "unlisted")
+                                                     (:relations m))))))
+          sense*     (fn [sense]
+                       (->> (cond-> sense
+                              (:labels sense) (update :labels labels*)
+                              (:relations sense) (update :relations rels*))
+                            (inline-relations rel-inline)
+                            (section*)
+                            (cite-labels cite)
+                            (inline-labels inline)
+                            (fold-definitions def-fold)
+                            (fold-labels fold)
+                            (fold-translations trans-fold?)))
+          entry*     (fn [entry]
+                       (->> (cond-> entry
+                              (:labels entry) (update :labels labels*)
+                              (:relations entry) (update :relations rels*)
+                              (:senses entry) (update :senses
+                                                      #(mapv sense* %))
+                              (and line-hide (:inflectedForms entry))
+                              (update :inflectedForms
+                                      (partial hide-inflections line-hide)))
+                            (inline-relations rel-inline)
+                            (section*)
+                            (cite-labels cite)
+                            (inline-labels inline)
+                            (fold-labels fold)))]
       (cond->> (entry* entry)
         resolver (resolve-links resolver)))))
 
@@ -369,7 +443,11 @@
   A config that carries a name per language resolves to the language
   the reader chose, then to the resource's own. The pre-rendered pages
   take the second, since no reader has chosen yet when the data build
-  writes them."
+  writes them.
+
+  The members collate in the language of the headwords
+  (:headwordLang), which differs from :langCode when a Dublin Core
+  dc:language presents the resource in another language."
   [{:keys [manifest presentation presentation? alpha? raw-entries lang]
     :as   state}]
   (let [config     (when presentation?
@@ -379,4 +457,6 @@
                      alpha? :alpha
                      (= "collation" (get config "memberOrder")) :collation)]
     (assoc state :entries (present-entries config order-mode
-                                           (:langCode manifest) raw-entries))))
+                                           (or (:headwordLang manifest)
+                                               (:langCode manifest))
+                                           raw-entries))))

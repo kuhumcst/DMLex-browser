@@ -3,6 +3,10 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
 #: src/dk/cst/dmlex_browser/views.cljc
+msgid "details"
+msgstr ""
+
+#: src/dk/cst/dmlex_browser/views.cljc
 msgid "Show or hide the rest."
 msgstr ""
 
@@ -120,6 +124,10 @@ msgstr ""
 
 #: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
 msgid "related"
+msgstr ""
+
+#: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj
+msgid "{n} additional"
 msgstr ""
 
 #: src/dk/cst/dmlex_browser/views.cljc src/dk/cst/dmlex_browser/appledict.clj

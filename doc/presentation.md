@@ -26,13 +26,17 @@ neutral default view. The browser remembers the choice per dataset.
     "combine":  {"sentiment": "sentimentValue"},
     "show":     {"synset": "description"},
     "inline":   ["sentiment"],
-    "cite":     ["source"]
+    "cite":     ["source"],
+    "fold":     ["synset", "corsem"]
   },
   "relationTypes": {
     "order":  ["synonym"],
-    "groups": [{"title": "Betydning", "types": ["synonym", "antonym"]},
+    "inline": {"synonym": "="},
+    "groups": [{"title": "Betydning", "types": ["antonym"]},
                {"title": "Andre relationer"}]
   },
+  "definitionTypes": {"fold": ["ili"]},
+  "translations":  "fold",
   "roles":         {"rename": {"hypernym": {"da": "overbegreb",
                                             "en": "broader"}}},
   "inflectionLine": {"hide": ["104", "114"]},
@@ -97,7 +101,7 @@ Both sections take the same four operations over their tags:
 - `rename` maps a tag to its displayed name. Only the displayed name
   changes. The tag stays the key everywhere else.
 
-Label types take four more:
+Label types take five more:
 
 - `combine` maps a host type to a qualifier type. The values of the
   qualifier show on the host label as "value (qualifier)", each
@@ -120,9 +124,23 @@ Label types take four more:
   Each shows the displayed name of its type, linked to whatever the
   label points at. A label whose tag is an identifier rather than a
   word still reads. A dataset's source reference belongs here.
+- `fold` lists the label types that fold behind a details disclosure
+  at the end of the labels box, in this order. The closed disclosure
+  says how many fields it hides; the open one continues the box with
+  the rows themselves. The other operations run first, so hide beats
+  fold, renames carry over, and `inline` and `cite` claim their
+  types before `fold` does.
 
-Relation types take one more:
+Relation types take two more:
 
+- `inline` lists the relation types whose rows read like the synonym
+  line of a dictionary: on a sense, run into the meaning line right
+  after the definitions; on an entry, on a line of their own after
+  the header. A map form gives each type a marker to show before the
+  linked members, e.g. `{"synonym": "="}`; the vector form shows the
+  role instead. The rows leave the relation sections before
+  grouping, so a group that lists an inlined type just ends up
+  empty.
 - `groups` gathers the relation rows into titled sections. Each group
   has an optional `title` and `description`, and a `types` vector
   that claims its rows, in that order. A group without `types` is the
@@ -134,6 +152,20 @@ Relation types take one more:
 
 `rename` maps a relation role to its displayed name, the same way as
 a tag rename.
+
+## `definitionTypes`
+
+`fold` lists the definition types that move out of the meaning line
+and into the folded tail of the labels box, each shown there against
+its type. DanNet, for example, folds the English definitions of the
+interlingual concepts here. A definition without a type always stays
+on the meaning line.
+
+## `translations`
+
+The value `"fold"` moves the headword translations of every sense
+behind the same details disclosure as the folded label types.
+Without it, the translations stay visible under the labels.
 
 ## `inflectionLine`
 
@@ -148,8 +180,10 @@ genitives double the length of the line and tell the reader nothing.
 With `"listing"` (the default) the members of a relation row keep the
 listing order of the dataset. `"collation"` sorts them by the
 `obverseListingOrder` of each member first, then by the headword in
-the collation of the resource language. A member without an order
-sorts after every member with one.
+the collation of the headword language: the DMLex `langCode`, also
+when a Dublin Core `dc:language` presents the resource in another
+language. A member without an order sorts after every member with
+one.
 
 The web app also has a checkbox
 that forces a strictly alphabetical order, whatever `memberOrder`

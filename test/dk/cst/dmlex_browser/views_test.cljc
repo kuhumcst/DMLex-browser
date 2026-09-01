@@ -223,6 +223,62 @@
                                                        :senses [{:id "s1"}]}))
           "aria-current=\"location\""))))
 
+(deftest inline-relations-view-test
+  (let [rendered (html (views/entry-view
+                         nil {}
+                         {:file   "x"
+                          :senses [{:id               "s1"
+                                    :definitions      [{:text "at sejle"}]
+                                    :examples         [{:text "han sejler"}]
+                                    :inline-relations [{:type    "synonym"
+                                                        :marker  "="
+                                                        :members [{:headword "abe"
+                                                                   :file     "abe"}
+                                                                  {:headword "bavian"
+                                                                   :file     "bavian"}]}]}]}))]
+    (testing "the row runs into the meaning line: the marker, then the members"
+      (is (< (str/index-of rendered "class=\"inline-relation\"")
+             (str/index-of rendered "</summary>")))
+      (is (str/includes? rendered ">=</span>"))
+      (is (str/includes? rendered "abe</a>, ")
+          "the members join with commas")))
+  (testing "without a marker the role stands in"
+    (is (str/includes?
+          (html (views/entry-view
+                  nil {}
+                  {:file   "x"
+                   :senses [{:id               "s1"
+                             :definitions      [{:text "at sejle"}]
+                             :inline-relations [{:type         "synonym"
+                                                 :display-role "synonymer"
+                                                 :members      [{:headword "abe"
+                                                                 :file     "abe"}]}]}]}))
+          ">synonymer</span>"))))
+
+(deftest folded-view-test
+  (let [rendered (html (views/entry-view
+                         nil {}
+                         {:file   "x"
+                          :senses [{:id                  "s1"
+                                    :definitions         [{:text "at sejle"}]
+                                    :folded-definitions  [{:text "to sail"
+                                                           :type "ili"}]
+                                    :folded-labels       [{:tag  "COR.123"
+                                                           :type "corsem"}]
+                                    :folded-translations [{:text "sail"
+                                                           :lang "en"}]}]}))]
+    (testing "the folded rows hide behind a closed details"
+      (is (str/includes? rendered "<details class=\"folded-labels\">"))
+      (is (str/includes? rendered "COR.123"))
+      (is (str/includes? rendered "to sail")
+          "the folded definitions sit inside the details, typed")
+      (is (str/includes? rendered "sail")
+          "the folded translations sit inside the same details"))
+    (testing "the closed summary counts the hidden fields"
+      (is (str/includes? rendered ">3 additional</span>"))
+      (is (str/includes? rendered ">details</span>")
+          "a visually hidden constant keeps the summary named"))))
+
 (deftest search-view-test
   (testing "results render once the index is loaded"
     (is (some? (views/search-view nil (views/matches index "abe") nil "abe" nil))))

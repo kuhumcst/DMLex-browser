@@ -113,6 +113,32 @@
   [{:keys [headword file sense indicator]}]
   [hiccup/a {:hiccup/entry file :hiccup/sense sense :title indicator} headword])
 
+(defn inline-relation-run
+  "One :inline-relations row run into the line that heads its scope:
+  the marker of the config (or the role), then the linked members.
+
+  The click stops at the run, since navigating a member would
+  otherwise fold the sense whose summary carries it."
+  [{:keys [type role description roleDescription note uri
+           display display-role marker members]}]
+  [:span.inline-relation {:data-type type
+                          :data-role role
+                          :on        {:click [[:event/stop]]}}
+   [:span.inline-relation-marker
+    {:title (or note roleDescription description type)}
+    (linked uri (or marker display-role role display type))]
+   " "
+   (interpose ", " (map member-link members))])
+
+(defn inline-relations-view
+  "The :inline-relations of an entry as one run per row, on a line of
+  their own after the header. A sense instead runs its rows into its
+  meaning line."
+  [rows]
+  (when (seq rows)
+    (into [:div.inline-relations]
+          (map (fn [row] [:p (inline-relation-run row)]) rows))))
+
 (defn members-dd
   "The `members` of one relation row, folded behind a details disclosure when
   the row is long."
@@ -177,6 +203,40 @@
              [:dd {:lang lang}
               (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
                                    translations))]]))))
+
+(defn folded-definitions-dl
+  "The :folded-definitions of a sense as key/value rows: each
+  definition against its type, with the description of the type as
+  the tooltip."
+  [class definitions]
+  (when (seq definitions)
+    (into [:dl {:class ["labels" class]}]
+          (map (fn [{:keys [text type typeDescription runs]}]
+                 [:div {:data-type type}
+                  [:dt (tagged type typeDescription)]
+                  [:dd (runs-view text runs)]])
+               definitions))))
+
+(defn folded-view
+  "The :folded-definitions, :folded-labels and :folded-translations of
+  an entry or sense behind a closed details disclosure that continues
+  the layout of the labels block.
+
+  The summary shows a count of the hidden fields and hides it again
+  once the details is open; a visually hidden constant keeps the
+  summary named for assistive tech in both states."
+  [class definitions labels translations]
+  (when (or (seq definitions) (seq labels) (seq translations))
+    [:details.folded-labels
+     [:summary
+      [hiccup/tr {:hiccup/tag :span.visually-hidden} "details"]
+      [hiccup/tr {:hiccup/tag :span.folded-count
+                  :hiccup/n   (shared/folded-count definitions labels
+                                                   translations)}
+       "{n} additional"]]
+     (folded-definitions-dl class definitions)
+     (labels-view class labels)
+     (translations-view translations)]))
 
 (defn example-view
   "One example as a paragraph, or as a cited quotation when it carries a
@@ -244,23 +304,25 @@
 
 (defn meaning-view
   "The meaning line of a sense in the element `tag`: the `indicator`,
-  the `definitions` and the `cites` that the config moved here.
+  the `definitions`, the `inline-relations` the config runs in after
+  them, and the `cites` that the config moved here.
 
   The first cite that points anywhere links the definitions; any other
   follows them. A sense without definitions renders no definitions
   element and keeps every cite visible, so the CSS divider after the
   indicator has something to sit on or stays away."
-  [tag indicator definitions cites]
+  [tag indicator definitions inline-relations cites]
   (let [source (when (seq definitions) (first (filter :uri cites)))]
     [tag
      (when indicator [:span.indicator indicator])
      (when (seq definitions) (definitions-view definitions source))
+     (map (fn [row] (list " " (inline-relation-run row))) inline-relations)
      (map cite-view (remove #(= % source) cites))]))
 
 (defn sense-view
   "The sense at index `i` as a numbered list item: the meaning line, the
-  examples, the inline-label line, the labels, the translations and the
-  relations.
+  inline relations, the examples, the inline-label line, the labels,
+  the translations, the folded details and the relations.
 
   A sense that carries more than its meaning line folds. The meaning
   becomes the summary of a details that opens by default, so a reader
@@ -277,12 +339,16 @@
   [ui
    {:keys [spy current reveal folded]}
    i
-   {:keys [id indicator labels inline-labels definitions translations
-           examples relations relation-groups cite-labels]}]
+   {:keys [id indicator labels inline-labels folded-labels definitions
+           folded-definitions translations folded-translations examples
+           relations relation-groups inline-relations cite-labels]}]
   (let [body (seq (remove nil? [(seq (map example-view examples))
                                 (sense-line-view inline-labels)
                                 (labels-view "sense-labels" labels)
                                 (translations-view translations)
+                                (folded-view "sense-labels" folded-definitions
+                                             folded-labels
+                                             folded-translations)
                                 (relations-view [:div.related] relations
                                                 relation-groups)]))]
     [:li.sense (cond-> {:replicant/key (or id i)}
@@ -294,13 +360,15 @@
      (if body
        [:details.sense-body {:open (not (contains? folded id))
                              :on   {:toggle [[:app/fold id]]}}
-        (conj (meaning-view :summary.meaning indicator definitions cite-labels)
+        (conj (meaning-view :summary.meaning indicator definitions
+                            inline-relations cite-labels)
               [:span.fold-mark
                {:lang        (shared/en ui "Show or hide the rest.")
                 :title       (shared/tr ui "Show or hide the rest.")
                 :aria-hidden "true"}])
         body]
-       (meaning-view :p.meaning indicator definitions cite-labels))]))
+       (meaning-view :p.meaning indicator definitions
+                     inline-relations cite-labels))]))
 
 (defn inflections-view
   "The inflected `forms` of `headword` as one run-in definition list,
@@ -360,7 +428,8 @@
   the hook of a pending `:reveal` that names no sense."
   [ui {:keys [reveal] :as nav}
    {:keys [file headword homographNumber partsOfSpeech labels inline-labels
-           inflectedForms senses relations relation-groups cite-labels]}]
+           folded-labels inflectedForms senses relations relation-groups
+           inline-relations cite-labels]}]
   [:article.entry {:id file :replicant/key file}
    [:header
     [:h1.headword (cond-> {:tabindex -1}
@@ -380,10 +449,12 @@
        (map cite-view cite-labels)])
     (inflections-view headword inflectedForms)
     (paradigm-view inflectedForms)]
-   (when (seq labels)
+   (inline-relations-view inline-relations)
+   (when (or (seq labels) (seq folded-labels))
      [:section.titled
       [hiccup/tr {:hiccup/tag :h2.relation-group} "about the word"]
-      (labels-view "entry-labels" labels)])
+      (labels-view "entry-labels" labels)
+      (folded-view "entry-labels" nil folded-labels nil)])
    (into [:ol.senses {:class (when (= 1 (count senses)) "single")}]
          (map-indexed (partial sense-view ui nav) senses))
    (relations-view [:nav.related {:aria-label (shared/tr ui "related")}]
@@ -483,9 +554,11 @@
 
 (defn related?
   "Does the presented `entry` or one of its senses carry relation rows?"
-  [{:keys [relations relation-groups senses]}]
-  (boolean (or relations relation-groups
-               (some #(or (:relations %) (:relation-groups %)) senses))))
+  [{:keys [relations relation-groups inline-relations senses]}]
+  (boolean (or relations relation-groups inline-relations
+               (some #(or (:relations %) (:relation-groups %)
+                          (:inline-relations %))
+                     senses))))
 
 (defn language-select
   "The dropdown switching the UI language `lang` between the offered

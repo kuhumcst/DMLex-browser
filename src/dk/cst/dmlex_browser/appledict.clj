@@ -193,6 +193,28 @@
        :title indicator}
    headword])
 
+(defn inline-relation-run
+  "One :inline-relations row run into the line that heads its scope:
+  the marker of the config (or the role), then the linked members."
+  [{:keys [type role description roleDescription note uri display
+           display-role marker members]}]
+  [:span {:class "inline-relation" :data-type type :data-role role}
+   [:span {:class "inline-relation-marker"
+           :title (or note roleDescription description type)}
+    (linked uri (or marker display-role role display type))]
+   " "
+   (interpose ", " (map member-link members))])
+
+(defn inline-relations-view
+  "The :inline-relations of an entry as one run per row, on a line of
+  their own after the header. A sense instead runs its rows into its
+  meaning line."
+  [rows]
+  (when (seq rows)
+    [:div {:class "inline-relations" :d/priority "2"}
+     (for [row rows]
+       [:p (inline-relation-run row)])]))
+
 (defn members-dd
   "The `members` of one relation row, with `ui` translating the chrome.
 
@@ -261,6 +283,29 @@
          (str/join ", " (keep #(when (= lang (:lang %)) (:text %))
                               translations))]])]))
 
+(defn folded-view
+  "The :folded-definitions, :folded-labels and :folded-translations of
+  an entry or sense behind a closed details disclosure after the
+  visible labels.
+
+  The count text lives in CSS content so that Dictionary.app cannot
+  look it up on click; opening the details clears it the same way."
+  [ui class definitions labels translations]
+  (when (or (seq definitions) (seq labels) (seq translations))
+    [:details {:class "folded-labels" :d/priority "2"}
+     [:summary {:lang       (shared/en ui "{n} additional")
+                :class      "folded"
+                :data-count (shared/folded-count definitions labels
+                                                 translations)} ""]
+     (when (seq definitions)
+       [:dl {:class (str "labels " class)}
+        (for [{:keys [text type typeDescription runs]} definitions]
+          [:div {:data-type type}
+           [:dt (tagged type typeDescription)]
+           [:dd (runs-view text runs)]])])
+     (labels-view ui class labels)
+     (translations-view translations)]))
+
 (defn example-view
   "One example as a paragraph, or as a cited quotation when it carries a
   source.
@@ -311,25 +356,30 @@
       text)))
 
 (defn sense-view
-  "One sense as a list item: the indicator, the definitions, the
-  examples, the inline-label line, the labels, the translations and the
-  relations.
+  "One sense as a list item: the indicator, the definitions, the inline
+  relations, the examples, the inline-label line, the labels, the
+  translations, the folded details and the relations.
 
   The sense id becomes the anchor that sense-targeted member links
   scroll to."
-  [ui {:keys [id indicator definitions translations examples labels
-              inline-labels relations relation-groups cite-labels]}]
+  [ui {:keys [id indicator definitions folded-definitions translations
+              folded-translations examples labels inline-labels
+              folded-labels relations relation-groups inline-relations
+              cite-labels]}]
   [:li (cond-> {:class "sense"}
          id (assoc :id id))
    (let [source (when (seq definitions) (first (filter :uri cite-labels)))]
      [:p {:class "meaning"}
       (when indicator [:span {:class "indicator"} indicator])
       (when (seq definitions) (definitions-view definitions source))
+      (map (fn [row] (list " " (inline-relation-run row))) inline-relations)
       (map cite-view (remove #(= % source) cite-labels))])
    (map example-view examples)
    (sense-line-view inline-labels)
    (labels-view ui "sense-labels" labels)
    (translations-view translations)
+   (folded-view ui "sense-labels" folded-definitions folded-labels
+                folded-translations)
    (relations-view ui relations relation-groups)])
 
 (defn inflections-view
@@ -430,8 +480,9 @@
   does not list the attribute, but the build only checks that the
   source is well-formed."
   [ui {:keys [file headword homographNumber partsOfSpeech labels inline-labels
-              cite-labels
-              inflectedForms senses relations relation-groups]}]
+              folded-labels cite-labels
+              inflectedForms senses relations relation-groups
+              inline-relations]}]
   [:d/entry {:id file :class "entry" :d/title headword}
    (->index headword inflectedForms)
    (sense-index file senses)
@@ -449,12 +500,14 @@
       (map cite-view cite-labels)])
    (inflections-view ui headword inflectedForms)
    (paradigm-view ui inflectedForms)
-   (when (seq labels)
+   (inline-relations-view inline-relations)
+   (when (or (seq labels) (seq folded-labels))
      [:div {:class "labels-section titled" :d/priority "2"}
       [:h2 {:class      "relation-group"
             :lang       (shared/en ui "about the word")
             :data-label (shared/tr ui "about the word")} ""]
-      (labels-view ui "entry-labels" labels)])
+      (labels-view ui "entry-labels" labels)
+      (folded-view ui "entry-labels" nil folded-labels nil)])
    [:ol {:class (str "senses" (when (= 1 (count senses)) " single"))}
     (map (partial sense-view ui) senses)]
    (relations-view ui relations relation-groups)])
@@ -657,18 +710,24 @@
   The count template must open with {n}, which maps onto the
   data-count attribute."
   [ui]
-  (let [entries (get ui "{n} entries")
-        rules   (remove nil?
-                        [(when-let [s (get ui "all forms")]
-                           (str "summary.all-forms::after { content: \""
-                                s "\"; }"))
-                         (when-let [s (get ui "contents")]
-                           (str "summary.contents::after { content: \""
-                                s "\"; }"))
-                         (when (and entries (str/starts-with? entries "{n}"))
-                           (str ".relations summary::after"
-                                " { content: attr(data-count) \""
-                                (subs entries (count "{n}")) "\"; }"))])]
+  (let [entries    (get ui "{n} entries")
+        additional (get ui "{n} additional")
+        rules      (remove nil?
+                           [(when-let [s (get ui "all forms")]
+                              (str "summary.all-forms::after { content: \""
+                                   s "\"; }"))
+                            (when-let [s (get ui "contents")]
+                              (str "summary.contents::after { content: \""
+                                   s "\"; }"))
+                            (when (and entries (str/starts-with? entries "{n}"))
+                              (str ".relations summary::after"
+                                   " { content: attr(data-count) \""
+                                   (subs entries (count "{n}")) "\"; }"))
+                            (when (and additional
+                                       (str/starts-with? additional "{n}"))
+                              (str "summary.folded::after"
+                                   " { content: attr(data-count) \""
+                                   (subs additional (count "{n}")) "\"; }"))])]
     (when (seq rules)
       (str/join "\n" rules))))
 
@@ -705,12 +764,16 @@
   (println "Reading" in)
   (let [{:keys [dmlex-file content-of]} (build/->input in)
         resource (build/read-resource content-of dmlex-file)
-        config   (presentation/localize [(:langCode resource)]
+        metadata (build/read-companion content-of "metadata.json")
+        ;; dc:language replaces the DMLex langCode for presentation
+        ;; only; the langCode is the language of the headwords and
+        ;; still decides the member collation (see build/manifest).
+        lang     (or (get metadata "dc:language") (:langCode resource) "en")
+        config   (presentation/localize [lang]
                                         (build/read-config content-of))
-        ui       (merge (get (translations/tables) (:langCode resource))
+        ui       (merge (get (translations/tables) lang)
                         (get config "ui"))
         config   (cond-> config (seq ui) (assoc "ui" ui))
-        metadata (build/read-companion content-of "metadata.json")
         info     (cond-> (bundle-info resource metadata)
                    (get-in config ["appledict" "identifier"])
                    (assoc :identifier (get-in config ["appledict" "identifier"])))

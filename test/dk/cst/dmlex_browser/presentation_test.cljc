@@ -249,20 +249,93 @@
 
 (deftest collate-members-test
   (testing "every relation row of the entry, its senses and its groups sorts"
-    (is (= {:relations       [{:members [{:headword "a" :order 1}
-                                         {:headword "b"}]}]
-            :senses          [{:relations [{:members [{:headword "b"}
-                                                      {:headword "c"}]}]}]
-            :relation-groups [{:relations [{:members [{:headword "y"}
-                                                      {:headword "z"}]}]}]}
+    (is (= {:relations        [{:members [{:headword "a" :order 1}
+                                          {:headword "b"}]}]
+            :inline-relations [{:members [{:headword "p"}
+                                          {:headword "q"}]}]
+            :senses           [{:relations [{:members [{:headword "b"}
+                                                       {:headword "c"}]}]}]
+            :relation-groups  [{:relations [{:members [{:headword "y"}
+                                                       {:headword "z"}]}]}]}
            (presentation/collate-members
              (shared/member-order compare)
-             {:relations       [{:members [{:headword "b"}
-                                           {:headword "a" :order 1}]}]
-              :senses          [{:relations [{:members [{:headword "c"}
-                                                        {:headword "b"}]}]}]
-              :relation-groups [{:relations [{:members [{:headword "z"}
-                                                        {:headword "y"}]}]}]})))))
+             {:relations        [{:members [{:headword "b"}
+                                            {:headword "a" :order 1}]}]
+              :inline-relations [{:members [{:headword "q"}
+                                            {:headword "p"}]}]
+              :senses           [{:relations [{:members [{:headword "c"}
+                                                         {:headword "b"}]}]}]
+              :relation-groups  [{:relations [{:members [{:headword "z"}
+                                                         {:headword "y"}]}]}]})))))
+
+(deftest fold-labels-test
+  (let [e (presentation/present-entry
+            {"labelTypes"      {"fold" ["synset" "corsem"]}
+             "definitionTypes" {"fold" ["ili"]}
+             "translations"    "fold"}
+            {:labels [{:tag "s1" :type "synset"}
+                      {:tag "d1" :type "domain"}]
+             :senses [{:labels       [{:tag "c1" :type "corsem"}
+                                      {:tag "s2" :type "synset"}]
+                       :definitions  [{:text "at sejle"}
+                                      {:text "to sail" :type "ili"}]
+                       :translations [{:text "love" :lang "en"}]}]})]
+    (testing "listed types move behind the fold, in the fold's order"
+      (is (= [{:tag "d1" :type "domain"}] (:labels e)))
+      (is (= [{:tag "s1" :type "synset"}] (:folded-labels e)))
+      (is (= ["s2" "c1"] (map :tag (get-in e [:senses 0 :folded-labels])))))
+    (testing "listed definition types fold; the untyped definition stays"
+      (is (= [{:text "at sejle"}] (get-in e [:senses 0 :definitions])))
+      (is (= [{:text "to sail" :type "ili"}]
+             (get-in e [:senses 0 :folded-definitions]))))
+    (testing "a sense's translations fold with the labels"
+      (is (nil? (get-in e [:senses 0 :translations])))
+      (is (= [{:text "love" :lang "en"}]
+             (get-in e [:senses 0 :folded-translations]))))))
+
+(deftest inline-relations-test
+  (let [e     (presentation/present-entry
+                {"relationTypes" {"inline" ["synonym"]
+                                  "groups" [{"types" ["synonym"]}
+                                            {"title" "rest"}]}}
+                {:senses [{:relations [{:type    "synonym"
+                                        :members [{:headword "a"}]}
+                                       {:type    "hypernym"
+                                        :members [{:headword "b"}]}]}]})
+        sense (get-in e [:senses 0])]
+    (testing "listed rows move out before grouping"
+      (is (= [{:type "synonym" :members [{:headword "a"}]}]
+             (:inline-relations sense)))
+      (is (= [{:title     "rest"
+               :relations [{:type "hypernym" :members [{:headword "b"}]}]}]
+             (:relation-groups sense))
+          "the group claiming the inlined type empties and disappears")))
+  (testing "the map form gives each inlined row its marker"
+    (is (= [{:type "synonym" :marker "=" :members [{:headword "a"}]}]
+           (-> (presentation/present-entry
+                 {"relationTypes" {"inline" {"synonym" "="}}}
+                 {:senses [{:relations [{:type    "synonym"
+                                         :members [{:headword "a"}]}]}]})
+               (get-in [:senses 0 :inline-relations]))))))
+
+(deftest present-state-test
+  (let [state   (fn [manifest]
+                  {:manifest      manifest
+                   :presentation  {"memberOrder" "collation"}
+                   :presentation? true
+                   :raw-entries   [{:relations [{:members [{:headword "æble"}
+                                                           {:headword "zebra"}]}]}]})
+        members (fn [state]
+                  (->> (presentation/present-state state)
+                       :entries first :relations first :members
+                       (mapv :headword)))]
+    (testing "members collate in the language of the headwords"
+      (is (= ["zebra" "æble"]
+             (members (state {:langCode "en" :headwordLang "da"})))
+          "æ follows z in Danish rather than reading as ae"))
+    (testing "without :headwordLang the presentation language stands in"
+      (is (= ["æble" "zebra"]
+             (members (state {:langCode "en"})))))))
 
 (deftest resolve-links-test
   (testing "sameAs-derived URIs route through the resolver, encoded"

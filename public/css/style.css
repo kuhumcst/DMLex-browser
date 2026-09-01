@@ -81,7 +81,8 @@ summary {
 }
 
 /* The small-caps metadata voice: keys, citations and stat names. */
-.labels dt, .relations dt, .stats dt, .example cite, .cite-label {
+.labels dt, .relations dt, .stats dt, .example cite, .cite-label,
+.inline-relation-marker {
   font-family: var(--serif);
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
@@ -97,13 +98,14 @@ summary {
    source: the underline waits for the pointer. Relation members keep
    theirs; they are the page's navigation. */
 .pos-list a, .labels dt a, .labels dd a, .relations dt a,
-.example cite a, .cite-label a, .inline-label a {
+.example cite a, .cite-label a, .inline-label a,
+.inline-relation-marker a {
   text-decoration: none;
 }
 
 .pos-list a:hover, .labels dt a:hover, .labels dd a:hover,
 .relations dt a:hover, .example cite a:hover, .cite-label a:hover,
-.inline-label a:hover {
+.inline-label a:hover, .inline-relation-marker a:hover {
   text-decoration: underline;
 }
 
@@ -277,9 +279,38 @@ p.pos { margin: 0 0 0.4rem; }
 .sense-labels, .translations { margin-top: 0.95rem; }
 .labels + .translations { margin-top: 0; }
 
+/* Inline relations: the rows the config runs into the meaning line,
+   like the synonym line of a dictionary. The marker keeps the
+   small-caps voice but in ink, so it stands out from the prose; the
+   members are ordinary links. An entry has no meaning line, so its
+   runs get a line of their own. */
+.inline-relation { margin-left: 0.15em; }
+.inline-relation-marker {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--ink);
+  margin-right: 0.15em;
+}
+.inline-relations p { margin: 0.35rem 0 0; }
+
+/* The folded tail of a labels block: a details that continues the
+   key/value layout, so the rule also runs along the summary row and
+   the rows it reveals. The closed summary shows a count of the
+   hidden fields; the open one shows only the marker. */
+.folded-labels { margin-top: 0.95rem; }
+.labels + .folded-labels { margin-top: 0; }
+.folded-labels .labels { margin-top: 0; }
+.folded-labels summary {
+  margin-left: calc(var(--key-col) + 0.85rem);
+  padding: 0.2rem 0 0.2rem 0.85rem;
+  border-left: 1px solid var(--rule);
+}
+.folded-labels[open] .folded-count { display: none; }
+
 @media (max-width: 40rem) {
   .labels div,
   .relations div { margin-left: 0; border-left: none; padding-left: 0; }
+  .folded-labels summary { margin-left: 0; border-left: none; padding-left: 0; }
   .labels dt,
   .relations dt {
     position: static;
@@ -687,7 +718,7 @@ summary.meaning:hover .fold-mark::before { border-top-color: var(--accent); }
 /* The divider's own margin spaces a cite that opens the line. */
 .indicator + .cite-label { margin-left: 0; }
 
-.example { color: var(--dark); font-style: italic; margin: 0.5rem 0 0; }
+.example { color: var(--dark); font-style: italic; margin: 0.75rem 0; }
 .example blockquote, .example p { display: inline; }
 .example figcaption { display: inline; margin-left: 0.45rem; }
 .example cite { font-style: normal; font-size: 0.85rem; }

@@ -95,6 +95,15 @@
   [{:keys [description tag]}]
   (or description tag))
 
+(defn folded-count
+  "How many fields a closed fold hides: the types of the folded
+  `definitions`, the type groups of the folded `labels` and the
+  languages of the folded `translations`."
+  [definitions labels translations]
+  (+ (count (distinct (keep :type definitions)))
+     (count (partition-by :type labels))
+     (count (distinct (map :lang translations)))))
+
 (defn inflection-line
   "The inflected `forms` of `headword` that the run-in inflection line
   shows: one representative per paradigm slot, or nil when none remain.

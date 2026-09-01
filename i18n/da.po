@@ -14,6 +14,12 @@ msgstr "indstillinger"
 msgid "contents"
 msgstr "indhold"
 
+msgid "details"
+msgstr "detaljer"
+
+msgid "{n} additional"
+msgstr "{n} yderligere"
+
 msgid "Show or hide the rest."
 msgstr "Vis eller skjul resten."
 

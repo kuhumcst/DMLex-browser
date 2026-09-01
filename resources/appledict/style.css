@@ -58,12 +58,15 @@ summary {
    click. */
 summary.all-forms::after { content: "all forms"; }
 summary.contents::after { content: "contents"; }
+summary.folded::after { content: attr(data-count) " additional"; }
+.folded-labels[open] summary.folded::after { content: ""; }
 .relations summary::after { content: attr(data-count) " entries"; }
 .relation-group::after { content: attr(data-label); }
 .paradigm th::after { content: attr(data-label); }
 
 /* The small-caps metadata voice: keys and citations. */
-.labels dt, .relations dt, .example cite, .cite-label {
+.labels dt, .relations dt, .example cite, .cite-label,
+.inline-relation-marker {
   font-family: var(--serif);
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
@@ -80,7 +83,8 @@ summary.contents::after { content: "contents"; }
    source: the underline waits for the pointer. Relation members keep
    theirs; they are the page's navigation. */
 .pos-list a, .labels dt a, .labels dd a, .relations dt a,
-.example cite a, .cite-label a, .inline-label a {
+.example cite a, .cite-label a, .inline-label a,
+.inline-relation-marker a {
   text-decoration: none;
 }
 
@@ -246,6 +250,24 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 .labels dd, .relations dd { display: inline; }
 .labels dd + dd::before { content: ", "; }
 
+/* Inline relations: the rows the config runs into the meaning line,
+   like the synonym line of a dictionary. An entry has no meaning
+   line, so its runs get a line of their own. */
+.inline-relation { margin-left: 0.15em; }
+.inline-relation-marker {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--ink);
+  margin-right: 0.15em;
+}
+.inline-relations p { margin: 0.3rem 0 0; }
+
+/* The folded tail of a labels block. The closed summary shows a
+   count of the hidden fields; the open one shows only the marker. */
+.folded-labels { margin-top: 0.5rem; }
+.labels + .folded-labels { margin-top: 0.1rem; }
+.folded-labels .labels { margin-top: 0.15rem; }
+
 /* The sense line: the label values the config reads without their
    field names, dot-separated like the pos line but with more air.
    Uniformly grey, links included: the sans face sets it off from the
@@ -309,7 +331,7 @@ sup.hom { font-size: 45%; font-weight: 400; color: var(--grey); }
 /* The divider's own margin spaces a cite that opens the line. */
 .indicator + .cite-label { margin-left: 0; }
 
-.example { color: var(--dark); font-style: italic; margin: 0.35rem 0 0; }
+.example { color: var(--dark); font-style: italic; margin: 0.55rem 0; }
 .example blockquote, .example p { display: inline; }
 .example figcaption { display: inline; margin-left: 0.45rem; }
 .example cite { font-style: normal; font-size: 0.75rem; }
